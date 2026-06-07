@@ -12,10 +12,9 @@ from django.core.wsgi import get_wsgi_application
 from dotenv import load_dotenv
 
 
-
 load_dotenv()
 
 env = os.getenv("DJANGO_ENV", "dev")
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', f'config.settings.{env}')
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", f"config.settings.{env}")
 
 application = get_wsgi_application()
