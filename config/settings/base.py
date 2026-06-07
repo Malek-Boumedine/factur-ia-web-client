@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django_tailwind_cli',
+    'core',
 ]
 
 MIDDLEWARE = [
@@ -121,3 +122,15 @@ STATIC_URL = 'static/'
 
 TAILWIND_CLI_PATH = BASE_DIR / "static" / "css" / "tailwind"
 STATICFILES_DIRS = [BASE_DIR / 'static']
+
+
+# ==============================================================================
+# CONFIGURATION CELERY & REDIS
+# ==============================================================================
+CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL")
+CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND")
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Europe/Paris' # Pour aligner les tâches planifiées sur ton fuseau horaire
+
