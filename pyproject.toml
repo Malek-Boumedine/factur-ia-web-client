@@ -27,3 +27,8 @@ dev = [
     "python-semantic-release>=10.5.3",
     "ruff>=0.15.16",
 ]
+
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+allow_zero_version = true
+major_on_zero = false
