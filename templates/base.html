@@ -7,10 +7,45 @@
     <title>Factur-IA</title>
     {% tailwind_css %}
 </head>
-<body class="bg-gray-100 text-gray-900 font-sans p-8">
+<body class="bg-gray-100 text-gray-900 font-sans">
+
+    <nav class="bg-white shadow mb-8">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <a href="{% url 'home' %}" class="text-2xl font-bold text-emerald-600">Factur-IA</a>
+                <div>
+                    {% if request.session.is_authenticated %}
+                        <span class="text-gray-700 mr-4">{{ request.session.user_email }}</span>
+                        <a href="{% url 'logout' %}" class="text-red-600 hover:text-red-800 font-semibold">Se déconnecter</a>
+                    {% else %}
+                        <a href="{% url 'login' %}" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded">Connexion</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+
     <main class="max-w-4xl mx-auto bg-white p-6 rounded-lg shadow-lg">
-        <h1 class="text-3xl font-bold text-emerald-600 mb-4">Configuration Tailwind CLI réussie !</h1>
-        <p class="text-gray-700">Pas de npm, pas de node_modules, juste du pur Python et Django.</p>
+        {% block content %}
+            <h1 class="text-3xl font-bold text-gray-800 mb-4">Bienvenue sur Factur-IA</h1>
+
+            {% if request.session.is_authenticated %}
+                <div class="mt-6 p-4 bg-emerald-50 border border-emerald-200 rounded-md">
+                    <h3 class="text-lg font-semibold text-emerald-800 mb-2">Authentification réussie 🎉</h3>
+                    <p class="text-sm text-gray-700 mb-2">Connecté en tant que : <strong>{{ request.session.user_email }}</strong></p>
+
+                    <div class="mt-4">
+                        <p class="text-sm font-bold text-gray-700 mb-1">Token JWT (Stocké côté serveur) :</p>
+                        <div class="bg-gray-800 text-green-400 p-3 rounded text-xs font-mono break-all">
+                            {{ request.session.jwt_token }}
+                        </div>
+                    </div>
+                </div>
+            {% else %}
+                <p class="text-gray-700">Le socle technique est opérationnel. Veuillez vous connecter.</p>
+            {% endif %}
+        {% endblock content %}
     </main>
+
 </body>
 </html>
