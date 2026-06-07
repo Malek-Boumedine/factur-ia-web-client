@@ -134,3 +134,20 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'Europe/Paris' # Pour aligner les tâches planifiées sur ton fuseau horaire
 
+
+# ==============================================================================
+# CONFIGURATION CACHE & SESSIONS (REDIS)
+# ==============================================================================
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": os.getenv("CELERY_BROKER_URL", "redis://127.0.0.1:6379/0"),
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }
+    }
+}
+
+# On demande à Django d'utiliser le cache Redis pour stocker les sessions
+SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+SESSION_CACHE_ALIAS = "default"
