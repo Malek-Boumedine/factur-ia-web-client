@@ -225,3 +225,7 @@ __marimo__/
 # ajouts manuels
 todo*
 local_ci.sh
+
+# Tailwind CLI
+.django_tailwind_cli/
+static/css/tailwind/

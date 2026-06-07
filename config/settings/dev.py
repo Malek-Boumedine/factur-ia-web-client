@@ -1,3 +1,4 @@
+# ruff: noqa: F403, F405
 from .base import *
 import os
 
@@ -6,8 +7,8 @@ ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
 # Configuration spécifique au dev (ex: base SQLite locale pour les sessions)
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+    "default": {
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": BASE_DIR / "db.sqlite3",
     }
 }
