@@ -1,5 +1,5 @@
 import os
-from celery import Celery
+from celery import Celery  # type: ignore
 from dotenv import load_dotenv
 
 
