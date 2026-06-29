@@ -82,3 +82,8 @@ class BaseAPIClient:
         url = f"{self.base_url}{endpoint}"
         response = httpx.delete(url, headers=self.headers)
         return self._handle_response(response)
+
+    def patch(self, endpoint, data=None):
+        url = f"{self.base_url}{endpoint}"
+        response = httpx.patch(url, headers=self.headers, json=data)
+        return self._handle_response(response)
