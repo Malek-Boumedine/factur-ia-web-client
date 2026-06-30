@@ -1,7 +1,8 @@
-from django.shortcuts import render, redirect
-from django.contrib import messages
-from django.conf import settings
 import httpx
+from django.conf import settings
+from django.contrib import messages
+from django.shortcuts import redirect, render
+
 from clients.api_client import APIAuthClient
 
 
@@ -15,37 +16,48 @@ def login_view(request):
 
         # 1. Si le login réussit et qu'on a un token
         if "access_token" in result:
-            request.session["is_authenticated"] = True
-            request.session["jwt_token"] = result["access_token"]
-            request.session["user_email"] = email
-            request.session["entreprise_id"] = result.get("entreprise_id")
+            token = result["access_token"]
+            auth_headers = {"Authorization": f"Bearer {token}"}
 
-            # 2. Appel immédiat à /me pour récupérer le profil d'entreprise
+            # 2. Résolution de l'entreprise active (le tenant).
+            #    L'auth /auth/token est GLOBALE : elle ne porte pas d'entreprise.
+            #    On découvre les entreprises de l'utilisateur via /abonnements/me.
+            #    Sans entreprise_id, toutes les routes métier (header
+            #    x-entreprise-id requis) échoueraient.
             try:
-                headers = {"Authorization": f"Bearer {result['access_token']}"}
-
-                profil_response = httpx.get(
-                    f"{settings.API_DATA_URL}/utilisateurs/me", headers=headers
+                abonnements_resp = httpx.get(
+                    f"{settings.API_DATA_URL}/abonnements/me",
+                    headers=auth_headers,
                 )
-                profil_response.raise_for_status()
-                _profil_data = profil_response.json()
-
-                # Redirection vers l'accueil une fois le token et l'ID d'entreprise stockés
-                return redirect("home")
-
+                abonnements_resp.raise_for_status()
+                abonnements = abonnements_resp.json()
             except Exception:
-                # En cas d'échec de récupération du profil, on nettoie tout par sécurité
-                request.session.flush()
                 messages.error(
-                    request, "Impossible de charger votre profil d'entreprise."
+                    request, "Impossible de récupérer votre espace de travail."
                 )
                 return render(request, "core/login.html")
 
+            if not abonnements:
+                messages.error(
+                    request,
+                    "Aucun espace de travail n'est rattaché à votre compte.",
+                )
+                return render(request, "core/login.html")
+
+            # MVP : on sélectionne la première entreprise rattachée.
+            entreprise_id = abonnements[0].get("id_entreprise")
+
+            request.session["is_authenticated"] = True
+            request.session["jwt_token"] = token
+            request.session["user_email"] = email
+            request.session["entreprise_id"] = entreprise_id
+
+            return redirect("home")
+
         # 3. Si le login a échoué (mauvais mot de passe, etc.)
-        else:
-            messages.error(
-                request, result.get("error", "Erreur d'identifiants ou de connexion.")
-            )
+        messages.error(
+            request, result.get("error", "Erreur d'identifiants ou de connexion.")
+        )
 
     # Affichage de la page de login (GET)
     return render(request, "core/login.html")
