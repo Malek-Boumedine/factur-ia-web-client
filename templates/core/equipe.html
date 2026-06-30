@@ -90,27 +90,36 @@
 
                     <form method="POST" action="{% url 'equipe' %}" class="space-y-4">
                         {% csrf_token %}
-                        <input type="hidden" name="action" value="add">
+                        <input type="hidden" name="action" value="{{ form_action|default:'add' }}">
+                        <input type="hidden" name="user_id" id="form-user-id" value="{{ edit_user_id }}">
+
+                        {% if form.non_field_errors %}
+                            <div class="p-3 rounded-md bg-red-100 text-red-700 text-sm">{{ form.non_field_errors.0 }}</div>
+                        {% endif %}
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label for="nom" class="block text-sm font-medium text-gray-700 mb-1">Nom</label>
-                                <input type="text" id="nom" name="nom" required class="w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 py-2 px-3 border">
+                                <input type="text" id="nom" name="nom" required value="{{ form.nom.value|default:'' }}" class="w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 py-2 px-3 border">
+                                {% if form.nom.errors %}<p class="mt-1 text-xs text-red-600">{{ form.nom.errors.0 }}</p>{% endif %}
                             </div>
                             <div>
                                 <label for="prenom" class="block text-sm font-medium text-gray-700 mb-1">Prénom</label>
-                                <input type="text" id="prenom" name="prenom" required class="w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 py-2 px-3 border">
+                                <input type="text" id="prenom" name="prenom" required value="{{ form.prenom.value|default:'' }}" class="w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 py-2 px-3 border">
+                                {% if form.prenom.errors %}<p class="mt-1 text-xs text-red-600">{{ form.prenom.errors.0 }}</p>{% endif %}
                             </div>
                         </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Adresse email</label>
-                                <input type="email" id="email" name="email" required class="w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 py-2 px-3 border">
+                                <input type="email" id="email" name="email" required value="{{ form.email.value|default:'' }}" class="w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 py-2 px-3 border">
+                                {% if form.email.errors %}<p class="mt-1 text-xs text-red-600">{{ form.email.errors.0 }}</p>{% endif %}
                             </div>
                             <div>
                                 <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Mot de passe temporaire</label>
                                 <input type="password" id="password" name="password" required class="w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 py-2 px-3 border">
+                                {% if form.password.errors %}<p class="mt-1 text-xs text-red-600">{{ form.password.errors.0 }}</p>{% endif %}
                             </div>
                         </div>
 
@@ -118,16 +127,46 @@
                             <div class="md:col-span-2">
                                 <label for="id_role" class="block text-sm font-medium text-gray-700 mb-1">Rôle métier attribué</label>
                                 <select id="id_role" name="id_role" required class="w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 py-2 px-3 border bg-white">
-                                    <option value="" disabled selected>-- Sélectionnez un rôle --</option>
+                                    <option value="" disabled {% if not form.id_role.value %}selected{% endif %}>-- Sélectionnez un rôle --</option>
                                     {% for role in roles %}
-                                        <option value="{{ role.id }}">{{ role.libelle }}</option>
+                                        <option value="{{ role.id }}" {% if form.id_role.value|stringformat:'s' == role.id|stringformat:'s' %}selected{% endif %}>{{ role.libelle }}</option>
                                     {% endfor %}
                                 </select>
+                                {% if form.id_role.errors %}<p class="mt-1 text-xs text-red-600">{{ form.id_role.errors.0 }}</p>{% endif %}
                             </div>
                         </div>
 
+                        <fieldset class="mt-4 border-t border-gray-200 pt-4">
+                            <legend class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Coordonnées (optionnel)</legend>
+                            <div class="space-y-4">
+                                <div>
+                                    <label for="adresse" class="block text-sm font-medium text-gray-700 mb-1">Adresse <span class="text-gray-400 font-normal">(optionnel)</span></label>
+                                    <input type="text" id="adresse" name="adresse" value="{{ form.adresse.value|default:'' }}" class="w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 py-2 px-3 border">
+                                </div>
+                                <div>
+                                    <label for="adresse_complement" class="block text-sm font-medium text-gray-700 mb-1">Complément d'adresse <span class="text-gray-400 font-normal">(optionnel)</span></label>
+                                    <input type="text" id="adresse_complement" name="adresse_complement" value="{{ form.adresse_complement.value|default:'' }}" class="w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 py-2 px-3 border">
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <label for="code_postal" class="block text-sm font-medium text-gray-700 mb-1">Code postal <span class="text-gray-400 font-normal">(optionnel)</span></label>
+                                        <input type="text" id="code_postal" name="code_postal" value="{{ form.code_postal.value|default:'' }}" class="w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 py-2 px-3 border">
+                                        {% if form.code_postal.errors %}<p class="mt-1 text-xs text-red-600">{{ form.code_postal.errors.0 }}</p>{% endif %}
+                                    </div>
+                                    <div class="md:col-span-2">
+                                        <label for="ville" class="block text-sm font-medium text-gray-700 mb-1">Ville <span class="text-gray-400 font-normal">(optionnel)</span></label>
+                                        <input type="text" id="ville" name="ville" value="{{ form.ville.value|default:'' }}" class="w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 py-2 px-3 border">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label for="telephone" class="block text-sm font-medium text-gray-700 mb-1">Téléphone <span class="text-gray-400 font-normal">(optionnel)</span></label>
+                                    <input type="text" id="telephone" name="telephone" value="{{ form.telephone.value|default:'' }}" class="w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 py-2 px-3 border">
+                                </div>
+                            </div>
+                        </fieldset>
+
                         <div class="mt-4 flex items-center">
-                            <input id="est_admin" name="est_admin" type="checkbox" class="h-4 w-4 text-emerald-600 focus:ring-emerald-500 border-gray-300 rounded">
+                            <input id="est_admin" name="est_admin" type="checkbox" {% if form.est_admin.value %}checked{% endif %} class="h-4 w-4 text-emerald-600 focus:ring-emerald-500 border-gray-300 rounded">
                             <label for="est_admin" class="ml-2 block text-sm text-gray-700 font-medium">
                                 Accorder les droits d'administrateur
                             </label>
@@ -157,8 +196,7 @@
         const modal = document.getElementById('modal-add-user');
         modal.querySelector('#modal-title').innerText = 'Créer un nouveau compte';
         modal.querySelector('input[name="action"]').value = 'add';
-        const userIdInput = modal.querySelector('input[name="user_id"]');
-        if (userIdInput) userIdInput.remove();
+        modal.querySelector('#form-user-id').value = '';
 
         modal.querySelector('form').reset();
         modal.querySelector('#password').setAttribute('required', 'required');
@@ -170,21 +208,18 @@
         const modal = document.getElementById('modal-add-user');
         modal.querySelector('#modal-title').innerText = 'Modifier le collaborateur';
         modal.querySelector('input[name="action"]').value = 'edit';
-
-        let userIdInput = modal.querySelector('input[name="user_id"]');
-        if (!userIdInput) {
-            userIdInput = document.createElement('input');
-            userIdInput.type = 'hidden';
-            userIdInput.name = 'user_id';
-            modal.querySelector('form').appendChild(userIdInput);
-        }
-        userIdInput.value = id;
+        modal.querySelector('#form-user-id').value = id;
 
         modal.querySelector('#nom').value = nom;
         modal.querySelector('#prenom').value = prenom;
         modal.querySelector('#email').value = email;
         modal.querySelector('#id_role').value = id_role;
         modal.querySelector('#est_admin').checked = est_admin === true;
+        modal.querySelector('#adresse').value = adresse;
+        modal.querySelector('#adresse_complement').value = adresse_complement;
+        modal.querySelector('#code_postal').value = code_postal;
+        modal.querySelector('#ville').value = ville;
+        modal.querySelector('#telephone').value = telephone;
 
         modal.querySelector('#password').removeAttribute('required');
         modal.querySelector('#password').placeholder = 'Laisser vide pour ne pas modifier';
@@ -192,5 +227,20 @@
 
         toggleModal('modal-add-user');
     }
+
+    // Ré-ouverture serveur après une erreur de validation : les valeurs et les
+    // erreurs sont déjà rendues côté serveur, on ajuste juste le libellé/état.
+    {% if open_modal %}
+    document.addEventListener('DOMContentLoaded', function () {
+        const modal = document.getElementById('modal-add-user');
+        {% if form_action == 'edit' %}
+        modal.querySelector('#modal-title').innerText = 'Modifier le collaborateur';
+        modal.querySelector('#password').removeAttribute('required');
+        modal.querySelector('#password').placeholder = 'Laisser vide pour ne pas modifier';
+        modal.querySelector('#submit-button').innerText = 'Modifier le compte';
+        {% endif %}
+        toggleModal('modal-add-user');
+    });
+    {% endif %}
 </script>
 {% endblock content %}
