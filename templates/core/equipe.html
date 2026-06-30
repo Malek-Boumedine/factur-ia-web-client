@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-6 relative">
+
+    {% if messages %}
+        <div class="mb-4 space-y-2">
+            {% for message in messages %}
+                <div class="p-3 rounded-md text-sm font-medium {% if message.tags == 'error' %}bg-red-100 text-red-700 border border-red-200{% else %}bg-emerald-100 text-emerald-700 border border-emerald-200{% endif %}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="flex justify-between items-center bg-white rounded-t-lg shadow-sm p-4 border-b">
+        <h2 class="text-xl font-bold text-gray-800">Membres de l'équipe</h2>
+        <button onclick="resetModal(); toggleModal('modal-add-user')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-md transition-colors flex items-center shadow-sm">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            Ajouter un collaborateur
+        </button>
+    </div>
+
+    <div class="bg-white rounded-b-lg shadow-md border border-gray-100 overflow-hidden mt-0">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rôle métier</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Statut</th>
+                        <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for membre in membres %}
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ membre.email }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ membre.role|default:"Non défini" }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            {% if membre.est_actif %}
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                    Actif
+                                </span>
+                            {% else %}
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                                    Inactif
+                                </span>
+                            {% endif %}                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+
+                            <button type="button"
+                                    class="text-blue-600 hover:text-blue-900 transition-colors"
+                                    title="Modifier"
+                                    onclick="openEditModal('{{ membre.id }}', '{{ membre.nom|escapejs }}', '{{ membre.prenom|escapejs }}', '{{ membre.email|escapejs }}', '{{ membre.id_role }}', {{ membre.est_admin|yesno:'true,false' }}, '{{ membre.adresse|escapejs }}', '{{ membre.adresse_complement|escapejs }}', '{{ membre.code_postal|escapejs }}', '{{ membre.ville|escapejs }}', '{{ membre.telephone|escapejs }}')">
+                                <svg class="w-5 h-5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                            </button>
+
+                            <form method="POST" action="{% url 'equipe' %}" class="inline-block" onsubmit="return confirm('Êtes-vous sûr de vouloir retirer {{ membre.email }} de l\'équipe ?');">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="user_id" value="{{ membre.id }}">
+
+                                <button type="submit" class="text-red-600 hover:text-red-900 transition-colors" title="Supprimer">
+                                    <svg class="w-5 h-5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                </button>
+                            </form>
+
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="px-6 py-8 text-center text-sm text-gray-500">Aucun collaborateur trouvé.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="modal-add-user" class="hidden fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onclick="toggleModal('modal-add-user')"></div>
+
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+            <div class="relative z-10 inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
+                <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4" id="modal-title">Créer un nouveau compte</h3>
+
+                    <form method="POST" action="{% url 'equipe' %}" class="space-y-4">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="{{ form_action|default:'add' }}">
+                        <input type="hidden" name="user_id" id="form-user-id" value="{{ edit_user_id }}">
+
+                        {% if form.non_field_errors %}
+                            <div class="p-3 rounded-md bg-red-100 text-red-700 text-sm">{{ form.non_field_errors.0 }}</div>
+                        {% endif %}
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="nom" class="block text-sm font-medium text-gray-700 mb-1">Nom</label>
+                                <input type="text" id="nom" name="nom" required value="{{ form.nom.value|default:'' }}" class="w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 py-2 px-3 border">
+                                {% if form.nom.errors %}<p class="mt-1 text-xs text-red-600">{{ form.nom.errors.0 }}</p>{% endif %}
+                            </div>
+                            <div>
+                                <label for="prenom" class="block text-sm font-medium text-gray-700 mb-1">Prénom</label>
+                                <input type="text" id="prenom" name="prenom" required value="{{ form.prenom.value|default:'' }}" class="w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 py-2 px-3 border">
+                                {% if form.prenom.errors %}<p class="mt-1 text-xs text-red-600">{{ form.prenom.errors.0 }}</p>{% endif %}
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Adresse email</label>
+                                <input type="email" id="email" name="email" required value="{{ form.email.value|default:'' }}" class="w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 py-2 px-3 border">
+                                {% if form.email.errors %}<p class="mt-1 text-xs text-red-600">{{ form.email.errors.0 }}</p>{% endif %}
+                            </div>
+                            <div>
+                                <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Mot de passe temporaire</label>
+                                <input type="password" id="password" name="password" required class="w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 py-2 px-3 border">
+                                {% if form.password.errors %}<p class="mt-1 text-xs text-red-600">{{ form.password.errors.0 }}</p>{% endif %}
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                            <div class="md:col-span-2">
+                                <label for="id_role" class="block text-sm font-medium text-gray-700 mb-1">Rôle métier attribué</label>
+                                <select id="id_role" name="id_role" required class="w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 py-2 px-3 border bg-white">
+                                    <option value="" disabled {% if not form.id_role.value %}selected{% endif %}>-- Sélectionnez un rôle --</option>
+                                    {% for role in roles %}
+                                        <option value="{{ role.id }}" {% if form.id_role.value|stringformat:'s' == role.id|stringformat:'s' %}selected{% endif %}>{{ role.libelle }}</option>
+                                    {% endfor %}
+                                </select>
+                                {% if form.id_role.errors %}<p class="mt-1 text-xs text-red-600">{{ form.id_role.errors.0 }}</p>{% endif %}
+                            </div>
+                        </div>
+
+                        <fieldset class="mt-4 border-t border-gray-200 pt-4">
+                            <legend class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">Coordonnées (optionnel)</legend>
+                            <div class="space-y-4">
+                                <div>
+                                    <label for="adresse" class="block text-sm font-medium text-gray-700 mb-1">Adresse <span class="text-gray-400 font-normal">(optionnel)</span></label>
+                                    <input type="text" id="adresse" name="adresse" value="{{ form.adresse.value|default:'' }}" class="w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 py-2 px-3 border">
+                                </div>
+                                <div>
+                                    <label for="adresse_complement" class="block text-sm font-medium text-gray-700 mb-1">Complément d'adresse <span class="text-gray-400 font-normal">(optionnel)</span></label>
+                                    <input type="text" id="adresse_complement" name="adresse_complement" value="{{ form.adresse_complement.value|default:'' }}" class="w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 py-2 px-3 border">
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <label for="code_postal" class="block text-sm font-medium text-gray-700 mb-1">Code postal <span class="text-gray-400 font-normal">(optionnel)</span></label>
+                                        <input type="text" id="code_postal" name="code_postal" value="{{ form.code_postal.value|default:'' }}" class="w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 py-2 px-3 border">
+                                        {% if form.code_postal.errors %}<p class="mt-1 text-xs text-red-600">{{ form.code_postal.errors.0 }}</p>{% endif %}
+                                    </div>
+                                    <div class="md:col-span-2">
+                                        <label for="ville" class="block text-sm font-medium text-gray-700 mb-1">Ville <span class="text-gray-400 font-normal">(optionnel)</span></label>
+                                        <input type="text" id="ville" name="ville" value="{{ form.ville.value|default:'' }}" class="w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 py-2 px-3 border">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label for="telephone" class="block text-sm font-medium text-gray-700 mb-1">Téléphone <span class="text-gray-400 font-normal">(optionnel)</span></label>
+                                    <input type="text" id="telephone" name="telephone" value="{{ form.telephone.value|default:'' }}" class="w-full rounded-md border-gray-300 shadow-sm focus:border-emerald-500 focus:ring-emerald-500 py-2 px-3 border">
+                                </div>
+                            </div>
+                        </fieldset>
+
+                        <div class="mt-4 flex items-center">
+                            <input id="est_admin" name="est_admin" type="checkbox" {% if form.est_admin.value %}checked{% endif %} class="h-4 w-4 text-emerald-600 focus:ring-emerald-500 border-gray-300 rounded">
+                            <label for="est_admin" class="ml-2 block text-sm text-gray-700 font-medium">
+                                Accorder les droits d'administrateur
+                            </label>
+                        </div>
+
+                        <div class="pt-4 mt-5 border-t border-gray-200 flex justify-end space-x-3">
+                            <button type="button" onclick="toggleModal('modal-add-user')" class="bg-white border border-gray-300 rounded-md shadow-sm px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                                Annuler
+                            </button>
+                            <button type="submit" id="submit-button" class="bg-emerald-600 border border-transparent rounded-md shadow-sm px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition-colors">
+                                Créer le compte
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function toggleModal(modalID) {
+        document.getElementById(modalID).classList.toggle('hidden');
+    }
+
+    function resetModal() {
+        const modal = document.getElementById('modal-add-user');
+        modal.querySelector('#modal-title').innerText = 'Créer un nouveau compte';
+        modal.querySelector('input[name="action"]').value = 'add';
+        modal.querySelector('#form-user-id').value = '';
+
+        modal.querySelector('form').reset();
+        modal.querySelector('#password').setAttribute('required', 'required');
+        modal.querySelector('#password').placeholder = '';
+        modal.querySelector('#submit-button').innerText = 'Créer le compte';
+    }
+
+    function openEditModal(id, nom, prenom, email, id_role, est_admin, adresse, adresse_complement, code_postal, ville, telephone) {
+        const modal = document.getElementById('modal-add-user');
+        modal.querySelector('#modal-title').innerText = 'Modifier le collaborateur';
+        modal.querySelector('input[name="action"]').value = 'edit';
+        modal.querySelector('#form-user-id').value = id;
+
+        modal.querySelector('#nom').value = nom;
+        modal.querySelector('#prenom').value = prenom;
+        modal.querySelector('#email').value = email;
+        modal.querySelector('#id_role').value = id_role;
+        modal.querySelector('#est_admin').checked = est_admin === true;
+        modal.querySelector('#adresse').value = adresse;
+        modal.querySelector('#adresse_complement').value = adresse_complement;
+        modal.querySelector('#code_postal').value = code_postal;
+        modal.querySelector('#ville').value = ville;
+        modal.querySelector('#telephone').value = telephone;
+
+        modal.querySelector('#password').removeAttribute('required');
+        modal.querySelector('#password').placeholder = 'Laisser vide pour ne pas modifier';
+        modal.querySelector('#submit-button').innerText = 'Modifier le compte';
+
+        toggleModal('modal-add-user');
+    }
+
+    // Ré-ouverture serveur après une erreur de validation : les valeurs et les
+    // erreurs sont déjà rendues côté serveur, on ajuste juste le libellé/état.
+    {% if open_modal %}
+    document.addEventListener('DOMContentLoaded', function () {
+        const modal = document.getElementById('modal-add-user');
+        {% if form_action == 'edit' %}
+        modal.querySelector('#modal-title').innerText = 'Modifier le collaborateur';
+        modal.querySelector('#password').removeAttribute('required');
+        modal.querySelector('#password').placeholder = 'Laisser vide pour ne pas modifier';
+        modal.querySelector('#submit-button').innerText = 'Modifier le compte';
+        {% endif %}
+        toggleModal('modal-add-user');
+    });
+    {% endif %}
+</script>
+{% endblock content %}

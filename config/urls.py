@@ -18,9 +18,16 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 from django.views.generic import TemplateView
+from core.views.auth import login_view, logout_view
+from core.views.documents import upload_document_view
+from core.views.equipe import equipe_view
 
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("login/", login_view, name="login"),
+    path("logout/", logout_view, name="logout"),
+    path("equipe/", equipe_view, name="equipe"),
+    path("documents/upload/", upload_document_view, name="upload_document"),
     path("", TemplateView.as_view(template_name="base.html"), name="home"),
 ]
