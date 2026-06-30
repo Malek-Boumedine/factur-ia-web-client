@@ -20,10 +20,9 @@ class BaseAPIClient:
         self.base_url = settings.API_DATA_URL
 
     @property
-    def headers(self):
-        """Construit les en-têtes avec le token et l'ID de l'entreprise."""
+    def auth_headers(self):
+        """En-têtes d'authentification (sans Content-Type, pour le multipart)."""
         headers = {
-            "Content-Type": "application/json",
             "Accept": "application/json",
         }
 
@@ -37,6 +36,11 @@ class BaseAPIClient:
             headers["x-entreprise-id"] = str(entreprise_id)
 
         return headers
+
+    @property
+    def headers(self):
+        """Construit les en-têtes JSON avec le token et l'ID de l'entreprise."""
+        return {**self.auth_headers, "Content-Type": "application/json"}
 
     def _handle_response(self, response):
         """Centralise la vérification des erreurs et de l'expiration du token."""
@@ -86,4 +90,14 @@ class BaseAPIClient:
     def patch(self, endpoint, data=None):
         url = f"{self.base_url}{endpoint}"
         response = httpx.patch(url, headers=self.headers, json=data)
+        return self._handle_response(response)
+
+    def post_file(self, endpoint, files, data=None):
+        """POST multipart/form-data (upload de fichiers vers l'API).
+
+        On n'envoie PAS de Content-Type explicite : httpx calcule lui-même
+        le boundary multipart à partir de `files`.
+        """
+        url = f"{self.base_url}{endpoint}"
+        response = httpx.post(url, headers=self.auth_headers, files=files, data=data)
         return self._handle_response(response)
