@@ -15,7 +15,7 @@
 
     <div class="flex justify-between items-center bg-white rounded-t-lg shadow-sm p-4 border-b">
         <h2 class="text-xl font-bold text-gray-800">Membres de l'équipe</h2>
-        <button onclick="toggleModal('modal-add-user')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-md transition-colors flex items-center shadow-sm">
+        <button onclick="resetModal(); toggleModal('modal-add-user')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-md transition-colors flex items-center shadow-sm">
             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
             Ajouter un collaborateur
         </button>
@@ -49,7 +49,10 @@
                             {% endif %}                        </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
 
-                            <button type="button" class="text-blue-600 hover:text-blue-900 transition-colors" title="Modifier (Bientôt disponible)">
+                            <button type="button"
+                                    class="text-blue-600 hover:text-blue-900 transition-colors"
+                                    title="Modifier"
+                                    onclick="openEditModal('{{ membre.id }}', '{{ membre.nom|escapejs }}', '{{ membre.prenom|escapejs }}', '{{ membre.email|escapejs }}', '{{ membre.id_role }}', {{ membre.est_admin|yesno:'true,false' }}, '{{ membre.adresse|escapejs }}', '{{ membre.adresse_complement|escapejs }}', '{{ membre.code_postal|escapejs }}', '{{ membre.ville|escapejs }}', '{{ membre.telephone|escapejs }}')">
                                 <svg class="w-5 h-5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                             </button>
 
@@ -134,7 +137,7 @@
                             <button type="button" onclick="toggleModal('modal-add-user')" class="bg-white border border-gray-300 rounded-md shadow-sm px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
                                 Annuler
                             </button>
-                            <button type="submit" class="bg-emerald-600 border border-transparent rounded-md shadow-sm px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition-colors">
+                            <button type="submit" id="submit-button" class="bg-emerald-600 border border-transparent rounded-md shadow-sm px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition-colors">
                                 Créer le compte
                             </button>
                         </div>
@@ -148,6 +151,46 @@
 <script>
     function toggleModal(modalID) {
         document.getElementById(modalID).classList.toggle('hidden');
+    }
+
+    function resetModal() {
+        const modal = document.getElementById('modal-add-user');
+        modal.querySelector('#modal-title').innerText = 'Créer un nouveau compte';
+        modal.querySelector('input[name="action"]').value = 'add';
+        const userIdInput = modal.querySelector('input[name="user_id"]');
+        if (userIdInput) userIdInput.remove();
+
+        modal.querySelector('form').reset();
+        modal.querySelector('#password').setAttribute('required', 'required');
+        modal.querySelector('#password').placeholder = '';
+        modal.querySelector('#submit-button').innerText = 'Créer le compte';
+    }
+
+    function openEditModal(id, nom, prenom, email, id_role, est_admin, adresse, adresse_complement, code_postal, ville, telephone) {
+        const modal = document.getElementById('modal-add-user');
+        modal.querySelector('#modal-title').innerText = 'Modifier le collaborateur';
+        modal.querySelector('input[name="action"]').value = 'edit';
+
+        let userIdInput = modal.querySelector('input[name="user_id"]');
+        if (!userIdInput) {
+            userIdInput = document.createElement('input');
+            userIdInput.type = 'hidden';
+            userIdInput.name = 'user_id';
+            modal.querySelector('form').appendChild(userIdInput);
+        }
+        userIdInput.value = id;
+
+        modal.querySelector('#nom').value = nom;
+        modal.querySelector('#prenom').value = prenom;
+        modal.querySelector('#email').value = email;
+        modal.querySelector('#id_role').value = id_role;
+        modal.querySelector('#est_admin').checked = est_admin === true;
+
+        modal.querySelector('#password').removeAttribute('required');
+        modal.querySelector('#password').placeholder = 'Laisser vide pour ne pas modifier';
+        modal.querySelector('#submit-button').innerText = 'Modifier le compte';
+
+        toggleModal('modal-add-user');
     }
 </script>
 {% endblock content %}
