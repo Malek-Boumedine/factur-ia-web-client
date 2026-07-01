@@ -2,6 +2,23 @@
 
 <!-- version list -->
 
+## v0.4.0 (2026-07-01)
+
+### Features
+
+- **clients**: Implémente les clients HTTP métier et documente la couche API
+  ([`5f88e95`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/5f88e959155ecede28db54ef0c8696a8409eb238))
+
+- **clients**: Résilience réseau (timeouts, retries, exceptions métier)
+  ([`eef862e`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/eef862e30478c6999131f7e7488b291341697bc7))
+
+- **documents**: Flux complet d'upload de fichiers vers l'API Data
+  ([`63952ee`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/63952eea7f205204d6e7e7b66d64050f91a1d55a))
+
+- **ui**: Intègre daisyUI + Alpine.js et refond la page équipe
+  ([`dff8a57`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/dff8a5742e5504a08e36a1e2a2122da885ca7c98))
+
+
 ## v0.3.0 (2026-06-30)
 
 ### Bug Fixes
