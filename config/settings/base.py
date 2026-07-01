@@ -153,3 +153,36 @@ CACHES = {
 # On demande à Django d'utiliser le cache Redis pour stocker les sessions
 SESSION_ENGINE = "django.contrib.sessions.backends.cache"
 SESSION_CACHE_ALIAS = "default"
+
+
+# ==============================================================================
+# CONFIGURATION CLIENT API (résilience réseau)
+# ==============================================================================
+# Timeouts httpx en secondes : connexion et lecture distingués.
+API_CONNECT_TIMEOUT = float(os.getenv("API_CONNECT_TIMEOUT", "5.0"))
+API_READ_TIMEOUT = float(os.getenv("API_READ_TIMEOUT", "15.0"))
+# Politique de retry : uniquement erreurs transitoires + méthodes idempotentes.
+# Nombre de rejeux au-delà de la tentative initiale (2 => 3 tentatives au total).
+API_MAX_RETRIES = int(os.getenv("API_MAX_RETRIES", "2"))
+# Base du backoff exponentiel en secondes (délai = backoff * 2 ** tentative).
+API_RETRY_BACKOFF = float(os.getenv("API_RETRY_BACKOFF", "0.5"))
+
+
+# ==============================================================================
+# LOGGING (monitoring des erreurs de communication avec l'API)
+# ==============================================================================
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {"class": "logging.StreamHandler"},
+    },
+    "loggers": {
+        # Retries et échecs définitifs de la couche cliente API.
+        "clients": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
+}

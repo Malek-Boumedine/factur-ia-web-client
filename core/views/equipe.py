@@ -1,8 +1,12 @@
-import httpx
 from django.contrib import messages
 from django.shortcuts import redirect, render
 
-from clients.base_client import TokenExpiredError
+from clients.exceptions import (
+    APIClientError,
+    APIUnavailableError,
+    APIValidationError,
+    TokenExpiredError,
+)
 from clients.utilisateurs_client import UtilisateursClient
 from core.forms import CollaborateurForm
 
@@ -32,10 +36,15 @@ def equipe_view(request):
                 )
             except TokenExpiredError:
                 return redirect("login")
-            except httpx.HTTPStatusError as e:
+            except APIUnavailableError:
                 messages.error(
                     request,
-                    f"Erreur lors de la suppression ({e.response.status_code}).",
+                    "Service momentanément indisponible. Veuillez réessayer.",
+                )
+            except APIClientError as e:
+                messages.error(
+                    request,
+                    f"Erreur lors de la suppression ({e.status_code}).",
                 )
             return redirect("equipe")
 
@@ -44,7 +53,7 @@ def equipe_view(request):
             roles, _ = _charger_roles(client)
         except TokenExpiredError:
             return redirect("login")
-        except httpx.HTTPStatusError:
+        except APIClientError:
             roles = []
 
         is_create = action != "edit"
@@ -69,12 +78,15 @@ def equipe_view(request):
                 return redirect("equipe")
             except TokenExpiredError:
                 return redirect("login")
-            except httpx.HTTPStatusError as e:
-                try:
-                    detail = e.response.json().get("detail", "Erreur de validation.")
-                except ValueError:
-                    detail = "Erreur de validation."
-                messages.error(request, str(detail))
+            except APIValidationError as e:
+                messages.error(request, str(e.detail or "Erreur de validation."))
+            except APIUnavailableError:
+                messages.error(
+                    request,
+                    "Service momentanément indisponible. Veuillez réessayer.",
+                )
+            except APIClientError:
+                messages.error(request, "Erreur lors de l'enregistrement.")
 
         # Formulaire invalide (ou erreur API) : on ré-affiche la page avec la
         # modale ouverte, les valeurs saisies et les erreurs de champ.
@@ -107,11 +119,13 @@ def _contexte_liste(request, client):
     roles = []
     role_map = {}
 
-    # TokenExpiredError n'est pas un HTTPStatusError : il se propage et est
-    # traité par l'appelant (redirection vers /login).
+    # On laisse TokenExpiredError se propager (traité par l'appelant :
+    # redirection vers /login) ; on n'intercepte que les autres erreurs API.
     try:
         roles, role_map = _charger_roles(client)
-    except httpx.HTTPStatusError:
+    except TokenExpiredError:
+        raise
+    except APIClientError:
         messages.error(request, "Impossible de charger la liste des rôles.")
 
     try:
@@ -120,7 +134,9 @@ def _contexte_liste(request, client):
         # pour pouvoir pré-remplir le menu déroulant à l'édition.
         for membre in membres:
             membre["id_role"] = role_map.get(membre.get("role"))
-    except httpx.HTTPStatusError:
+    except TokenExpiredError:
+        raise
+    except APIClientError:
         messages.error(request, "Impossible de charger la liste des membres.")
 
     return {"membres": membres, "roles": roles}

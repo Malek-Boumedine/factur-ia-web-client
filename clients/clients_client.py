@@ -34,7 +34,9 @@ class ClientsClient(BaseAPIClient):
 
         Raises:
             TokenExpiredError: En cas de réponse 401.
-            httpx.HTTPStatusError: Pour toute autre erreur HTTP.
+            APIClientError: Toute autre erreur API mappée (404 introuvable,
+                422 validation, 5xx serveur) ou API injoignable
+                (APIUnavailableError).
         """
         return self.get("/clients/")
 
@@ -51,7 +53,9 @@ class ClientsClient(BaseAPIClient):
 
         Raises:
             TokenExpiredError: En cas de réponse 401.
-            httpx.HTTPStatusError: Pour toute autre erreur HTTP.
+            APIClientError: Toute autre erreur API mappée (404 introuvable,
+                422 validation, 5xx serveur) ou API injoignable
+                (APIUnavailableError).
         """
         return self.get(f"/clients/{client_id}")
 
@@ -70,8 +74,9 @@ class ClientsClient(BaseAPIClient):
 
         Raises:
             TokenExpiredError: En cas de réponse 401.
-            httpx.HTTPStatusError: Pour toute autre erreur HTTP (ex. 422
-                validation).
+            APIClientError: Toute autre erreur API mappée (404 introuvable,
+                422 validation, 5xx serveur) ou API injoignable
+                (APIUnavailableError).
         """
         return self.post("/clients/", data=payload)
 
@@ -91,8 +96,9 @@ class ClientsClient(BaseAPIClient):
 
         Raises:
             TokenExpiredError: En cas de réponse 401.
-            httpx.HTTPStatusError: Pour toute autre erreur HTTP (ex. 422
-                validation).
+            APIClientError: Toute autre erreur API mappée (404 introuvable,
+                422 validation, 5xx serveur) ou API injoignable
+                (APIUnavailableError).
         """
         return self.patch(f"/clients/{client_id}", data=payload)
 
@@ -109,7 +115,9 @@ class ClientsClient(BaseAPIClient):
 
         Raises:
             TokenExpiredError: En cas de réponse 401.
-            httpx.HTTPStatusError: Pour toute autre erreur HTTP.
+            APIClientError: Toute autre erreur API mappée (404 introuvable,
+                422 validation, 5xx serveur) ou API injoignable
+                (APIUnavailableError).
         """
         return self.delete(f"/clients/{client_id}")
 
@@ -128,6 +136,8 @@ class ClientsClient(BaseAPIClient):
 
         Raises:
             TokenExpiredError: En cas de réponse 401.
-            httpx.HTTPStatusError: Pour toute autre erreur HTTP (ex. 422).
+            APIClientError: Toute autre erreur API mappée (404 introuvable,
+                422 validation, 5xx serveur) ou API injoignable
+                (APIUnavailableError).
         """
         return self.get(f"/clients/recherche-sirene/{identifiant}")

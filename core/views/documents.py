@@ -1,9 +1,13 @@
-import httpx
 from django.contrib import messages
 from django.shortcuts import redirect, render
 
-from clients.base_client import TokenExpiredError
 from clients.documents_client import DocumentsClient
+from clients.exceptions import (
+    APIClientError,
+    APIUnavailableError,
+    APIValidationError,
+    TokenExpiredError,
+)
 
 # Garde-fous d'upload (le backend reste l'autorité finale).
 TAILLE_MAX = 10 * 1024 * 1024  # 10 Mo
@@ -35,15 +39,13 @@ def upload_document_view(request):
                 return redirect("upload_document")
             except TokenExpiredError:
                 return redirect("login")
-            except httpx.HTTPStatusError as e:
-                try:
-                    detail = e.response.json().get("detail", "Erreur API.")
-                except ValueError:
-                    detail = f"Erreur API ({e.response.status_code})."
-                messages.error(request, str(detail))
-            except httpx.RequestError:
+            except APIValidationError as e:
+                messages.error(request, str(e.detail or e.message))
+            except APIUnavailableError:
                 messages.error(
                     request, "Impossible de contacter le serveur de documents."
                 )
+            except APIClientError as e:
+                messages.error(request, str(e.message))
 
     return render(request, "core/upload.html")

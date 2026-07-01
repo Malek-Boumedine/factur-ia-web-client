@@ -2,31 +2,54 @@
 
 Ce module fournit :
 
-- `TokenExpiredError` : exception levée lorsqu'un appel renvoie 401.
 - `BaseAPIClient` : classe parente dont héritent tous les clients métier
   (`ClientsClient`, `ProduitsClient`, `FacturesClient`, `AbonnementsClient`,
   `DocumentsClient`, `UtilisateursClient`). Elle centralise la construction des
   en-têtes (JWT + tenant `x-entreprise-id`), l'émission des requêtes `httpx`
-  (GET/POST/PUT/PATCH/DELETE + upload multipart) et la gestion des erreurs.
+  (GET/POST/PUT/PATCH/DELETE + upload multipart), la **résilience réseau**
+  (timeouts explicites, retries avec backoff exponentiel) et le **mapping** des
+  réponses vers les exceptions métier de `clients.exceptions`.
+
+`TokenExpiredError` est ré-exporté ici pour compatibilité avec les imports
+existants (`from clients.base_client import TokenExpiredError`) ; sa définition
+vit désormais dans `clients.exceptions`.
 
 Ce fichier ne cible aucune route métier précise : il expose les primitives HTTP
 réutilisées par les sous-classes, qui portent, elles, les chemins du contrat.
 """
 
+import logging
+import time
+from typing import Any
+
 import httpx
 from django.conf import settings
 from django.contrib import messages
+from django.http import HttpRequest
 
+from .exceptions import (
+    APIClientError,
+    APIUnavailableError,
+    APIValidationError,
+    ResourceNotFoundError,
+    ServerError,
+    TokenExpiredError,
+)
 
-class TokenExpiredError(Exception):
-    """Exception personnalisée levée lorsque l'API refuse le token.
+# Ré-export pour compatibilité ascendante (anciens imports depuis ce module).
+__all__ = ["BaseAPIClient", "TokenExpiredError"]
 
-    Levée par `BaseAPIClient._handle_response` sur une réponse 401, après avoir
-    vidé la session Django. Permet aux vues de stopper le rendu et de rediriger
-    l'utilisateur vers la page de connexion.
-    """
+logger = logging.getLogger("clients.base_client")
 
-    pass
+# Codes serveur considérés comme transitoires : seuls ceux-ci sont rejoués
+# (uniquement pour les méthodes idempotentes). 500/501 ne sont PAS rejoués.
+_RETRYABLE_STATUS = {502, 503, 504}
+
+# Valeurs par défaut si les settings ne les définissent pas (résilience).
+_DEFAUT_CONNECT_TIMEOUT = 5.0
+_DEFAUT_READ_TIMEOUT = 15.0
+_DEFAUT_MAX_RETRIES = 2
+_DEFAUT_RETRY_BACKOFF = 0.5
 
 
 class BaseAPIClient:
@@ -36,29 +59,47 @@ class BaseAPIClient:
 
     Toutes les sous-classes héritent de cette classe et réutilisent ses méthodes
     HTTP (`get`, `post`, `put`, `patch`, `delete`, `post_file`) ; elles ne
-    doivent jamais appeler `httpx` directement. L'authentification (Bearer JWT)
-    et le contexte multi-tenant (`x-entreprise-id`) sont résolus depuis la
-    session Django et injectés automatiquement dans les en-têtes.
+    doivent jamais appeler `httpx` directement, ni manipuler de codes HTTP bruts.
+    L'authentification (Bearer JWT) et le contexte multi-tenant
+    (`x-entreprise-id`) sont résolus depuis la session Django et injectés
+    automatiquement dans les en-têtes.
+
+    Résilience : chaque requête applique un timeout explicite (connexion vs
+    lecture, lus depuis les settings) ; les erreurs transitoires (timeout,
+    erreur réseau, 502/503/504) des méthodes idempotentes sont rejouées avec un
+    backoff exponentiel avant de lever `APIUnavailableError`. Toutes les
+    réponses d'erreur sont traduites en exceptions de `clients.exceptions`.
 
     Attributes:
-        request: La requête Django courante (`HttpRequest`), source de la
-            session contenant le JWT et l'identifiant d'entreprise.
+        request (HttpRequest): La requête Django courante, source de la session
+            contenant le JWT et l'identifiant d'entreprise.
         base_url (str): URL de base de l'API, issue de `settings.API_DATA_URL`.
     """
 
-    def __init__(self, request):
+    def __init__(self, request: HttpRequest) -> None:
         """Initialise le client à partir de la requête Django courante.
 
         Args:
-            request: Requête Django (`HttpRequest`) en cours. Sa session
-                fournit `jwt_token` et `entreprise_id` utilisés pour l'auth
-                et le contexte tenant. Obligatoire.
+            request (HttpRequest): Requête Django en cours. Sa session fournit
+                `jwt_token` et `entreprise_id` utilisés pour l'auth et le
+                contexte tenant. Obligatoire.
         """
         self.request = request
         self.base_url = settings.API_DATA_URL
 
+        # Politique de résilience, configurable via les settings Django.
+        # Timeout httpx distinguant connexion et lecture (write/pool = lecture).
+        self._timeout = httpx.Timeout(
+            getattr(settings, "API_READ_TIMEOUT", _DEFAUT_READ_TIMEOUT),
+            connect=getattr(settings, "API_CONNECT_TIMEOUT", _DEFAUT_CONNECT_TIMEOUT),
+        )
+        self._max_retries = getattr(settings, "API_MAX_RETRIES", _DEFAUT_MAX_RETRIES)
+        self._retry_backoff = getattr(
+            settings, "API_RETRY_BACKOFF", _DEFAUT_RETRY_BACKOFF
+        )
+
     @property
-    def auth_headers(self):
+    def auth_headers(self) -> dict[str, str]:
         """En-têtes d'authentification (sans Content-Type, pour le multipart).
 
         Construit les en-têtes minimaux : `Accept`, plus `Authorization` si un
@@ -87,7 +128,7 @@ class BaseAPIClient:
         return headers
 
     @property
-    def headers(self):
+    def headers(self) -> dict[str, str]:
         """Construit les en-têtes JSON avec le token et l'ID de l'entreprise.
 
         Reprend `auth_headers` et y ajoute `Content-Type: application/json`.
@@ -99,48 +140,186 @@ class BaseAPIClient:
         """
         return {**self.auth_headers, "Content-Type": "application/json"}
 
-    def _handle_response(self, response):
-        """Centralise la vérification des erreurs et de l'expiration du token.
+    def _request(
+        self,
+        method: str,
+        endpoint: str,
+        *,
+        idempotent: bool,
+        headers: dict[str, str],
+        **kwargs: Any,
+    ) -> httpx.Response:
+        """Émet une requête httpx avec timeout et rejeu des erreurs transitoires.
+
+        Choix d'implémentation : une boucle de rejeu maison (ni tenacity ni le
+        transport httpx). Le transport httpx ne rejoue que les erreurs de
+        connexion, pas les statuts 502/503/504 ; et la condition de rejeu dépend
+        ici de l'idempotence de la méthode ET du statut/exception, ce qui se
+        gère plus simplement et sans dépendance supplémentaire par une boucle
+        explicite (qui journalise aussi chaque tentative).
+
+        Ne rejoue QUE les erreurs transitoires (timeout, erreur réseau,
+        502/503/504) et UNIQUEMENT pour les méthodes idempotentes ; jamais un
+        POST de création ni une erreur 4xx.
 
         Args:
-            response (httpx.Response): Réponse HTTP renvoyée par httpx.
+            method (str): Méthode HTTP (GET, POST, ...). Obligatoire.
+            endpoint (str): Chemin concaténé à `base_url`. Obligatoire.
+            idempotent (bool): Autorise le rejeu si `True`. Obligatoire.
+            headers (dict[str, str]): En-têtes à envoyer. Obligatoire.
+            **kwargs: Arguments transmis à `httpx.request` (params, json,
+                files, data).
+
+        Returns:
+            httpx.Response: La réponse HTTP brute (le mapping en exception métier
+            est réalisé par `_map_response`).
+
+        Raises:
+            APIUnavailableError: Après épuisement des tentatives sur une erreur
+                transitoire (timeout, réseau, ou 502/503/504 idempotent).
+        """
+        url = f"{self.base_url}{endpoint}"
+        attempt = 0
+        while True:
+            try:
+                response = httpx.request(
+                    method, url, headers=headers, timeout=self._timeout, **kwargs
+                )
+            except (httpx.TimeoutException, httpx.NetworkError) as exc:
+                # Timeouts et erreurs de connexion/lecture : transitoires.
+                if idempotent and attempt < self._max_retries:
+                    self._log_retry(method, url, attempt, exc.__class__.__name__)
+                    self._sleep_backoff(attempt)
+                    attempt += 1
+                    continue
+                logger.error(
+                    "API injoignable après %d tentative(s) : %s %s (%s)",
+                    attempt + 1,
+                    method,
+                    url,
+                    exc.__class__.__name__,
+                )
+                raise APIUnavailableError() from exc
+
+            # Statuts serveur transitoires : mêmes règles de rejeu.
+            if response.status_code in _RETRYABLE_STATUS:
+                if idempotent and attempt < self._max_retries:
+                    self._log_retry(
+                        method, url, attempt, f"HTTP {response.status_code}"
+                    )
+                    self._sleep_backoff(attempt)
+                    attempt += 1
+                    continue
+                if idempotent:
+                    logger.error(
+                        "API injoignable après %d tentative(s) : %s %s (HTTP %d)",
+                        attempt + 1,
+                        method,
+                        url,
+                        response.status_code,
+                    )
+                    raise APIUnavailableError(status_code=response.status_code)
+                # Non idempotent : pas de rejeu ; `_map_response` lèvera ServerError.
+
+            return response
+
+    def _sleep_backoff(self, attempt: int) -> None:
+        """Attend selon un backoff exponentiel avant un nouveau rejeu.
+
+        Args:
+            attempt (int): Numéro de tentative déjà effectuée (0 pour le premier
+                rejeu). Le délai vaut `backoff * 2 ** attempt`. Obligatoire.
+        """
+        time.sleep(self._retry_backoff * (2**attempt))
+
+    def _log_retry(self, method: str, url: str, attempt: int, reason: str) -> None:
+        """Journalise (niveau warning) une tentative de rejeu à venir.
+
+        Args:
+            method (str): Méthode HTTP. Obligatoire.
+            url (str): URL cible. Obligatoire.
+            attempt (int): Numéro de la tentative déjà échouée (0-indexé).
                 Obligatoire.
+            reason (str): Cause du rejeu (exception ou statut HTTP). Obligatoire.
+        """
+        logger.warning(
+            "Rejeu %d/%d : %s %s (cause : %s)",
+            attempt + 1,
+            self._max_retries,
+            method,
+            url,
+            reason,
+        )
+
+    def _map_response(self, response: httpx.Response) -> Any:
+        """Traduit une réponse HTTP en résultat métier ou en exception dédiée.
+
+        Aucune exception `httpx` ni code brut ne fuit vers les appelants : les
+        statuts d'erreur sont convertis en exceptions de `clients.exceptions`.
+
+        Args:
+            response (httpx.Response): Réponse HTTP à interpréter. Obligatoire.
 
         Returns:
             Le corps JSON décodé (dict ou list) pour une réponse à contenu, ou
             `True` pour un 204 (succès sans contenu, ex. suppression).
 
         Raises:
-            TokenExpiredError: Si la réponse est un 401. La session Django est
-                d'abord vidée et un message d'erreur est ajouté.
-            httpx.HTTPStatusError: Pour toute autre erreur HTTP (400, 403,
-                422, 500, ...), laissée remonter telle quelle.
+            TokenExpiredError: Réponse 401 (la session Django est d'abord vidée).
+            ResourceNotFoundError: Réponse 404.
+            APIValidationError: Réponse 422 (détail de validation conservé).
+            ServerError: Réponse 5xx (non transitoire).
+            APIClientError: Tout autre statut 4xx non spécifique (400, 403, ...).
+        """
+        status = response.status_code
+
+        # --- Succès ---
+        if status < 400:
+            # cas suppression (204 = succès pas de contenu JSON)
+            if status == 204:
+                return True
+            return response.json()
+
+        # --- Erreurs : traduction en exceptions métier ---
+        if status == 401:
+            # destruction de la session Django + message pour l'utilisateur
+            self.request.session.flush()
+            messages.error(
+                self.request, "Votre session a expiré. Veuillez vous reconnecter."
+            )
+            raise TokenExpiredError()
+        if status == 404:
+            raise ResourceNotFoundError()
+        if status == 422:
+            raise APIValidationError(detail=self._extract_detail(response))
+        if status >= 500:
+            raise ServerError(status_code=status)
+
+        # Autres 4xx (400, 403, ...) : erreur générique de la couche cliente.
+        raise APIClientError(f"Erreur API (HTTP {status}).", status_code=status)
+
+    @staticmethod
+    def _extract_detail(response: httpx.Response) -> Any:
+        """Extrait le champ `detail` d'un corps d'erreur JSON, si présent.
+
+        Args:
+            response (httpx.Response): Réponse (typiquement 422). Obligatoire.
+
+        Returns:
+            Le contenu de `detail` (liste d'erreurs `HTTPValidationError`) si le
+            corps est un objet JSON, le corps entier s'il est d'une autre forme,
+            ou `None` si le corps n'est pas du JSON.
         """
         try:
-            response.raise_for_status()
-        except httpx.HTTPStatusError as e:
-            # si token invalide/expiré
-            if e.response.status_code == 401:
-                # destruction de la session Django
-                self.request.session.flush()
-                # message d'alerte pour l'utilisateur
-                messages.error(
-                    self.request, "Votre session a expiré. Veuillez vous reconnecter."
-                )
-                # lever l'erreur pour stopper le chargement de la page
-                raise TokenExpiredError("Token expiré ou invalide.")
+            corps = response.json()
+        except ValueError:
+            return None
+        if isinstance(corps, dict):
+            return corps.get("detail")
+        return corps
 
-            # Si c'est une autre erreur (400, 403, 500), on la laisse remonter normalement
-            raise e
-
-        # cas suppression (204 = succès pas de contenu JSON)
-        if response.status_code == 204:
-            return True
-
-        return response.json()
-
-    def get(self, endpoint, params=None):
-        """Émet une requête GET authentifiée vers l'API.
+    def get(self, endpoint: str, params: dict[str, Any] | None = None) -> Any:
+        """Émet une requête GET authentifiée vers l'API (idempotente, rejouable).
 
         Args:
             endpoint (str): Chemin de la route, concaténé à `base_url`
@@ -152,15 +331,20 @@ class BaseAPIClient:
             Le corps JSON décodé (dict ou list) de la réponse.
 
         Raises:
-            TokenExpiredError: En cas de réponse 401.
-            httpx.HTTPStatusError: Pour toute autre erreur HTTP.
+            TokenExpiredError: Authentification expirée (401).
+            APIClientError: Toute autre erreur API mappée (404 introuvable,
+                422 validation, 5xx serveur) ou API injoignable après retries
+                (`APIUnavailableError`).
         """
-        url = f"{self.base_url}{endpoint}"
-        response = httpx.get(url, headers=self.headers, params=params)
-        return self._handle_response(response)
+        response = self._request(
+            "GET", endpoint, idempotent=True, headers=self.headers, params=params
+        )
+        return self._map_response(response)
 
-    def post(self, endpoint, data=None):
+    def post(self, endpoint: str, data: dict[str, Any] | None = None) -> Any:
         """Émet une requête POST authentifiée avec un corps JSON.
+
+        POST = création non idempotente : elle n'est JAMAIS rejouée.
 
         Args:
             endpoint (str): Chemin de la route, concaténé à `base_url`.
@@ -172,15 +356,18 @@ class BaseAPIClient:
             Le corps JSON décodé (dict ou list) de la réponse, ou `True` sur 204.
 
         Raises:
-            TokenExpiredError: En cas de réponse 401.
-            httpx.HTTPStatusError: Pour toute autre erreur HTTP.
+            TokenExpiredError: Authentification expirée (401).
+            APIClientError: Toute autre erreur API mappée (404 introuvable,
+                422 validation, 5xx serveur) ou API injoignable
+                (`APIUnavailableError`).
         """
-        url = f"{self.base_url}{endpoint}"
-        response = httpx.post(url, headers=self.headers, json=data)
-        return self._handle_response(response)
+        response = self._request(
+            "POST", endpoint, idempotent=False, headers=self.headers, json=data
+        )
+        return self._map_response(response)
 
-    def put(self, endpoint, data=None):
-        """Émet une requête PUT authentifiée avec un corps JSON.
+    def put(self, endpoint: str, data: dict[str, Any] | None = None) -> Any:
+        """Émet une requête PUT authentifiée avec un corps JSON (idempotente).
 
         Args:
             endpoint (str): Chemin de la route, concaténé à `base_url`.
@@ -192,15 +379,17 @@ class BaseAPIClient:
             Le corps JSON décodé (dict ou list) de la réponse, ou `True` sur 204.
 
         Raises:
-            TokenExpiredError: En cas de réponse 401.
-            httpx.HTTPStatusError: Pour toute autre erreur HTTP.
+            TokenExpiredError: Authentification expirée (401).
+            APIClientError: Toute autre erreur API mappée ou API injoignable
+                (`APIUnavailableError`).
         """
-        url = f"{self.base_url}{endpoint}"
-        response = httpx.put(url, headers=self.headers, json=data)
-        return self._handle_response(response)
+        response = self._request(
+            "PUT", endpoint, idempotent=True, headers=self.headers, json=data
+        )
+        return self._map_response(response)
 
-    def delete(self, endpoint):
-        """Émet une requête DELETE authentifiée.
+    def delete(self, endpoint: str) -> Any:
+        """Émet une requête DELETE authentifiée (idempotente, rejouable).
 
         Args:
             endpoint (str): Chemin de la route, concaténé à `base_url`.
@@ -211,15 +400,20 @@ class BaseAPIClient:
             décodé si l'API renvoie un contenu.
 
         Raises:
-            TokenExpiredError: En cas de réponse 401.
-            httpx.HTTPStatusError: Pour toute autre erreur HTTP.
+            TokenExpiredError: Authentification expirée (401).
+            APIClientError: Toute autre erreur API mappée (404 introuvable,
+                5xx serveur) ou API injoignable (`APIUnavailableError`).
         """
-        url = f"{self.base_url}{endpoint}"
-        response = httpx.delete(url, headers=self.headers)
-        return self._handle_response(response)
+        response = self._request(
+            "DELETE", endpoint, idempotent=True, headers=self.headers
+        )
+        return self._map_response(response)
 
-    def patch(self, endpoint, data=None):
+    def patch(self, endpoint: str, data: dict[str, Any] | None = None) -> Any:
         """Émet une requête PATCH authentifiée avec un corps JSON.
+
+        PATCH n'est pas garanti idempotent (contrat OpenAPI) : par prudence, il
+        n'est JAMAIS rejoué, comme POST.
 
         Args:
             endpoint (str): Chemin de la route, concaténé à `base_url`.
@@ -231,18 +425,27 @@ class BaseAPIClient:
             Le corps JSON décodé (dict ou list) de la réponse, ou `True` sur 204.
 
         Raises:
-            TokenExpiredError: En cas de réponse 401.
-            httpx.HTTPStatusError: Pour toute autre erreur HTTP.
+            TokenExpiredError: Authentification expirée (401).
+            APIClientError: Toute autre erreur API mappée (404 introuvable,
+                422 validation, 5xx serveur) ou API injoignable
+                (`APIUnavailableError`).
         """
-        url = f"{self.base_url}{endpoint}"
-        response = httpx.patch(url, headers=self.headers, json=data)
-        return self._handle_response(response)
+        response = self._request(
+            "PATCH", endpoint, idempotent=False, headers=self.headers, json=data
+        )
+        return self._map_response(response)
 
-    def post_file(self, endpoint, files, data=None):
+    def post_file(
+        self,
+        endpoint: str,
+        files: dict[str, Any],
+        data: dict[str, Any] | None = None,
+    ) -> Any:
         """POST multipart/form-data (upload de fichiers vers l'API).
 
         On n'envoie PAS de Content-Type explicite : httpx calcule lui-même
-        le boundary multipart à partir de `files`.
+        le boundary multipart à partir de `files`. Comme tout POST, l'upload
+        n'est jamais rejoué (non idempotent).
 
         Args:
             endpoint (str): Chemin de la route, concaténé à `base_url`.
@@ -257,9 +460,16 @@ class BaseAPIClient:
             ou `True` sur 204.
 
         Raises:
-            TokenExpiredError: En cas de réponse 401.
-            httpx.HTTPStatusError: Pour toute autre erreur HTTP.
+            TokenExpiredError: Authentification expirée (401).
+            APIClientError: Toute autre erreur API mappée (422 validation,
+                5xx serveur) ou API injoignable (`APIUnavailableError`).
         """
-        url = f"{self.base_url}{endpoint}"
-        response = httpx.post(url, headers=self.auth_headers, files=files, data=data)
-        return self._handle_response(response)
+        response = self._request(
+            "POST",
+            endpoint,
+            idempotent=False,
+            headers=self.auth_headers,
+            files=files,
+            data=data,
+        )
+        return self._map_response(response)

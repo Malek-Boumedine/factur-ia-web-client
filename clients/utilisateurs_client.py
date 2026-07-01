@@ -31,7 +31,9 @@ class UtilisateursClient(BaseAPIClient):
 
         Raises:
             TokenExpiredError: En cas de réponse 401.
-            httpx.HTTPStatusError: Pour toute autre erreur HTTP.
+            APIClientError: Toute autre erreur API mappée (404 introuvable,
+                422 validation, 5xx serveur) ou API injoignable
+                (APIUnavailableError).
         """
         return self.get("/utilisateurs/")
 
@@ -45,7 +47,9 @@ class UtilisateursClient(BaseAPIClient):
 
         Raises:
             TokenExpiredError: En cas de réponse 401.
-            httpx.HTTPStatusError: Pour toute autre erreur HTTP.
+            APIClientError: Toute autre erreur API mappée (404 introuvable,
+                422 validation, 5xx serveur) ou API injoignable
+                (APIUnavailableError).
         """
         return self.get("/auth/roles")
 
@@ -66,8 +70,9 @@ class UtilisateursClient(BaseAPIClient):
 
         Raises:
             TokenExpiredError: En cas de réponse 401.
-            httpx.HTTPStatusError: Pour toute autre erreur HTTP (ex. 422
-                validation).
+            APIClientError: Toute autre erreur API mappée (404 introuvable,
+                422 validation, 5xx serveur) ou API injoignable
+                (APIUnavailableError).
         """
         data = {"est_actif": True, **payload}
         return self.post("/utilisateurs/", data=data)
@@ -87,8 +92,9 @@ class UtilisateursClient(BaseAPIClient):
 
         Raises:
             TokenExpiredError: En cas de réponse 401.
-            httpx.HTTPStatusError: Pour toute autre erreur HTTP (ex. 422
-                validation).
+            APIClientError: Toute autre erreur API mappée (404 introuvable,
+                422 validation, 5xx serveur) ou API injoignable
+                (APIUnavailableError).
         """
         return self.patch(f"/utilisateurs/{user_id}", data=payload)
 
@@ -105,6 +111,8 @@ class UtilisateursClient(BaseAPIClient):
 
         Raises:
             TokenExpiredError: En cas de réponse 401.
-            httpx.HTTPStatusError: Pour toute autre erreur HTTP.
+            APIClientError: Toute autre erreur API mappée (404 introuvable,
+                422 validation, 5xx serveur) ou API injoignable
+                (APIUnavailableError).
         """
         return self.delete(f"/utilisateurs/{user_id}")

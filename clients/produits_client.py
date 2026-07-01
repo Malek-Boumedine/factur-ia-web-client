@@ -40,7 +40,9 @@ class ProduitsClient(BaseAPIClient):
 
         Raises:
             TokenExpiredError: En cas de réponse 401.
-            httpx.HTTPStatusError: Pour toute autre erreur HTTP.
+            APIClientError: Toute autre erreur API mappée (404 introuvable,
+                422 validation, 5xx serveur) ou API injoignable
+                (APIUnavailableError).
         """
         params: dict[str, int] = {}
         if skip is not None:
@@ -62,7 +64,9 @@ class ProduitsClient(BaseAPIClient):
 
         Raises:
             TokenExpiredError: En cas de réponse 401.
-            httpx.HTTPStatusError: Pour toute autre erreur HTTP.
+            APIClientError: Toute autre erreur API mappée (404 introuvable,
+                422 validation, 5xx serveur) ou API injoignable
+                (APIUnavailableError).
         """
         return self.get(f"/catalogue-produits/{produit_id}")
 
@@ -82,8 +86,9 @@ class ProduitsClient(BaseAPIClient):
 
         Raises:
             TokenExpiredError: En cas de réponse 401.
-            httpx.HTTPStatusError: Pour toute autre erreur HTTP (ex. 422
-                validation).
+            APIClientError: Toute autre erreur API mappée (404 introuvable,
+                422 validation, 5xx serveur) ou API injoignable
+                (APIUnavailableError).
         """
         return self.post("/catalogue-produits/", data=payload)
 
@@ -103,8 +108,9 @@ class ProduitsClient(BaseAPIClient):
 
         Raises:
             TokenExpiredError: En cas de réponse 401.
-            httpx.HTTPStatusError: Pour toute autre erreur HTTP (ex. 422
-                validation).
+            APIClientError: Toute autre erreur API mappée (404 introuvable,
+                422 validation, 5xx serveur) ou API injoignable
+                (APIUnavailableError).
         """
         return self.patch(f"/catalogue-produits/{produit_id}", data=payload)
 
@@ -123,6 +129,8 @@ class ProduitsClient(BaseAPIClient):
 
         Raises:
             TokenExpiredError: En cas de réponse 401.
-            httpx.HTTPStatusError: Pour toute autre erreur HTTP.
+            APIClientError: Toute autre erreur API mappée (404 introuvable,
+                422 validation, 5xx serveur) ou API injoignable
+                (APIUnavailableError).
         """
         return self.delete(f"/catalogue-produits/{produit_id}")

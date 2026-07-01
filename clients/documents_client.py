@@ -40,8 +40,9 @@ class DocumentsClient(BaseAPIClient):
 
         Raises:
             TokenExpiredError: En cas de réponse 401.
-            httpx.HTTPStatusError: Pour toute autre erreur HTTP (ex. 422
-                validation).
+            APIClientError: Toute autre erreur API mappée (404 introuvable,
+                422 validation, 5xx serveur) ou API injoignable
+                (APIUnavailableError).
         """
         files = {
             "file": (

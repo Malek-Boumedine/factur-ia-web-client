@@ -35,7 +35,9 @@ class AbonnementsClient(BaseAPIClient):
 
         Raises:
             TokenExpiredError: En cas de réponse 401.
-            httpx.HTTPStatusError: Pour toute autre erreur HTTP.
+            APIClientError: Toute autre erreur API mappée (404 introuvable,
+                422 validation, 5xx serveur) ou API injoignable
+                (APIUnavailableError).
         """
         return self.get("/abonnements/")
 
@@ -50,7 +52,9 @@ class AbonnementsClient(BaseAPIClient):
 
         Raises:
             TokenExpiredError: En cas de réponse 401.
-            httpx.HTTPStatusError: Pour toute autre erreur HTTP.
+            APIClientError: Toute autre erreur API mappée (404 introuvable,
+                422 validation, 5xx serveur) ou API injoignable
+                (APIUnavailableError).
         """
         return self.get("/abonnements/me")
 
@@ -69,8 +73,9 @@ class AbonnementsClient(BaseAPIClient):
 
         Raises:
             TokenExpiredError: En cas de réponse 401.
-            httpx.HTTPStatusError: Pour toute autre erreur HTTP (ex. 422
-                validation).
+            APIClientError: Toute autre erreur API mappée (404 introuvable,
+                422 validation, 5xx serveur) ou API injoignable
+                (APIUnavailableError).
         """
         return self.post("/abonnements/", data=payload)
 
@@ -91,8 +96,9 @@ class AbonnementsClient(BaseAPIClient):
 
         Raises:
             TokenExpiredError: En cas de réponse 401.
-            httpx.HTTPStatusError: Pour toute autre erreur HTTP (ex. 422
-                validation).
+            APIClientError: Toute autre erreur API mappée (404 introuvable,
+                422 validation, 5xx serveur) ou API injoignable
+                (APIUnavailableError).
         """
         return self.patch(f"/abonnements/{abonnement_id}", data=payload)
 
@@ -110,6 +116,8 @@ class AbonnementsClient(BaseAPIClient):
 
         Raises:
             TokenExpiredError: En cas de réponse 401.
-            httpx.HTTPStatusError: Pour toute autre erreur HTTP.
+            APIClientError: Toute autre erreur API mappée (404 introuvable,
+                422 validation, 5xx serveur) ou API injoignable
+                (APIUnavailableError).
         """
         return self.delete(f"/abonnements/{abonnement_id}")
