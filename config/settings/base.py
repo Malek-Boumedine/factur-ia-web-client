@@ -169,6 +169,19 @@ API_RETRY_BACKOFF = float(os.getenv("API_RETRY_BACKOFF", "0.5"))
 
 
 # ==============================================================================
+# UPLOAD DE DOCUMENTS (relayés vers l'API, jamais stockés côté BFF)
+# ==============================================================================
+# Taille maximale acceptée avant relais vers l'API (octets). Configurable.
+DOCUMENT_UPLOAD_MAX_SIZE = int(
+    os.getenv("DOCUMENT_UPLOAD_MAX_SIZE", str(10 * 1024 * 1024))
+)  # 10 Mo par défaut
+# Types MIME autorisés (la validation serveur fait autorité).
+DOCUMENT_UPLOAD_ALLOWED_TYPES = ["application/pdf", "image/png", "image/jpeg"]
+# Extensions correspondantes, pour l'attribut `accept` et la validation client.
+DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS = [".pdf", ".png", ".jpg", ".jpeg"]
+
+
+# ==============================================================================
 # LOGGING (monitoring des erreurs de communication avec l'API)
 # ==============================================================================
 LOGGING = {
