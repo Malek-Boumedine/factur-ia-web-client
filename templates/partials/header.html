@@ -33,8 +33,7 @@
           <a href="{% url 'logout' %}" class="rounded-md px-3 py-2 text-sm font-semibold text-gray-300 hover:text-white">Se déconnecter</a>
         {% else %}
           <a href="{% url 'login' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:text-white">Connexion</a>
-          {# Inscription : parcours d'onboarding pas encore développé. #}
-          <a href="#" class="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 px-4 py-2 text-sm font-semibold text-white shadow transition hover:from-indigo-400 hover:to-purple-400">
+          <a href="{% url 'signup' %}" class="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 px-4 py-2 text-sm font-semibold text-white shadow transition hover:from-indigo-400 hover:to-purple-400">
             S'inscrire <span aria-hidden="true">&rarr;</span>
           </a>
         {% endif %}
@@ -76,8 +75,7 @@
         <a href="#tarifs" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Tarifs</a>
         <div class="my-2 border-t border-white/10"></div>
         <a href="{% url 'login' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Connexion</a>
-        {# Inscription : parcours d'onboarding pas encore développé. #}
-        <a href="#" class="mt-1 block rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 px-3 py-2 text-center text-base font-semibold text-white">S'inscrire &rarr;</a>
+        <a href="{% url 'signup' %}" class="mt-1 block rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 px-3 py-2 text-center text-base font-semibold text-white">S'inscrire &rarr;</a>
       {% endif %}
     </div>
   </nav>

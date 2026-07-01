@@ -3,6 +3,86 @@ import re
 from django import forms
 
 
+class SignUpForm(forms.Form):
+    """Validation serveur de l'inscription publique (POST /utilisateurs/inscription).
+
+    L'API exige `nom`, `prenom`, `email`, `password` (min 8) et `id_role`. Le
+    formulaire public ne propose pas de sélecteur de rôle (`/auth/roles` exige
+    une authentification) : le rôle est injecté par la vue depuis les settings.
+    Un champ de confirmation garantit la ressaisie correcte du mot de passe.
+    """
+
+    nom = forms.CharField(max_length=150)
+    prenom = forms.CharField(max_length=150)
+    email = forms.EmailField()
+    password = forms.CharField(min_length=8)
+    confirm_password = forms.CharField()
+
+    def clean(self):
+        cleaned = super().clean()
+        password = cleaned.get("password")
+        confirm = cleaned.get("confirm_password")
+        if password and confirm and password != confirm:
+            self.add_error(
+                "confirm_password", "Les deux mots de passe ne correspondent pas."
+            )
+        return cleaned
+
+    def to_api_payload(self, id_role, est_admin=True):
+        """Construit le corps `UtilisateurCreate` envoyé à l'API.
+
+        Args:
+            id_role (int): Rôle attribué au compte créé (injecté par la vue
+                depuis `settings.SIGNUP_DEFAULT_ROLE_ID`).
+            est_admin (bool): Marque le compte comme administrateur de son
+                espace (propriétaire à l'inscription). Vrai par défaut.
+
+        Returns:
+            dict: Données conformes au schéma `UtilisateurCreate`.
+        """
+        cd = self.cleaned_data
+        return {
+            "nom": cd["nom"],
+            "prenom": cd["prenom"],
+            "email": cd["email"],
+            "password": cd["password"],
+            "id_role": id_role,
+            "est_admin": est_admin,
+            "est_actif": True,
+        }
+
+
+class ForgotPasswordForm(forms.Form):
+    """Validation de la demande de réinitialisation (POST /auth/mot-de-passe-oublie).
+
+    Un seul champ email. Le comportement de la vue reste neutre (ne révèle pas
+    l'existence du compte), conformément à l'API.
+    """
+
+    email = forms.EmailField()
+
+
+class ResetPasswordForm(forms.Form):
+    """Validation du nouveau mot de passe (POST /auth/reinitialiser-mot-de-passe).
+
+    Le token provient de l'URL (lien email), pas du formulaire. On applique la
+    même règle de robustesse que l'API (min 8 caractères) et une confirmation.
+    """
+
+    nouveau_mot_de_passe = forms.CharField(min_length=8)
+    confirm_password = forms.CharField()
+
+    def clean(self):
+        cleaned = super().clean()
+        password = cleaned.get("nouveau_mot_de_passe")
+        confirm = cleaned.get("confirm_password")
+        if password and confirm and password != confirm:
+            self.add_error(
+                "confirm_password", "Les deux mots de passe ne correspondent pas."
+            )
+        return cleaned
+
+
 class CollaborateurForm(forms.Form):
     """Validation serveur de l'ajout / modification d'un collaborateur.
 
