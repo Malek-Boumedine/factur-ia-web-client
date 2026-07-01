@@ -123,6 +123,12 @@ STATIC_URL = "static/"
 TAILWIND_CLI_PATH = BASE_DIR / "static" / "css" / "tailwind"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 
+# daisyUI : télécharge le binaire « tailwindcss-extra » (Tailwind v4 + daisyUI)
+# et compile depuis notre fichier source versionné (thème emerald). La sortie
+# reste static/css/tailwind.css (défaut), donc {% tailwind_css %} est inchangé.
+TAILWIND_CLI_USE_DAISY_UI = True
+TAILWIND_CLI_SRC_CSS = "assets/css/source.css"
+
 
 # ==============================================================================
 # CONFIGURATION CELERY & REDIS
@@ -153,3 +159,49 @@ CACHES = {
 # On demande à Django d'utiliser le cache Redis pour stocker les sessions
 SESSION_ENGINE = "django.contrib.sessions.backends.cache"
 SESSION_CACHE_ALIAS = "default"
+
+
+# ==============================================================================
+# CONFIGURATION CLIENT API (résilience réseau)
+# ==============================================================================
+# Timeouts httpx en secondes : connexion et lecture distingués.
+API_CONNECT_TIMEOUT = float(os.getenv("API_CONNECT_TIMEOUT", "5.0"))
+API_READ_TIMEOUT = float(os.getenv("API_READ_TIMEOUT", "15.0"))
+# Politique de retry : uniquement erreurs transitoires + méthodes idempotentes.
+# Nombre de rejeux au-delà de la tentative initiale (2 => 3 tentatives au total).
+API_MAX_RETRIES = int(os.getenv("API_MAX_RETRIES", "2"))
+# Base du backoff exponentiel en secondes (délai = backoff * 2 ** tentative).
+API_RETRY_BACKOFF = float(os.getenv("API_RETRY_BACKOFF", "0.5"))
+
+
+# ==============================================================================
+# UPLOAD DE DOCUMENTS (relayés vers l'API, jamais stockés côté BFF)
+# ==============================================================================
+# Taille maximale acceptée avant relais vers l'API (octets). Configurable.
+DOCUMENT_UPLOAD_MAX_SIZE = int(
+    os.getenv("DOCUMENT_UPLOAD_MAX_SIZE", str(10 * 1024 * 1024))
+)  # 10 Mo par défaut
+# Types MIME autorisés (la validation serveur fait autorité).
+DOCUMENT_UPLOAD_ALLOWED_TYPES = ["application/pdf", "image/png", "image/jpeg"]
+# Extensions correspondantes, pour l'attribut `accept` et la validation client.
+DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS = [".pdf", ".png", ".jpg", ".jpeg"]
+
+
+# ==============================================================================
+# LOGGING (monitoring des erreurs de communication avec l'API)
+# ==============================================================================
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {"class": "logging.StreamHandler"},
+    },
+    "loggers": {
+        # Retries et échecs définitifs de la couche cliente API.
+        "clients": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
+}

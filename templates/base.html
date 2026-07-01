@@ -1,11 +1,15 @@
-{% load tailwind_cli %}
+{% load tailwind_cli static %}
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr" data-theme="emerald">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Factur-IA</title>
     {% tailwind_css %}
+    {# Alpine.js (vendored, chargé une seule fois pour toutes les pages). #}
+    <script defer src="{% static 'js/alpine.min.js' %}"></script>
+    {# Évite l'affichage des éléments Alpine avant l'initialisation du JS. #}
+    <style>[x-cloak]{display:none !important;}</style>
 </head>
 <body class="bg-gray-100 text-gray-900 font-sans">
 
