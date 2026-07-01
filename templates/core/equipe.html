@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% comment %}
+État de la page géré par Alpine.js (composant `equipeModal`, défini en bas) :
+ouverture de la modal, bascule création/édition (titre, bouton, mot de passe
+requis, pré-remplissage). Le comportement serveur est inchangé : POST classiques
+vers {% url 'equipe' %}, actions add/edit/delete via champ caché, CSRF par form.
+{% endcomment %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-6" x-data="equipeModal()">
+
+    {% if messages %}
+        <div class="space-y-2">
+            {% for message in messages %}
+                <div role="alert" class="alert {% if message.tags == 'error' %}alert-error{% else %}alert-success{% endif %}">
+                    <span>{{ message }}</span>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="flex justify-between items-center bg-base-100 rounded-t-lg shadow-sm p-4 border-b border-base-300">
+        <h2 class="text-xl font-bold">Membres de l'équipe</h2>
+        <button type="button" class="btn btn-primary" @click="openCreate()">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            Ajouter un collaborateur
+        </button>
+    </div>
+
+    <div class="bg-base-100 rounded-b-lg shadow-md border border-base-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Email</th>
+                        <th>Rôle métier</th>
+                        <th>Statut</th>
+                        <th class="text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for membre in membres %}
+                    <tr class="hover">
+                        <td class="font-medium">{{ membre.email }}</td>
+                        <td class="text-base-content/70">{{ membre.role|default:"Non défini" }}</td>
+                        <td>
+                            {% if membre.est_actif %}
+                                <span class="badge badge-success badge-soft">Actif</span>
+                            {% else %}
+                                <span class="badge badge-error badge-soft">Inactif</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-right">
+                            <div class="flex justify-end items-center gap-1">
+                                <button type="button" class="btn btn-ghost btn-sm btn-square text-info" title="Modifier"
+                                        @click="openEdit({id: '{{ membre.id }}', nom: '{{ membre.nom|default_if_none:''|escapejs }}', prenom: '{{ membre.prenom|default_if_none:''|escapejs }}', email: '{{ membre.email|default_if_none:''|escapejs }}', id_role: '{{ membre.id_role|default_if_none:'' }}', est_admin: {{ membre.est_admin|yesno:'true,false' }}, adresse: '{{ membre.adresse|default_if_none:''|escapejs }}', adresse_complement: '{{ membre.adresse_complement|default_if_none:''|escapejs }}', code_postal: '{{ membre.code_postal|default_if_none:''|escapejs }}', ville: '{{ membre.ville|default_if_none:''|escapejs }}', telephone: '{{ membre.telephone|default_if_none:''|escapejs }}'})">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                                </button>
+
+                                <form method="POST" action="{% url 'equipe' %}" class="inline-block" onsubmit="return confirm('Êtes-vous sûr de vouloir retirer {{ membre.email }} de l\'équipe ?');">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="user_id" value="{{ membre.id }}">
+                                    <button type="submit" class="btn btn-ghost btn-sm btn-square text-error" title="Supprimer">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-center text-base-content/60 py-8">Aucun collaborateur trouvé.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {# Modal création/édition (daisyUI), pilotée par Alpine. #}
+    <div class="modal" :class="{ 'modal-open': open }" x-cloak role="dialog" aria-modal="true" aria-labelledby="modal-title"
+         @keydown.escape.window="open && close()">
+        <div class="modal-box w-11/12 max-w-2xl">
+            <h3 class="text-lg font-semibold mb-4" id="modal-title" x-text="title"></h3>
+
+            <form method="POST" action="{% url 'equipe' %}" class="space-y-4">
+                {% csrf_token %}
+                <input type="hidden" name="action" :value="mode">
+                <input type="hidden" name="user_id" :value="userId">
+
+                {% if form.non_field_errors %}
+                    <div role="alert" class="alert alert-error">
+                        <span>{{ form.non_field_errors.0 }}</span>
+                    </div>
+                {% endif %}
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="nom" class="block text-sm font-medium mb-1">Nom</label>
+                        <input type="text" id="nom" name="nom" required x-model="fields.nom" value="{{ form.nom.value|default:'' }}" class="input w-full">
+                        {% if form.nom.errors %}<p class="mt-1 text-xs text-error">{{ form.nom.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label for="prenom" class="block text-sm font-medium mb-1">Prénom</label>
+                        <input type="text" id="prenom" name="prenom" required x-model="fields.prenom" value="{{ form.prenom.value|default:'' }}" class="input w-full">
+                        {% if form.prenom.errors %}<p class="mt-1 text-xs text-error">{{ form.prenom.errors.0 }}</p>{% endif %}
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="email" class="block text-sm font-medium mb-1">Adresse email</label>
+                        <input type="email" id="email" name="email" required x-model="fields.email" value="{{ form.email.value|default:'' }}" class="input w-full">
+                        {% if form.email.errors %}<p class="mt-1 text-xs text-error">{{ form.email.errors.0 }}</p>{% endif %}
+                    </div>
+                    <div>
+                        <label for="password" class="block text-sm font-medium mb-1">Mot de passe temporaire</label>
+                        <input type="password" id="password" name="password" :required="mode === 'add'" :placeholder="mode === 'edit' ? 'Laisser vide pour ne pas modifier' : ''" class="input w-full">
+                        {% if form.password.errors %}<p class="mt-1 text-xs text-error">{{ form.password.errors.0 }}</p>{% endif %}
+                    </div>
+                </div>
+
+                <div>
+                    <label for="id_role" class="block text-sm font-medium mb-1">Rôle métier attribué</label>
+                    <select id="id_role" name="id_role" required x-model="fields.id_role" class="select w-full">
+                        <option value="" disabled {% if not form.id_role.value %}selected{% endif %}>-- Sélectionnez un rôle --</option>
+                        {% for role in roles %}
+                            <option value="{{ role.id }}" {% if form.id_role.value|stringformat:'s' == role.id|stringformat:'s' %}selected{% endif %}>{{ role.libelle }}</option>
+                        {% endfor %}
+                    </select>
+                    {% if form.id_role.errors %}<p class="mt-1 text-xs text-error">{{ form.id_role.errors.0 }}</p>{% endif %}
+                </div>
+
+                <fieldset class="border-t border-base-300 pt-4">
+                    <legend class="text-xs font-semibold uppercase tracking-wider text-base-content/50 mb-2">Coordonnées (optionnel)</legend>
+                    <div class="space-y-4">
+                        <div>
+                            <label for="adresse" class="block text-sm font-medium mb-1">Adresse <span class="text-base-content/50 font-normal">(optionnel)</span></label>
+                            <input type="text" id="adresse" name="adresse" x-model="fields.adresse" value="{{ form.adresse.value|default:'' }}" class="input w-full">
+                        </div>
+                        <div>
+                            <label for="adresse_complement" class="block text-sm font-medium mb-1">Complément d'adresse <span class="text-base-content/50 font-normal">(optionnel)</span></label>
+                            <input type="text" id="adresse_complement" name="adresse_complement" x-model="fields.adresse_complement" value="{{ form.adresse_complement.value|default:'' }}" class="input w-full">
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label for="code_postal" class="block text-sm font-medium mb-1">Code postal <span class="text-base-content/50 font-normal">(optionnel)</span></label>
+                                <input type="text" id="code_postal" name="code_postal" x-model="fields.code_postal" value="{{ form.code_postal.value|default:'' }}" class="input w-full">
+                                {% if form.code_postal.errors %}<p class="mt-1 text-xs text-error">{{ form.code_postal.errors.0 }}</p>{% endif %}
+                            </div>
+                            <div class="md:col-span-2">
+                                <label for="ville" class="block text-sm font-medium mb-1">Ville <span class="text-base-content/50 font-normal">(optionnel)</span></label>
+                                <input type="text" id="ville" name="ville" x-model="fields.ville" value="{{ form.ville.value|default:'' }}" class="input w-full">
+                            </div>
+                        </div>
+                        <div>
+                            <label for="telephone" class="block text-sm font-medium mb-1">Téléphone <span class="text-base-content/50 font-normal">(optionnel)</span></label>
+                            <input type="text" id="telephone" name="telephone" x-model="fields.telephone" value="{{ form.telephone.value|default:'' }}" class="input w-full">
+                        </div>
+                    </div>
+                </fieldset>
+
+                <div class="flex items-center gap-2">
+                    <input id="est_admin" name="est_admin" type="checkbox" x-model="fields.est_admin" class="checkbox checkbox-primary">
+                    <label for="est_admin" class="text-sm font-medium">Accorder les droits d'administrateur</label>
+                </div>
+
+                <div class="modal-action border-t border-base-300 pt-4">
+                    <button type="button" class="btn btn-ghost" @click="close()">Annuler</button>
+                    <button type="submit" class="btn btn-primary" x-text="submitLabel"></button>
+                </div>
+            </form>
+        </div>
+
+        {# Fond cliquable pour fermer la modal. #}
+        <div class="modal-backdrop bg-black/40" @click="close()"></div>
+    </div>
+</div>
+
+<script>
+    // Composant Alpine de la page équipe : état de la modal et bascule
+    // création/édition. Initialisé depuis le contexte Django pour reproduire la
+    // ré-ouverture serveur après une erreur de validation (open_modal / form_action).
+    function equipeModal() {
+        const champsVides = {
+            nom: "", prenom: "", email: "", id_role: "", est_admin: false,
+            adresse: "", adresse_complement: "", code_postal: "", ville: "", telephone: "",
+        };
+        return {
+            open: {% if open_modal %}true{% else %}false{% endif %},
+            mode: "{{ form_action|default:'add'|escapejs }}",
+            userId: "{{ edit_user_id|default:''|escapejs }}",
+            fields: {
+                nom: "{{ form.nom.value|default:''|escapejs }}",
+                prenom: "{{ form.prenom.value|default:''|escapejs }}",
+                email: "{{ form.email.value|default:''|escapejs }}",
+                id_role: "{{ form.id_role.value|default:''|escapejs }}",
+                est_admin: {% if form.est_admin.value %}true{% else %}false{% endif %},
+                adresse: "{{ form.adresse.value|default:''|escapejs }}",
+                adresse_complement: "{{ form.adresse_complement.value|default:''|escapejs }}",
+                code_postal: "{{ form.code_postal.value|default:''|escapejs }}",
+                ville: "{{ form.ville.value|default:''|escapejs }}",
+                telephone: "{{ form.telephone.value|default:''|escapejs }}",
+            },
+            get title() {
+                return this.mode === "edit" ? "Modifier le collaborateur" : "Créer un nouveau compte";
+            },
+            get submitLabel() {
+                return this.mode === "edit" ? "Modifier le compte" : "Créer le compte";
+            },
+            openCreate() {
+                this.mode = "add";
+                this.userId = "";
+                this.fields = { ...champsVides };
+                this.open = true;
+            },
+            openEdit(data) {
+                this.mode = "edit";
+                this.userId = data.id;
+                this.fields = { ...champsVides, ...data };
+                this.open = true;
+            },
+            close() {
+                this.open = false;
+            },
+        };
+    }
+</script>
+{% endblock content %}

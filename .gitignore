@@ -229,3 +229,7 @@ local_ci.sh
 # Tailwind CLI
 .django_tailwind_cli/
 static/css/tailwind/
+
+# Claude Code
+.claude/
+CLAUDE.md
