@@ -123,6 +123,12 @@ STATIC_URL = "static/"
 TAILWIND_CLI_PATH = BASE_DIR / "static" / "css" / "tailwind"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 
+# daisyUI : télécharge le binaire « tailwindcss-extra » (Tailwind v4 + daisyUI)
+# et compile depuis notre fichier source versionné (thème emerald). La sortie
+# reste static/css/tailwind.css (défaut), donc {% tailwind_css %} est inchangé.
+TAILWIND_CLI_USE_DAISY_UI = True
+TAILWIND_CLI_SRC_CSS = "assets/css/source.css"
+
 
 # ==============================================================================
 # CONFIGURATION CELERY & REDIS

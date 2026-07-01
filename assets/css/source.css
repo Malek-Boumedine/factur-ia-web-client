@@ -1,0 +1,13 @@
+/*
+ * Fichier source Tailwind CSS (versionné) — compilé par django-tailwind-cli
+ * vers static/css/tailwind.css via le binaire « tailwindcss-extra »
+ * (Tailwind v4 + daisyUI), activé par TAILWIND_CLI_USE_DAISY_UI = True.
+ *
+ * Ne pas éditer static/css/tailwind.css directement : c'est l'artefact compilé.
+ */
+@import "tailwindcss";
+
+/* daisyUI avec le thème « emerald » par défaut (accent vert du projet). */
+@plugin "daisyui" {
+  themes: emerald --default;
+}
