@@ -52,6 +52,38 @@ class SignUpForm(forms.Form):
         }
 
 
+class EntrepriseForm(forms.Form):
+    """Validation serveur de la création d'entreprise (POST /entreprises/).
+
+    Écran d'onboarding : `nom_entreprise` est requis, `siret` est optionnel
+    (validé à 14 chiffres exactement s'il est renseigné). `id_forme_juridique`
+    est volontairement omis (aucun endpoint de référence pour lister les valeurs).
+    """
+
+    nom_entreprise = forms.CharField(max_length=255)
+    siret = forms.CharField(max_length=14, required=False)
+
+    def clean_siret(self):
+        value = (self.cleaned_data.get("siret") or "").strip()
+        if value and not re.fullmatch(r"\d{14}", value):
+            raise forms.ValidationError(
+                "Le SIRET doit comporter exactement 14 chiffres."
+            )
+        return value
+
+    def to_api_payload(self):
+        """Construit le corps `EntrepriseCreate` à partir des données validées.
+
+        Le SIRET vide n'est pas envoyé (l'API applique ses propres défauts).
+        """
+        cd = self.cleaned_data
+        payload = {"nom_entreprise": cd["nom_entreprise"]}
+        siret = (cd.get("siret") or "").strip()
+        if siret:
+            payload["siret"] = siret
+        return payload
+
+
 class ForgotPasswordForm(forms.Form):
     """Validation de la demande de réinitialisation (POST /auth/mot-de-passe-oublie).
 

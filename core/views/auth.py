@@ -1,12 +1,23 @@
-import httpx
 from django.conf import settings
 from django.contrib import messages
 from django.shortcuts import redirect, render
 
+from clients.abonnements_client import AbonnementsClient
 from clients.api_client import APIAuthClient
 from clients.comptes_client import ComptesClient
-from clients.exceptions import APIClientError, APIUnavailableError, APIValidationError
-from core.forms import ForgotPasswordForm, ResetPasswordForm, SignUpForm
+from clients.entreprises_client import EntreprisesClient
+from clients.exceptions import (
+    APIClientError,
+    APIUnavailableError,
+    APIValidationError,
+    TokenExpiredError,
+)
+from core.forms import (
+    EntrepriseForm,
+    ForgotPasswordForm,
+    ResetPasswordForm,
+    SignUpForm,
+)
 
 # Libellé générique en cas d'indisponibilité de l'API (résilience réseau).
 _MSG_INDISPONIBLE = "Service momentanément indisponible. Veuillez réessayer."
@@ -39,55 +50,48 @@ def login_view(request):
         email = request.POST.get("email")
         password = request.POST.get("password")
 
-        client = APIAuthClient()
-        result = client.login(email, password)
+        result = APIAuthClient().login(email, password)
 
-        # 1. Si le login réussit et qu'on a un token
-        if "access_token" in result:
-            token = result["access_token"]
-            auth_headers = {"Authorization": f"Bearer {token}"}
+        # 1. Échec d'authentification (identifiants invalides, API injoignable) :
+        #    APIAuthClient renvoie {"error": ...}, jamais d'exception.
+        if "access_token" not in result:
+            messages.error(
+                request, result.get("error", "Erreur d'identifiants ou de connexion.")
+            )
+            return render(request, "core/auth/sign-in.html")
 
-            # 2. Résolution de l'entreprise active (le tenant).
-            #    L'auth /auth/token est GLOBALE : elle ne porte pas d'entreprise.
-            #    On découvre les entreprises de l'utilisateur via /abonnements/me.
-            #    Sans entreprise_id, toutes les routes métier (header
-            #    x-entreprise-id requis) échoueraient.
-            try:
-                abonnements_resp = httpx.get(
-                    f"{settings.API_DATA_URL}/abonnements/me",
-                    headers=auth_headers,
-                )
-                abonnements_resp.raise_for_status()
-                abonnements = abonnements_resp.json()
-            except Exception:
-                messages.error(
-                    request, "Impossible de récupérer votre espace de travail."
-                )
-                return render(request, "core/auth/sign-in.html")
+        # 2. On pose le JWT en session immédiatement : les appels métier qui
+        #    suivent (résolution d'entreprise, onboarding) passent par la couche
+        #    clients/, qui lit le token depuis la session. `entreprise_id` reste
+        #    inconnu à ce stade et sera résolu juste après.
+        request.session["is_authenticated"] = True
+        request.session["jwt_token"] = result["access_token"]
+        request.session["user_email"] = email
 
-            if not abonnements:
-                messages.error(
-                    request,
-                    "Aucun espace de travail n'est rattaché à votre compte.",
-                )
-                return render(request, "core/auth/sign-in.html")
+        # 3. Résolution des entreprises rattachées via /abonnements/me (la route
+        #    /auth/token est globale et ne porte pas d'entreprise). Tout passe
+        #    par clients/ : résilience réseau + mapping d'exceptions.
+        try:
+            abonnements = AbonnementsClient(request).get_my_subscription()
+        except APIUnavailableError:
+            request.session.flush()
+            messages.error(request, _MSG_INDISPONIBLE)
+            return render(request, "core/auth/sign-in.html")
+        except APIClientError:
+            request.session.flush()
+            messages.error(request, "Impossible de récupérer votre espace de travail.")
+            return render(request, "core/auth/sign-in.html")
 
-            # MVP : on sélectionne la première entreprise rattachée.
-            entreprise_id = abonnements[0].get("id_entreprise")
+        # 4. Aucune entreprise rattachée : on oriente vers l'onboarding plutôt
+        #    que de bloquer (la session porte déjà le JWT nécessaire).
+        if not abonnements:
+            return redirect("onboarding")
 
-            request.session["is_authenticated"] = True
-            request.session["jwt_token"] = token
-            request.session["user_email"] = email
-            request.session["entreprise_id"] = entreprise_id
+        # 5. MVP : on sélectionne la première entreprise rattachée.
+        request.session["entreprise_id"] = abonnements[0].get("id_entreprise")
+        return redirect("home")
 
-            return redirect("home")
-
-        # 3. Si le login a échoué (mauvais mot de passe, etc.)
-        messages.error(
-            request, result.get("error", "Erreur d'identifiants ou de connexion.")
-        )
-
-    # Affichage de la page de login (GET)
+    # Affichage de la page de connexion (GET)
     return render(request, "core/auth/sign-in.html")
 
 
@@ -203,3 +207,43 @@ def profile_lock_view(request):
     prévisualisation, à brancher ultérieurement.
     """
     return render(request, "core/auth/profile-lock.html")
+
+
+def onboarding_view(request):
+    """Création du premier espace de travail (POST /entreprises/).
+
+    Écran présenté après login quand l'utilisateur n'a aucune entreprise
+    rattachée. Le JWT est déjà en session (posé par `login_view`) : le client
+    entreprises le réutilise, sans `x-entreprise-id` (pas encore d'entreprise).
+    Après création, on initialise `entreprise_id` en session et on donne accès
+    à l'application.
+    """
+    if not request.session.get("is_authenticated"):
+        return redirect("login")
+    # Déjà un espace de travail : rien à créer, on renvoie vers l'app.
+    if request.session.get("entreprise_id"):
+        return redirect("home")
+
+    if request.method == "POST":
+        form = EntrepriseForm(request.POST)
+        if form.is_valid():
+            try:
+                entreprise = EntreprisesClient(request).create_entreprise(
+                    form.to_api_payload()
+                )
+                request.session["entreprise_id"] = entreprise["id"]
+                messages.success(
+                    request, "Votre espace de travail a été créé avec succès."
+                )
+                return redirect("home")
+            except TokenExpiredError:
+                return redirect("login")
+            except APIValidationError as e:
+                _appliquer_erreurs_api(form, e.detail)
+            except APIUnavailableError:
+                messages.error(request, _MSG_INDISPONIBLE)
+            except APIClientError:
+                messages.error(request, "Impossible de créer l'espace de travail.")
+        return render(request, "core/onboarding.html", {"form": form})
+
+    return render(request, "core/onboarding.html", {"form": EntrepriseForm()})
