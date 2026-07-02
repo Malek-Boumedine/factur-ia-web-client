@@ -18,11 +18,16 @@ from clients.exceptions import (
     APIClientError,
     APIUnavailableError,
     APIValidationError,
+    ResourceConflictError,
     ResourceNotFoundError,
     TokenExpiredError,
 )
 from core.forms import ClientForm
-from core.views.auth import _MSG_INDISPONIBLE, _appliquer_erreurs_api
+from core.views.auth import (
+    _MSG_INDISPONIBLE,
+    _appliquer_erreur_conflit,
+    _appliquer_erreurs_api,
+)
 from core.pagination import (
     PAGE_SIZE,
     base_querystring,
@@ -91,6 +96,13 @@ _SIRENE_INITIAL_FIELDS = (
     "ville",
 )
 
+# Rattachement des messages de conflit 409 aux champs du formulaire client :
+# mot-clé (minuscule) recherché dans le message de l'API -> champ concerné.
+_CONFLICT_FIELD_KEYWORDS = {
+    "siret": "siret",
+    "tva": "numero_tva",
+}
+
 
 def client_create_view(request: HttpRequest) -> HttpResponse:
     """Crée un client ; pré-remplissage optionnel via la recherche SIRENE.
@@ -111,6 +123,8 @@ def client_create_view(request: HttpRequest) -> HttpResponse:
                 created = client.create_client(form.to_api_payload())
             except TokenExpiredError:
                 return redirect("login")
+            except ResourceConflictError as e:
+                _appliquer_erreur_conflit(form, e.detail, _CONFLICT_FIELD_KEYWORDS)
             except APIValidationError as e:
                 _appliquer_erreurs_api(form, e.detail)
             except APIUnavailableError:
@@ -216,6 +230,8 @@ def client_update_view(request: HttpRequest, client_id: int) -> HttpResponse:
                 client.update_client(client_id, form.to_api_payload())
             except TokenExpiredError:
                 return redirect("login")
+            except ResourceConflictError as e:
+                _appliquer_erreur_conflit(form, e.detail, _CONFLICT_FIELD_KEYWORDS)
             except APIValidationError as e:
                 _appliquer_erreurs_api(form, e.detail)
             except APIUnavailableError:

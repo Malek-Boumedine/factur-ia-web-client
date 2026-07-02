@@ -46,6 +46,28 @@ def _appliquer_erreurs_api(form, detail):
         form.add_error(None, "Données invalides.")
 
 
+def _appliquer_erreur_conflit(form, detail, field_keywords):
+    """Reporte l'erreur de conflit 409 de l'API dans le formulaire.
+
+    Le corps 409 est un message libre nommant la donnée en conflit (ex. « Un
+    client avec ce SIRET existe déjà. ») : on le rattache au champ concerné en
+    cherchant un mot-clé dans le message, sinon en erreur globale.
+
+    Args:
+        form: Formulaire Django cible.
+        detail: Message de conflit renvoyé par l'API (champ `detail`).
+        field_keywords (dict[str, str]): Mapping mot-clé (minuscule) -> nom du
+            champ du formulaire (ex. `{"siret": "siret", "tva": "numero_tva"}`).
+    """
+    msg = str(detail or "Cette valeur est déjà utilisée.")
+    lowered = msg.lower()
+    for keyword, field in field_keywords.items():
+        if keyword in lowered and field in form.fields:
+            form.add_error(field, msg)
+            return
+    form.add_error(None, msg)
+
+
 def login_view(request):
     if request.method == "POST":
         email = request.POST.get("email")

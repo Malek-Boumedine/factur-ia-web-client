@@ -17,6 +17,7 @@ from clients.exceptions import (
     APIClientError,
     APIUnavailableError,
     APIValidationError,
+    ResourceConflictError,
     ResourceNotFoundError,
     TokenExpiredError,
 )
@@ -24,7 +25,11 @@ from clients.produits_client import ProduitsClient
 from clients.taux_tva_client import TauxTvaClient
 from core.constants import TYPES_PRODUIT, TYPES_PRODUIT_VALUES
 from core.forms import CatalogueForm
-from core.views.auth import _MSG_INDISPONIBLE, _appliquer_erreurs_api
+from core.views.auth import (
+    _MSG_INDISPONIBLE,
+    _appliquer_erreur_conflit,
+    _appliquer_erreurs_api,
+)
 from core.pagination import (
     PAGE_SIZE,
     base_querystring,
@@ -92,6 +97,18 @@ def catalogue_list_view(request: HttpRequest) -> HttpResponse:
     return render(request, "core/catalogue.html", context)
 
 
+# Rattachement des messages de conflit 409 aux champs du formulaire produit :
+# mot-clé (minuscule) recherché dans le message de l'API -> champ concerné.
+# (Aucun conflit documenté au contrat pour le catalogue à ce jour : traitement
+# défensif pour afficher proprement le message si l'API en renvoie un.)
+_CONFLICT_FIELD_KEYWORDS = {
+    "référence": "reference",
+    "reference": "reference",
+    "désignation": "designation",
+    "designation": "designation",
+}
+
+
 def _format_taux_label(taux: dict) -> str:
     """Construit le libellé affiché d'un taux de TVA (ex : « Taux normal — 20 % »).
 
@@ -147,6 +164,8 @@ def catalogue_create_view(request: HttpRequest) -> HttpResponse:
                 created = ProduitsClient(request).create_product(form.to_api_payload())
             except TokenExpiredError:
                 return redirect("login")
+            except ResourceConflictError as e:
+                _appliquer_erreur_conflit(form, e.detail, _CONFLICT_FIELD_KEYWORDS)
             except APIValidationError as e:
                 _appliquer_erreurs_api(form, e.detail)
             except APIUnavailableError:
@@ -235,6 +254,8 @@ def catalogue_update_view(request: HttpRequest, produit_id: int) -> HttpResponse
                 client.update_product(produit_id, form.to_api_payload())
             except TokenExpiredError:
                 return redirect("login")
+            except ResourceConflictError as e:
+                _appliquer_erreur_conflit(form, e.detail, _CONFLICT_FIELD_KEYWORDS)
             except APIValidationError as e:
                 _appliquer_erreurs_api(form, e.detail)
             except APIUnavailableError:
