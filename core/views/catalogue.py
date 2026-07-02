@@ -296,3 +296,26 @@ def catalogue_deactivate_view(request: HttpRequest, produit_id: int) -> HttpResp
         messages.error(request, "Erreur lors de la désactivation du produit.")
 
     return redirect("catalogue")
+
+
+@require_POST
+def catalogue_reactivate_view(request: HttpRequest, produit_id: int) -> HttpResponse:
+    """Réactive un produit (PATCH est_actif=true côté API)."""
+    if not request.session.get("is_authenticated"):
+        return redirect("login")
+
+    try:
+        ProduitsClient(request).update_product(produit_id, {"est_actif": True})
+        messages.success(request, "Le produit a été réactivé.")
+    except TokenExpiredError:
+        return redirect("login")
+    except ResourceNotFoundError:
+        messages.error(request, "Produit introuvable.")
+    except APIValidationError as e:
+        messages.error(request, str(e.detail or "Réactivation refusée."))
+    except APIUnavailableError:
+        messages.error(request, _MSG_INDISPONIBLE)
+    except APIClientError:
+        messages.error(request, "Erreur lors de la réactivation du produit.")
+
+    return redirect("catalogue")

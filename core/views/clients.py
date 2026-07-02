@@ -272,3 +272,26 @@ def client_deactivate_view(request: HttpRequest, client_id: int) -> HttpResponse
         messages.error(request, "Erreur lors de la désactivation du client.")
 
     return redirect("clients")
+
+
+@require_POST
+def client_reactivate_view(request: HttpRequest, client_id: int) -> HttpResponse:
+    """Réactive un client (PATCH est_actif=true côté API)."""
+    if not request.session.get("is_authenticated"):
+        return redirect("login")
+
+    try:
+        ClientsClient(request).update_client(client_id, {"est_actif": True})
+        messages.success(request, "Le client a été réactivé.")
+    except TokenExpiredError:
+        return redirect("login")
+    except ResourceNotFoundError:
+        messages.error(request, "Client introuvable.")
+    except APIValidationError as e:
+        messages.error(request, str(e.detail or "Réactivation refusée."))
+    except APIUnavailableError:
+        messages.error(request, _MSG_INDISPONIBLE)
+    except APIClientError:
+        messages.error(request, "Erreur lors de la réactivation du client.")
+
+    return redirect("clients")

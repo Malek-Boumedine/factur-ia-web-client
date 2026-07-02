@@ -32,12 +32,14 @@ from core.views.catalogue import (
     catalogue_deactivate_view,
     catalogue_detail_view,
     catalogue_list_view,
+    catalogue_reactivate_view,
     catalogue_update_view,
 )
 from core.views.clients import (
     client_create_view,
     client_deactivate_view,
     client_detail_view,
+    client_reactivate_view,
     client_update_view,
     clients_list_view,
 )
@@ -74,6 +76,11 @@ urlpatterns = [
         client_deactivate_view,
         name="client_deactivate",
     ),
+    path(
+        "clients/<int:client_id>/reactiver/",
+        client_reactivate_view,
+        name="client_reactivate",
+    ),
     path("catalogue/", catalogue_list_view, name="catalogue"),
     path("catalogue/nouveau/", catalogue_create_view, name="catalogue_create"),
     path(
@@ -90,6 +97,11 @@ urlpatterns = [
         "catalogue/<int:produit_id>/desactiver/",
         catalogue_deactivate_view,
         name="catalogue_deactivate",
+    ),
+    path(
+        "catalogue/<int:produit_id>/reactiver/",
+        catalogue_reactivate_view,
+        name="catalogue_reactivate",
     ),
     path("documents/upload/", upload_document_view, name="upload_document"),
     path("", home_view, name="home"),
