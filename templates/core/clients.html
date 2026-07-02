@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% comment %}
+Liste des clients : recherche, filtre actif/inactif et pagination.
+
+L'état est porté par les query params de l'URL (recherche `q`, filtre
+`est_actif`, page `page`) — la page est donc partageable et rechargeable. Le
+formulaire fonctionne sans JavaScript (soumission GET classique via le bouton
+« Rechercher ») ; Alpine n'ajoute qu'un confort : léger debounce sur la saisie
+et soumission automatique des filtres au changement.
+{% endcomment %}
+
+{% block title %}Clients — Factur-IA{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-6">
+
+    {% if messages %}
+        <div class="space-y-2">
+            {% for message in messages %}
+                <div role="alert" class="alert {% if message.tags == 'error' %}alert-error{% else %}alert-success{% endif %}">
+                    <span>{{ message }}</span>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="flex justify-between items-center bg-base-100 rounded-t-lg shadow-sm p-4 border-b border-base-300">
+        <h2 class="text-xl font-bold">Clients</h2>
+        <span class="text-sm text-base-content/60">{{ total }} client{{ total|pluralize }}</span>
+    </div>
+
+    {# Barre de recherche et filtres — un seul formulaire GET. #}
+    <form method="get" class="bg-base-100 rounded-lg shadow-sm border border-base-200 p-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+        <div class="flex-1">
+            <label for="q" class="block text-sm font-medium mb-1">Recherche</label>
+            <input type="search" id="q" name="q" value="{{ search }}"
+                   placeholder="Raison sociale, SIRET ou email…"
+                   class="input w-full"
+                   x-on:input.debounce.400ms="$el.form.requestSubmit()">
+        </div>
+        <div class="sm:w-52">
+            <label for="est_actif" class="block text-sm font-medium mb-1">Statut</label>
+            <select id="est_actif" name="est_actif" class="select w-full"
+                    x-on:change="$el.form.requestSubmit()">
+                <option value="" {% if est_actif == "" %}selected{% endif %}>Tous</option>
+                <option value="true" {% if est_actif == "true" %}selected{% endif %}>Actifs</option>
+                <option value="false" {% if est_actif == "false" %}selected{% endif %}>Inactifs</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Rechercher</button>
+    </form>
+
+    <div class="bg-base-100 rounded-lg shadow-md border border-base-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Raison sociale</th>
+                        <th>SIRET</th>
+                        <th>Ville</th>
+                        <th>Email</th>
+                        <th>Statut</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for client in items %}
+                    <tr class="hover">
+                        <td class="font-medium">{{ client.raison_sociale }}</td>
+                        <td class="text-base-content/70">{{ client.siret|default:"—" }}</td>
+                        <td class="text-base-content/70">{{ client.ville|default:"—" }}</td>
+                        <td class="text-base-content/70">{{ client.email|default:"—" }}</td>
+                        <td>
+                            {% if client.est_actif %}
+                                <span class="badge badge-success badge-soft">Actif</span>
+                            {% else %}
+                                <span class="badge badge-error badge-soft">Inactif</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center text-base-content/60 py-8">Aucun client trouvé.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% include "core/partials/pagination.html" %}
+</div>
+{% endblock content %}
