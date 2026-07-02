@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% comment %}
+Formulaire de création/édition d'un client (tiers facturé).
+
+En création, un encart « Pré-remplir via SIRET/SIREN » soumet un GET (param
+`siret`) : la vue interroge l'annuaire SIRENE et pré-remplit le formulaire.
+Champs alignés sur les schémas ClientCreate/ClientUpdate du contrat. `est_actif`
+n'apparaît qu'en édition (couvre la réactivation d'un client désactivé).
+{% endcomment %}
+
+{% block title %}{% if is_edit %}Modifier le client{% else %}Nouveau client{% endif %} — Factur-IA{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-6">
+
+    {% if messages %}
+        <div class="space-y-2">
+            {% for message in messages %}
+                <div role="alert" class="alert {% if message.tags == 'error' %}alert-error{% else %}alert-success{% endif %}">
+                    <span>{{ message }}</span>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="flex justify-between items-center bg-base-100 rounded-t-lg shadow-sm p-4 border-b border-base-300">
+        <h2 class="text-xl font-bold">{% if is_edit %}Modifier le client{% else %}Nouveau client{% endif %}</h2>
+        <a href="{% if is_edit %}{% url 'client_detail' client_id=client.id %}{% else %}{% url 'clients' %}{% endif %}" class="btn btn-ghost btn-sm">Retour</a>
+    </div>
+
+    {% if not is_edit %}
+    {# --- Pré-remplissage via l'annuaire SIRENE (rechargement serveur). --- #}
+    <div class="bg-base-100 rounded-lg shadow-sm border border-base-200 p-4">
+        <form method="get" class="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div class="flex-1">
+                <label for="sirene" class="block text-sm font-medium mb-1">Pré-remplir via SIRET/SIREN <span class="text-base-content/50 font-normal">(optionnel)</span></label>
+                <input type="text" id="sirene" name="siret" value="{{ sirene_query }}"
+                       inputmode="numeric" placeholder="9 chiffres (SIREN) ou 14 chiffres (SIRET)"
+                       class="input w-full">
+            </div>
+            <button type="submit" class="btn btn-secondary">Rechercher l'entreprise</button>
+        </form>
+    </div>
+    {% endif %}
+
+    <form method="post" class="bg-base-100 rounded-lg shadow-md border border-base-200 p-6 space-y-4">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+            <div role="alert" class="alert alert-error">
+                <span>{{ form.non_field_errors.0 }}</span>
+            </div>
+        {% endif %}
+
+        <div>
+            <label for="raison_sociale" class="block text-sm font-medium mb-1">Raison sociale</label>
+            <input type="text" id="raison_sociale" name="raison_sociale" required maxlength="255"
+                   value="{{ form.raison_sociale.value|default:'' }}" class="input w-full">
+            {% if form.raison_sociale.errors %}<p class="mt-1 text-xs text-error">{{ form.raison_sociale.errors.0 }}</p>{% endif %}
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label for="siret" class="block text-sm font-medium mb-1">SIRET <span class="text-base-content/50 font-normal">(optionnel)</span></label>
+                <input type="text" id="siret" name="siret" maxlength="14" inputmode="numeric"
+                       value="{{ form.siret.value|default:'' }}" class="input w-full">
+                {% if form.siret.errors %}<p class="mt-1 text-xs text-error">{{ form.siret.errors.0 }}</p>{% endif %}
+            </div>
+            <div>
+                <label for="numero_tva" class="block text-sm font-medium mb-1">N° TVA intracommunautaire <span class="text-base-content/50 font-normal">(optionnel)</span></label>
+                <input type="text" id="numero_tva" name="numero_tva" maxlength="20"
+                       value="{{ form.numero_tva.value|default:'' }}" class="input w-full">
+                {% if form.numero_tva.errors %}<p class="mt-1 text-xs text-error">{{ form.numero_tva.errors.0 }}</p>{% endif %}
+            </div>
+        </div>
+
+        <div>
+            <label for="adresse" class="block text-sm font-medium mb-1">Adresse <span class="text-base-content/50 font-normal">(optionnel)</span></label>
+            <input type="text" id="adresse" name="adresse" maxlength="255"
+                   value="{{ form.adresse.value|default:'' }}" class="input w-full">
+            {% if form.adresse.errors %}<p class="mt-1 text-xs text-error">{{ form.adresse.errors.0 }}</p>{% endif %}
+        </div>
+
+        <div>
+            <label for="adresse_complement" class="block text-sm font-medium mb-1">Complément d'adresse <span class="text-base-content/50 font-normal">(optionnel)</span></label>
+            <input type="text" id="adresse_complement" name="adresse_complement" maxlength="255"
+                   value="{{ form.adresse_complement.value|default:'' }}" class="input w-full">
+            {% if form.adresse_complement.errors %}<p class="mt-1 text-xs text-error">{{ form.adresse_complement.errors.0 }}</p>{% endif %}
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <label for="code_postal" class="block text-sm font-medium mb-1">Code postal</label>
+                <input type="text" id="code_postal" name="code_postal" required maxlength="10"
+                       value="{{ form.code_postal.value|default:'' }}" class="input w-full">
+                {% if form.code_postal.errors %}<p class="mt-1 text-xs text-error">{{ form.code_postal.errors.0 }}</p>{% endif %}
+            </div>
+            <div class="md:col-span-2">
+                <label for="ville" class="block text-sm font-medium mb-1">Ville</label>
+                <input type="text" id="ville" name="ville" required maxlength="150"
+                       value="{{ form.ville.value|default:'' }}" class="input w-full">
+                {% if form.ville.errors %}<p class="mt-1 text-xs text-error">{{ form.ville.errors.0 }}</p>{% endif %}
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label for="email" class="block text-sm font-medium mb-1">Email <span class="text-base-content/50 font-normal">(optionnel)</span></label>
+                <input type="email" id="email" name="email" maxlength="255"
+                       value="{{ form.email.value|default:'' }}" class="input w-full">
+                {% if form.email.errors %}<p class="mt-1 text-xs text-error">{{ form.email.errors.0 }}</p>{% endif %}
+            </div>
+            <div>
+                <label for="telephone" class="block text-sm font-medium mb-1">Téléphone <span class="text-base-content/50 font-normal">(optionnel)</span></label>
+                <input type="text" id="telephone" name="telephone" maxlength="20"
+                       value="{{ form.telephone.value|default:'' }}" class="input w-full">
+                {% if form.telephone.errors %}<p class="mt-1 text-xs text-error">{{ form.telephone.errors.0 }}</p>{% endif %}
+            </div>
+        </div>
+
+        {% if is_edit %}
+        <div class="flex items-center gap-2 border-t border-base-300 pt-4">
+            <input type="checkbox" id="est_actif" name="est_actif" class="checkbox checkbox-primary"
+                   {% if form.est_actif.value %}checked{% endif %}>
+            <label for="est_actif" class="text-sm font-medium">Client actif</label>
+        </div>
+        {% endif %}
+
+        <div class="flex justify-end gap-2 border-t border-base-300 pt-4">
+            <a href="{% if is_edit %}{% url 'client_detail' client_id=client.id %}{% else %}{% url 'clients' %}{% endif %}" class="btn btn-ghost">Annuler</a>
+            <button type="submit" class="btn btn-primary">{% if is_edit %}Enregistrer les modifications{% else %}Créer le client{% endif %}</button>
+        </div>
+    </form>
+</div>
+{% endblock content %}

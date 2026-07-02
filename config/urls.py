@@ -27,8 +27,20 @@ from core.views.auth import (
     signup_view,
 )
 from core.views.admins_plateforme import admins_plateforme_view
-from core.views.catalogue import catalogue_list_view
-from core.views.clients import clients_list_view
+from core.views.catalogue import (
+    catalogue_create_view,
+    catalogue_deactivate_view,
+    catalogue_detail_view,
+    catalogue_list_view,
+    catalogue_update_view,
+)
+from core.views.clients import (
+    client_create_view,
+    client_deactivate_view,
+    client_detail_view,
+    client_update_view,
+    clients_list_view,
+)
 from core.views.documents import upload_document_view
 from core.views.equipe import equipe_view
 from core.views.home import home_view
@@ -50,7 +62,35 @@ urlpatterns = [
     path("equipe/", equipe_view, name="equipe"),
     path("admins/", admins_plateforme_view, name="admins_plateforme"),
     path("clients/", clients_list_view, name="clients"),
+    path("clients/nouveau/", client_create_view, name="client_create"),
+    path("clients/<int:client_id>/", client_detail_view, name="client_detail"),
+    path(
+        "clients/<int:client_id>/modifier/",
+        client_update_view,
+        name="client_update",
+    ),
+    path(
+        "clients/<int:client_id>/desactiver/",
+        client_deactivate_view,
+        name="client_deactivate",
+    ),
     path("catalogue/", catalogue_list_view, name="catalogue"),
+    path("catalogue/nouveau/", catalogue_create_view, name="catalogue_create"),
+    path(
+        "catalogue/<int:produit_id>/",
+        catalogue_detail_view,
+        name="catalogue_detail",
+    ),
+    path(
+        "catalogue/<int:produit_id>/modifier/",
+        catalogue_update_view,
+        name="catalogue_update",
+    ),
+    path(
+        "catalogue/<int:produit_id>/desactiver/",
+        catalogue_deactivate_view,
+        name="catalogue_deactivate",
+    ),
     path("documents/upload/", upload_document_view, name="upload_document"),
     path("", home_view, name="home"),
 ]
