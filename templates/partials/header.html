@@ -17,7 +17,9 @@
           <a href="{% url 'equipe' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Équipe</a>
           <a href="{% url 'clients' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Clients</a>
           <a href="{% url 'catalogue' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Catalogue</a>
+          <a href="{% url 'abonnements' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Abonnements</a>
           {% if request.session.is_platform_admin %}
+            <a href="{% url 'plans_admin' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Gestion des plans</a>
             <a href="{% url 'admins_plateforme' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Admins plateforme</a>
           {% endif %}
           {# Sections métier à venir — pas encore de vue/URL dédiée. #}
@@ -68,7 +70,9 @@
         <a href="{% url 'equipe' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Équipe</a>
         <a href="{% url 'clients' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Clients</a>
         <a href="{% url 'catalogue' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Catalogue</a>
+        <a href="{% url 'abonnements' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Abonnements</a>
         {% if request.session.is_platform_admin %}
+          <a href="{% url 'plans_admin' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Gestion des plans</a>
           <a href="{% url 'admins_plateforme' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Admins plateforme</a>
         {% endif %}
         {# Sections métier à venir — pas encore de vue/URL dédiée. #}

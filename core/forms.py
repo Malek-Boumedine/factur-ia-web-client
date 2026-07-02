@@ -265,6 +265,48 @@ class ClientForm(forms.Form):
         return payload
 
 
+class AbonnementForm(forms.Form):
+    """Validation serveur de la création/édition d'un plan d'abonnement.
+
+    Champs et contraintes alignés sur AbonnementCreate/AbonnementUpdate du
+    contrat OpenAPI. Seul `libelle` est requis ; les autres champs portent les
+    défauts du schéma (tarif 0, 1 utilisateur, 10 factures/mois). Le tarif est
+    envoyé en chaîne (le schéma l'accepte) pour éviter les arrondis flottants ;
+    le contrat le borne à 8 chiffres entiers et 2 décimales.
+    """
+
+    libelle = forms.CharField(max_length=100)
+    description = forms.CharField(required=False)
+    tarif = forms.DecimalField(min_value=0, max_digits=10, decimal_places=2, initial=0)
+    nombre_max_utilisateurs = forms.IntegerField(min_value=1, initial=1)
+    nombre_max_factures_mois = forms.IntegerField(min_value=1, initial=10)
+
+    def __init__(self, *args, is_edit=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.is_edit = is_edit
+
+    def to_api_payload(self):
+        """Construit le corps AbonnementCreate/AbonnementUpdate depuis les données.
+
+        En création, la description vide est omise (l'API applique ses
+        défauts) ; en édition, elle est envoyée à `None` pour permettre
+        l'effacement (schéma nullable).
+        """
+        cd = self.cleaned_data
+        payload = {
+            "libelle": cd["libelle"],
+            "tarif": str(cd["tarif"]),
+            "nombre_max_utilisateurs": cd["nombre_max_utilisateurs"],
+            "nombre_max_factures_mois": cd["nombre_max_factures_mois"],
+        }
+        description = (cd.get("description") or "").strip()
+        if description:
+            payload["description"] = description
+        elif self.is_edit:
+            payload["description"] = None
+        return payload
+
+
 class CatalogueForm(forms.Form):
     """Validation serveur de la création/édition d'un produit du catalogue.
 
