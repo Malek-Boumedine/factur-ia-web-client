@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% comment %}
+Catalogue de produits : recherche, filtres (statut actif/inactif, type de
+produit) et pagination.
+
+L'état est porté par les query params de l'URL (recherche `q`, filtres
+`est_actif` et `type_produit`, page `page`) — la page est donc partageable et
+rechargeable. Le formulaire fonctionne sans JavaScript (soumission GET classique
+via le bouton « Rechercher ») ; Alpine n'ajoute qu'un confort : léger debounce
+sur la saisie et soumission automatique des filtres au changement.
+{% endcomment %}
+
+{% block title %}Catalogue — Factur-IA{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-6">
+
+    {% if messages %}
+        <div class="space-y-2">
+            {% for message in messages %}
+                <div role="alert" class="alert {% if message.tags == 'error' %}alert-error{% else %}alert-success{% endif %}">
+                    <span>{{ message }}</span>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="flex justify-between items-center bg-base-100 rounded-t-lg shadow-sm p-4 border-b border-base-300">
+        <h2 class="text-xl font-bold">Catalogue</h2>
+        <span class="text-sm text-base-content/60">{{ total }} produit{{ total|pluralize }}</span>
+    </div>
+
+    {# Barre de recherche et filtres — un seul formulaire GET. #}
+    <form method="get" class="bg-base-100 rounded-lg shadow-sm border border-base-200 p-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+        <div class="flex-1">
+            <label for="q" class="block text-sm font-medium mb-1">Recherche</label>
+            <input type="search" id="q" name="q" value="{{ search }}"
+                   placeholder="Désignation ou référence…"
+                   class="input w-full"
+                   x-on:input.debounce.400ms="$el.form.requestSubmit()">
+        </div>
+        <div class="sm:w-48">
+            <label for="type_produit" class="block text-sm font-medium mb-1">Type</label>
+            <select id="type_produit" name="type_produit" class="select w-full"
+                    x-on:change="$el.form.requestSubmit()">
+                <option value="" {% if type_produit == "" %}selected{% endif %}>Tous</option>
+                {% for value, label in types_produit %}
+                    <option value="{{ value }}" {% if type_produit == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="sm:w-44">
+            <label for="est_actif" class="block text-sm font-medium mb-1">Statut</label>
+            <select id="est_actif" name="est_actif" class="select w-full"
+                    x-on:change="$el.form.requestSubmit()">
+                <option value="" {% if est_actif == "" %}selected{% endif %}>Tous</option>
+                <option value="true" {% if est_actif == "true" %}selected{% endif %}>Actifs</option>
+                <option value="false" {% if est_actif == "false" %}selected{% endif %}>Inactifs</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Rechercher</button>
+    </form>
+
+    <div class="bg-base-100 rounded-lg shadow-md border border-base-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Désignation</th>
+                        <th>Référence</th>
+                        <th>Type</th>
+                        <th class="text-right">Prix HT</th>
+                        <th>Statut</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for produit in items %}
+                    <tr class="hover">
+                        <td class="font-medium">{{ produit.designation }}</td>
+                        <td class="text-base-content/70">{{ produit.reference|default:"—" }}</td>
+                        <td class="text-base-content/70 capitalize">{{ produit.type_produit }}</td>
+                        <td class="text-right whitespace-nowrap">{{ produit.prix_unitaire_ht }} €{% if produit.unite %} / {{ produit.unite }}{% endif %}</td>
+                        <td>
+                            {% if produit.est_actif %}
+                                <span class="badge badge-success badge-soft">Actif</span>
+                            {% else %}
+                                <span class="badge badge-error badge-soft">Inactif</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center text-base-content/60 py-8">Aucun produit trouvé.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% include "core/partials/pagination.html" %}
+</div>
+{% endblock content %}

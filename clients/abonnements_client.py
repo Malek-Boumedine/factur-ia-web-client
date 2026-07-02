@@ -42,13 +42,14 @@ class AbonnementsClient(BaseAPIClient):
         return self.get("/abonnements/")
 
     def get_my_subscription(self) -> Any:
-        """Récupère l'abonnement de l'entreprise courante.
+        """Liste les abonnements/entreprises rattachés à l'utilisateur courant.
 
-        Appelle GET /abonnements/me.
+        Appelle GET /abonnements/me. La route renvoie une **liste** (un élément
+        par entreprise rattachée, chacun portant `id_entreprise`) ; elle est
+        vide si l'utilisateur n'a encore aucun espace de travail (cas onboarding).
 
         Returns:
-            dict: L'abonnement de l'entreprise courante, tel que renvoyé par
-            l'API.
+            list: Les abonnements de l'utilisateur, tels que renvoyés par l'API.
 
         Raises:
             TokenExpiredError: En cas de réponse 401.

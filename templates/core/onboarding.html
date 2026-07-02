@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% comment %}
+Onboarding — création du premier espace de travail (POST /entreprises/ via
+onboarding_view). Présenté après login si l'utilisateur n'a aucune entreprise.
+Erreurs API 422 mappées dans les champs par la vue. Thème facturia (daisyUI).
+{% endcomment %}
+
+{% block title %}Créer votre espace de travail — Factur-IA{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-lg">
+  <div class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
+    <span class="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
+      Dernière étape
+    </span>
+    <h1 class="mt-4 text-2xl font-bold text-gray-900">Créer votre espace de travail</h1>
+    <p class="mt-1 text-sm text-gray-500">
+      Renseignez votre entreprise pour commencer à utiliser Factur-IA. Vous en
+      serez le propriétaire.
+    </p>
+
+    {% if messages %}
+      <div class="mt-6 space-y-2">
+        {% for message in messages %}
+          <div class="rounded-md border p-3 text-sm {% if message.tags == 'error' %}border-red-200 bg-red-50 text-red-700{% else %}border-green-200 bg-green-50 text-green-700{% endif %}">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {% if form.non_field_errors %}
+      <div class="mt-6 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+      </div>
+    {% endif %}
+
+    <form method="POST" action="{% url 'onboarding' %}" class="mt-6 space-y-5">
+      {% csrf_token %}
+
+      <div>
+        <label for="nom_entreprise" class="mb-1 block text-sm font-medium text-gray-700">Nom de l'entreprise</label>
+        <input type="text" name="nom_entreprise" id="nom_entreprise" required maxlength="255"
+               value="{{ form.nom_entreprise.value|default:'' }}" placeholder="Ma société" class="input w-full">
+        {% if form.nom_entreprise.errors %}<p class="mt-1 text-sm text-red-600">{{ form.nom_entreprise.errors|join:", " }}</p>{% endif %}
+      </div>
+
+      <div>
+        <label for="siret" class="mb-1 block text-sm font-medium text-gray-700">
+          SIRET <span class="font-normal text-gray-400">(optionnel)</span>
+        </label>
+        <input type="text" name="siret" id="siret" inputmode="numeric" maxlength="14"
+               value="{{ form.siret.value|default:'' }}" placeholder="14 chiffres" class="input w-full">
+        {% if form.siret.errors %}<p class="mt-1 text-sm text-red-600">{{ form.siret.errors|join:", " }}</p>{% endif %}
+      </div>
+
+      <button type="submit" class="btn btn-primary w-full">Créer mon espace de travail</button>
+    </form>
+
+    <p class="mt-6 text-center text-sm text-gray-500">
+      <a href="{% url 'logout' %}" class="font-medium text-indigo-600 hover:underline">Se déconnecter</a>
+    </p>
+  </div>
+</div>
+{% endblock content %}

@@ -17,17 +17,38 @@ Including another URLconf
 
 from django.contrib import admin
 from django.urls import path
-from django.views.generic import TemplateView
-from core.views.auth import login_view, logout_view
+from core.views.auth import (
+    forgot_password_view,
+    login_view,
+    logout_view,
+    onboarding_view,
+    profile_lock_view,
+    reset_password_view,
+    signup_view,
+)
+from core.views.catalogue import catalogue_list_view
+from core.views.clients import clients_list_view
 from core.views.documents import upload_document_view
 from core.views.equipe import equipe_view
+from core.views.home import home_view
 
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("login/", login_view, name="login"),
     path("logout/", logout_view, name="logout"),
+    path("inscription/", signup_view, name="signup"),
+    path("mot-de-passe-oublie/", forgot_password_view, name="forgot_password"),
+    path(
+        "reinitialiser-mot-de-passe/",
+        reset_password_view,
+        name="reset_password",
+    ),
+    path("profile-lock/", profile_lock_view, name="profile_lock"),
+    path("onboarding/", onboarding_view, name="onboarding"),
     path("equipe/", equipe_view, name="equipe"),
+    path("clients/", clients_list_view, name="clients"),
+    path("catalogue/", catalogue_list_view, name="catalogue"),
     path("documents/upload/", upload_document_view, name="upload_document"),
-    path("", TemplateView.as_view(template_name="base.html"), name="home"),
+    path("", home_view, name="home"),
 ]

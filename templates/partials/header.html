@@ -1,0 +1,84 @@
+{% load static %}
+<header class="sticky top-0 z-50 border-b border-white/10 bg-gray-900/95 text-gray-100 backdrop-blur"
+        x-data="{ open: false }">
+  <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+    <div class="flex h-16 items-center justify-between">
+
+      {# Marque #}
+      <a href="{% url 'home' %}" class="flex shrink-0 items-center gap-2">
+        <span class="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500 font-bold text-white">F</span>
+        <span class="text-lg font-bold tracking-tight">Factur<span class="text-indigo-400">-IA</span></span>
+      </a>
+
+      {# Navigation — desktop #}
+      <nav class="hidden lg:flex lg:items-center lg:gap-1">
+        {% if request.session.is_authenticated %}
+          <a href="{% url 'upload_document' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Documents</a>
+          <a href="{% url 'equipe' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Équipe</a>
+          <a href="{% url 'clients' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Clients</a>
+          <a href="{% url 'catalogue' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Catalogue</a>
+          {# Sections métier à venir — pas encore de vue/URL dédiée. #}
+          <a href="#" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Factures</a>
+          <a href="#" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Tableau de bord</a>
+        {% else %}
+          <a href="#fonctionnalites" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Fonctionnalités</a>
+          <a href="#conformite" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Conformité</a>
+          <a href="#tarifs" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Tarifs</a>
+        {% endif %}
+      </nav>
+
+      {# Actions à droite — desktop #}
+      <div class="hidden lg:flex lg:items-center lg:gap-3">
+        {% if request.session.is_authenticated %}
+          <span class="max-w-[16rem] truncate text-sm text-gray-400">{{ request.session.user_email }}</span>
+          <a href="{% url 'logout' %}" class="rounded-md px-3 py-2 text-sm font-semibold text-gray-300 hover:text-white">Se déconnecter</a>
+        {% else %}
+          <a href="{% url 'login' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:text-white">Connexion</a>
+          <a href="{% url 'signup' %}" class="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 px-4 py-2 text-sm font-semibold text-white shadow transition hover:from-indigo-400 hover:to-purple-400">
+            S'inscrire <span aria-hidden="true">&rarr;</span>
+          </a>
+        {% endif %}
+      </div>
+
+      {# Bouton burger — mobile #}
+      <button type="button"
+              class="inline-flex items-center justify-center rounded-md p-2 text-gray-300 hover:bg-white/5 hover:text-white lg:hidden"
+              @click="open = !open" :aria-expanded="open" aria-controls="mobile-menu">
+        <span class="sr-only">Ouvrir le menu principal</span>
+        <svg x-show="!open" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+        </svg>
+        <svg x-show="open" x-cloak class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  {# Menu déroulant — mobile #}
+  <nav id="mobile-menu" x-show="open" x-cloak x-transition
+       @click.outside="open = false" @keydown.escape.window="open = false"
+       class="border-t border-white/10 lg:hidden">
+    <div class="space-y-1 px-4 py-3">
+      {% if request.session.is_authenticated %}
+        <a href="{% url 'upload_document' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Documents</a>
+        <a href="{% url 'equipe' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Équipe</a>
+        <a href="{% url 'clients' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Clients</a>
+        <a href="{% url 'catalogue' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Catalogue</a>
+        {# Sections métier à venir — pas encore de vue/URL dédiée. #}
+        <a href="#" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Factures</a>
+        <a href="#" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Tableau de bord</a>
+        <div class="my-2 border-t border-white/10"></div>
+        <p class="truncate px-3 py-1 text-sm text-gray-400">{{ request.session.user_email }}</p>
+        <a href="{% url 'logout' %}" class="block rounded-md px-3 py-2 text-base font-semibold text-gray-300 hover:bg-white/5 hover:text-white">Se déconnecter</a>
+      {% else %}
+        <a href="#fonctionnalites" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Fonctionnalités</a>
+        <a href="#conformite" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Conformité</a>
+        <a href="#tarifs" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Tarifs</a>
+        <div class="my-2 border-t border-white/10"></div>
+        <a href="{% url 'login' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Connexion</a>
+        <a href="{% url 'signup' %}" class="mt-1 block rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 px-3 py-2 text-center text-base font-semibold text-white">S'inscrire &rarr;</a>
+      {% endif %}
+    </div>
+  </nav>
+</header>

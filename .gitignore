@@ -233,3 +233,5 @@ static/css/tailwind/
 # Claude Code
 .claude/
 CLAUDE.md
+
+docs/templates
