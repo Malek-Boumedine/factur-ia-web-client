@@ -17,6 +17,9 @@
           <a href="{% url 'equipe' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Équipe</a>
           <a href="{% url 'clients' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Clients</a>
           <a href="{% url 'catalogue' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Catalogue</a>
+          {% if request.session.is_platform_admin %}
+            <a href="{% url 'admins_plateforme' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Admins plateforme</a>
+          {% endif %}
           {# Sections métier à venir — pas encore de vue/URL dédiée. #}
           <a href="#" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Factures</a>
           <a href="#" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Tableau de bord</a>
@@ -65,6 +68,9 @@
         <a href="{% url 'equipe' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Équipe</a>
         <a href="{% url 'clients' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Clients</a>
         <a href="{% url 'catalogue' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Catalogue</a>
+        {% if request.session.is_platform_admin %}
+          <a href="{% url 'admins_plateforme' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Admins plateforme</a>
+        {% endif %}
         {# Sections métier à venir — pas encore de vue/URL dédiée. #}
         <a href="#" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Factures</a>
         <a href="#" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Tableau de bord</a>

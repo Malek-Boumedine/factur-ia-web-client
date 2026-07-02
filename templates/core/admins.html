@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% comment %}
+Gestion des administrateurs de plateforme (réservée aux admins plateforme).
+
+- Liste des admins avec badges (compte protégé / vous / statut).
+- Promotion : recherche d'un utilisateur par email (GET, param `email`) puis
+  bouton « Promouvoir » sur chaque résultat (POST action=promote).
+- Révocation : bouton conditionnel (POST action=revoke), masqué pour le compte
+  protégé (racine) et pour la ligne de l'utilisateur connecté (auto-révocation
+  interdite). Les actions passent par des POST classiques (POST-redirect-GET).
+{% endcomment %}
+
+{% block title %}Administrateurs plateforme — Factur-IA{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-6">
+
+    {% if messages %}
+        <div class="space-y-2">
+            {% for message in messages %}
+                <div role="alert" class="alert {% if message.tags == 'error' %}alert-error{% elif message.tags == 'info' %}alert-info{% else %}alert-success{% endif %}">
+                    <span>{{ message }}</span>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="flex justify-between items-center bg-base-100 rounded-t-lg shadow-sm p-4 border-b border-base-300">
+        <h2 class="text-xl font-bold">Administrateurs de la plateforme</h2>
+    </div>
+
+    {# --- Promotion : recherche d'un utilisateur par email --- #}
+    <div class="bg-base-100 rounded-lg shadow-sm border border-base-200 p-4 space-y-4">
+        <h3 class="text-base font-semibold">Promouvoir un utilisateur</h3>
+        <form method="get" class="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div class="flex-1">
+                <label for="email" class="block text-sm font-medium mb-1">Rechercher par email</label>
+                <input type="search" id="email" name="email" value="{{ email_query }}"
+                       minlength="2" placeholder="Fragment d'email (2 caractères min.)…"
+                       class="input w-full">
+            </div>
+            <button type="submit" class="btn btn-primary">Rechercher</button>
+        </form>
+
+        {% if search_results is not None %}
+            <div class="overflow-x-auto">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Nom</th>
+                            <th>Email</th>
+                            <th class="text-right">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in search_results %}
+                        <tr class="hover">
+                            <td class="font-medium">{{ user.prenom }} {{ user.nom }}</td>
+                            <td class="text-base-content/70">{{ user.email }}</td>
+                            <td class="text-right">
+                                {% if user.admin_plateforme %}
+                                    <span class="badge badge-info badge-soft">Déjà admin</span>
+                                {% else %}
+                                    <form method="post" class="inline-block">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="promote">
+                                        <input type="hidden" name="utilisateur_id" value="{{ user.id }}">
+                                        <button type="submit" class="btn btn-sm btn-primary"
+                                                onclick="return confirm('Promouvoir {{ user.email|escapejs }} administrateur de plateforme ?');">
+                                            Promouvoir
+                                        </button>
+                                    </form>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="3" class="text-center text-base-content/60 py-6">Aucun utilisateur trouvé pour « {{ email_query }} ».</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
+    </div>
+
+    {# --- Liste des administrateurs actuels --- #}
+    <div class="bg-base-100 rounded-lg shadow-md border border-base-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Nom</th>
+                        <th>Email</th>
+                        <th>Statut</th>
+                        <th class="text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for admin in admins %}
+                    <tr class="hover">
+                        <td class="font-medium">
+                            {{ admin.prenom }} {{ admin.nom }}
+                            {% if admin.email == current_user_email %}
+                                <span class="badge badge-ghost badge-sm ml-1">Vous</span>
+                            {% endif %}
+                            {% if admin.compte_protege %}
+                                <span class="badge badge-warning badge-soft badge-sm ml-1">Compte protégé</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-base-content/70">{{ admin.email }}</td>
+                        <td>
+                            {% if admin.est_actif %}
+                                <span class="badge badge-success badge-soft">Actif</span>
+                            {% else %}
+                                <span class="badge badge-error badge-soft">Inactif</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-right">
+                            {% if admin.compte_protege or admin.email == current_user_email %}
+                                {# Compte racine ou soi-même : révocation interdite par l'API. #}
+                                <span class="text-base-content/40 text-sm">—</span>
+                            {% else %}
+                                <form method="post" class="inline-block">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="revoke">
+                                    <input type="hidden" name="utilisateur_id" value="{{ admin.id }}">
+                                    <button type="submit" class="btn btn-ghost btn-sm text-error"
+                                            onclick="return confirm('Révoquer les droits d\'administrateur de plateforme de {{ admin.email|escapejs }} ?');">
+                                        Révoquer
+                                    </button>
+                                </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-center text-base-content/60 py-8">Aucun administrateur de plateforme.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock content %}

@@ -12,6 +12,7 @@ from clients.exceptions import (
     APIValidationError,
     TokenExpiredError,
 )
+from clients.utilisateurs_client import UtilisateursClient
 from core.forms import (
     EntrepriseForm,
     ForgotPasswordForm,
@@ -67,6 +68,16 @@ def login_view(request):
         request.session["is_authenticated"] = True
         request.session["jwt_token"] = result["access_token"]
         request.session["user_email"] = email
+
+        # 2 bis. Statut admin plateforme, pour le gating de navigation. Cet appel
+        #    ne doit JAMAIS bloquer la connexion : en cas d'échec (API
+        #    injoignable ou autre), on connecte quand même l'utilisateur avec le
+        #    flag à False (le lien de nav sera simplement masqué).
+        try:
+            profile = UtilisateursClient(request).get_my_profile()
+            request.session["is_platform_admin"] = bool(profile.get("admin_plateforme"))
+        except APIClientError:
+            request.session["is_platform_admin"] = False
 
         # 3. Résolution des entreprises rattachées via /abonnements/me (la route
         #    /auth/token est globale et ne porte pas d'entreprise). Tout passe

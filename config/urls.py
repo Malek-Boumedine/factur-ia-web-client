@@ -26,6 +26,7 @@ from core.views.auth import (
     reset_password_view,
     signup_view,
 )
+from core.views.admins_plateforme import admins_plateforme_view
 from core.views.catalogue import catalogue_list_view
 from core.views.clients import clients_list_view
 from core.views.documents import upload_document_view
@@ -47,6 +48,7 @@ urlpatterns = [
     path("profile-lock/", profile_lock_view, name="profile_lock"),
     path("onboarding/", onboarding_view, name="onboarding"),
     path("equipe/", equipe_view, name="equipe"),
+    path("admins/", admins_plateforme_view, name="admins_plateforme"),
     path("clients/", clients_list_view, name="clients"),
     path("catalogue/", catalogue_list_view, name="catalogue"),
     path("documents/upload/", upload_document_view, name="upload_document"),
