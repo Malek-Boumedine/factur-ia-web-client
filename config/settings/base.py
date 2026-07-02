@@ -175,6 +175,15 @@ API_RETRY_BACKOFF = float(os.getenv("API_RETRY_BACKOFF", "0.5"))
 
 
 # ==============================================================================
+# INSCRIPTION PUBLIQUE
+# ==============================================================================
+# L'API exige un `id_role` à l'inscription, mais /auth/roles nécessite une
+# authentification (inaccessible en public). On attribue donc un rôle par défaut,
+# configurable, au compte créé (marqué administrateur de son espace).
+SIGNUP_DEFAULT_ROLE_ID = int(os.getenv("SIGNUP_DEFAULT_ROLE_ID", "1"))
+
+
+# ==============================================================================
 # UPLOAD DE DOCUMENTS (relayés vers l'API, jamais stockés côté BFF)
 # ==============================================================================
 # Taille maximale acceptée avant relais vers l'API (octets). Configurable.

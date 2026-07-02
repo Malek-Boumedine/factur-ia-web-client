@@ -1,0 +1,52 @@
+<footer class="mt-auto border-t border-gray-200 bg-gray-100 text-gray-800">
+  <div class="mx-auto flex max-w-7xl flex-col justify-between gap-8 px-4 py-10 sm:px-6 md:flex-row">
+
+    {# Colonne — navigation #}
+    <div class="md:w-2/12">
+      <div class="text-sm font-bold uppercase text-indigo-600">Menu</div>
+      <ul class="mt-2 space-y-2 text-sm">
+        <li><a class="hover:text-indigo-600" href="{% url 'home' %}">Accueil</a></li>
+        <li><a class="hover:text-indigo-600" href="#fonctionnalites">Fonctionnalités</a></li>
+        <li><a class="hover:text-indigo-600" href="#tarifs">Tarifs</a></li>
+        <li><a class="hover:text-indigo-600" href="{% url 'login' %}">Connexion</a></li>
+      </ul>
+    </div>
+
+    {# Colonne — marque / pitch #}
+    <div class="text-center md:w-6/12">
+      <h3 class="mb-3 text-xl font-bold text-indigo-600">Factur-IA</h3>
+      <p class="mx-auto max-w-md text-sm text-gray-500">
+        L'assistant IA-first qui transforme vos PDF et Word en factures
+        électroniques conformes, orchestre l'envoi via une plateforme agréée
+        (PDP/PPF), suit les statuts et automatise vos relances.
+      </p>
+    </div>
+
+    {# Colonne — contact #}
+    <div class="md:w-3/12">
+      <div class="text-sm font-bold uppercase text-indigo-600">Contact</div>
+      <ul class="mt-2 space-y-2 text-sm">
+        <li><a class="hover:text-indigo-600" href="#">Nous contacter</a></li>
+        <li><a class="hover:text-indigo-600" href="mailto:contact@factur-ia.fr">contact@factur-ia.fr</a></li>
+      </ul>
+    </div>
+  </div>
+
+  {# Bas de page — réseaux sociaux + copyright #}
+  <div class="mx-auto flex max-w-7xl flex-col items-center border-t border-gray-200 px-4 py-5 text-sm text-gray-800">
+    <div class="mt-2 flex flex-row-reverse gap-2">
+      {# Réseaux sociaux — comptes à créer (placeholders). #}
+      <a href="#" aria-label="LinkedIn" class="w-6">
+        <svg class="cursor-pointer fill-current text-gray-500 hover:text-indigo-600" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M7.3,0.9c1.5,-0.6 3.1,-0.9 4.7,-0.9c1.6,0 3.2,0.3 4.7,0.9c1.5,0.6 2.8,1.5 3.8,2.6c1,1.1 1.9,2.3 2.6,3.8c0.7,1.5 0.9,3 0.9,4.7c0,1.7 -0.3,3.2 -0.9,4.7c-0.6,1.5 -1.5,2.8 -2.6,3.8c-1.1,1 -2.3,1.9 -3.8,2.6c-1.5,0.7 -3.1,0.9 -4.7,0.9c-1.6,0 -3.2,-0.3 -4.7,-0.9c-1.5,-0.6 -2.8,-1.5 -3.8,-2.6c-1,-1.1 -1.9,-2.3 -2.6,-3.8c-0.7,-1.5 -0.9,-3.1 -0.9,-4.7c0,-1.6 0.3,-3.2 0.9,-4.7c0.6,-1.5 1.5,-2.8 2.6,-3.8c1.1,-1 2.3,-1.9 3.8,-2.6Zm-0.3,7.1c0.6,0 1.1,-0.2 1.5,-0.5c0.4,-0.3 0.5,-0.8 0.5,-1.3c0,-0.5 -0.2,-0.9 -0.6,-1.2c-0.4,-0.3 -0.8,-0.5 -1.4,-0.5c-0.6,0 -1.1,0.2 -1.4,0.5c-0.3,0.3 -0.6,0.7 -0.6,1.2c0,0.5 0.2,0.9 0.5,1.3c0.3,0.4 0.9,0.5 1.5,0.5Zm1.5,10l0,-8.5l-3,0l0,8.5l3,0Zm11,0l0,-4.5c0,-1.4 -0.3,-2.5 -0.9,-3.3c-0.6,-0.8 -1.5,-1.2 -2.6,-1.2c-0.6,0 -1.1,0.2 -1.5,0.5c-0.4,0.3 -0.8,0.8 -0.9,1.3l-0.1,-1.3l-3,0l0.1,2l0,6.5l3,0l0,-4.5c0,-0.6 0.1,-1.1 0.4,-1.5c0.3,-0.4 0.6,-0.5 1.1,-0.5c0.5,0 0.9,0.2 1.1,0.5c0.2,0.3 0.4,0.8 0.4,1.5l0,4.5l2.9,0Z"></path>
+        </svg>
+      </a>
+      <a href="#" aria-label="Twitter" class="w-6">
+        <svg class="cursor-pointer fill-current text-gray-500 hover:text-indigo-600" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M24,12c0,6.627 -5.373,12 -12,12c-6.627,0 -12,-5.373 -12,-12c0,-6.627 5.373,-12 12,-12c6.627,0 12,5.373 12,12Zm-6.465,-3.192c-0.379,0.168 -0.786,0.281 -1.213,0.333c0.436,-0.262 0.771,-0.676 0.929,-1.169c-0.408,0.242 -0.86,0.418 -1.341,0.513c-0.385,-0.411 -0.934,-0.667 -1.541,-0.667c-1.167,0 -2.112,0.945 -2.112,2.111c0,0.166 0.018,0.327 0.054,0.482c-1.754,-0.088 -3.31,-0.929 -4.352,-2.206c-0.181,0.311 -0.286,0.674 -0.286,1.061c0,0.733 0.373,1.379 0.94,1.757c-0.346,-0.01 -0.672,-0.106 -0.956,-0.264c-0.001,0.009 -0.001,0.018 -0.001,0.027c0,1.023 0.728,1.877 1.694,2.07c-0.177,0.049 -0.364,0.075 -0.556,0.075c-0.137,0 -0.269,-0.014 -0.397,-0.038c0.268,0.838 1.048,1.449 1.972,1.466c-0.723,0.566 -1.633,0.904 -2.622,0.904c-0.171,0 -0.339,-0.01 -0.504,-0.03c0.934,0.599 2.044,0.949 3.237,0.949c3.883,0 6.007,-3.217 6.007,-6.008c0,-0.091 -0.002,-0.183 -0.006,-0.273c0.413,-0.298 0.771,-0.67 1.054,-1.093Z"></path>
+        </svg>
+      </a>
+    </div>
+    <div class="my-5">&copy; 2026 Factur-IA. Tous droits réservés.</div>
+  </div>
+</footer>

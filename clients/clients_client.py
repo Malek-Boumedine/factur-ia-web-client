@@ -24,13 +24,34 @@ class ClientsClient(BaseAPIClient):
     Chaque méthode correspond exactement à une route du contrat OpenAPI.
     """
 
-    def list_clients(self) -> Any:
-        """Liste les clients de l'entreprise active.
+    def list_clients(
+        self,
+        search: str | None = None,
+        est_actif: bool | None = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> Any:
+        """Liste paginée des clients de l'entreprise active.
 
-        Appelle GET /clients/.
+        Appelle GET /clients/. Depuis la mise à jour du contrat, l'API renvoie
+        une enveloppe paginée `Page[ClientRead]` de la forme
+        ``{"items": [...], "total": N, "skip": ..., "limit": ...}`` (et non plus
+        une liste directe). Les paramètres optionnels ne sont transmis en query
+        string que lorsqu'ils sont fournis.
+
+        Args:
+            search (str | None): Terme de recherche sur la raison sociale, le
+                SIRET ou l'email. Optionnel.
+            est_actif (bool | None): Filtre sur le statut actif/inactif.
+                `None` = pas de filtre (tous les clients). Optionnel.
+            skip (int): Décalage de pagination (offset). Défaut 0.
+            limit (int): Nombre maximum d'éléments à renvoyer (max 100 côté
+                API). Défaut 100.
 
         Returns:
-            list: Liste des clients (dictionnaires) renvoyée par l'API.
+            dict: L'enveloppe paginée `Page[ClientRead]` renvoyée par l'API,
+            avec les clés `items` (liste) et `total` (nombre total, tous
+            filtres appliqués).
 
         Raises:
             TokenExpiredError: En cas de réponse 401.
@@ -38,7 +59,12 @@ class ClientsClient(BaseAPIClient):
                 422 validation, 5xx serveur) ou API injoignable
                 (APIUnavailableError).
         """
-        return self.get("/clients/")
+        params: dict[str, Any] = {"skip": skip, "limit": limit}
+        if search:
+            params["search"] = search
+        if est_actif is not None:
+            params["est_actif"] = est_actif
+        return self.get("/clients/", params=params)
 
     def get_client(self, client_id: int) -> Any:
         """Récupère le détail d'un client.
