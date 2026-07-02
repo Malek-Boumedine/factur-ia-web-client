@@ -2,6 +2,23 @@
 
 <!-- version list -->
 
+## v0.5.0 (2026-07-02)
+
+### Features
+
+- **auth**: Pages d'authentification (sign-in/up, mot de passe oublié/reset)
+  ([`80e4ea0`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/80e4ea045d86ae3d8e0640f39f71702bf6ba26e1))
+
+- **listes**: Recherche, filtres et pagination des clients et du catalogue
+  ([`5b7337a`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/5b7337a0087c9a019ca018aa32324b9698e39a58))
+
+- **onboarding**: Création d'espace de travail post-login
+  ([`5f1aa16`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/5f1aa164bbc8031dbcc1878ff04c068ce67005dc))
+
+- **ui**: Gabarit principal (header/footer) et page d'accueil
+  ([`7a08add`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/7a08add8579defcc903a2fb770b4c4740c60d20f))
+
+
 ## v0.4.0 (2026-07-01)
 
 ### Features
