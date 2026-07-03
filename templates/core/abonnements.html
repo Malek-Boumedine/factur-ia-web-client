@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% comment %}
+Page des abonnements, accessible à tout utilisateur authentifié.
+
+Affiche les plans de la plateforme (GET /abonnements/) en cartes : nom, tarif
+mensuel et limites (utilisateurs, factures/mois). Le plan actuellement souscrit
+par l'entreprise active (GET /abonnements/me, statut actif) est mis en
+évidence. Sans souscription active, un bandeau signale la dernière souscription
+connue et son statut (expiré, suspendu, annulé).
+
+Changement de plan : chaque plan différent du plan actuel porte un bouton
+« Choisir ce plan » (POST avec confirmation vers `abonnement_changer`), visible
+uniquement pour les administrateurs de l'entreprise (`is_entreprise_admin`),
+l'API restant juge de vérité.
+
+Échéance et prolongation : la carte du plan actuel affiche l'échéance
+(`date_fin`, « Sans échéance » pour le gratuit qui n'expire pas) et, pour un
+admin d'entreprise sur un plan payant (`date_fin` présente — le critère même
+du 409 de l'API), un bouton « Prolonger d'un mois » (POST avec confirmation
+vers `abonnement_prolonger`). L'expiration est paresseuse côté API : une
+entreprise échue apparaît déjà rebasculée sur le gratuit dans /abonnements/me.
+{% endcomment %}
+
+{% block title %}Abonnements — Factur-IA{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-6">
+
+    {% if messages %}
+        <div class="space-y-2">
+            {% for message in messages %}
+                <div role="alert" class="alert {% if message.tags == 'error' %}alert-error{% else %}alert-success{% endif %}">
+                    <span>{{ message }}</span>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="flex justify-between items-center bg-base-100 rounded-t-lg shadow-sm p-4 border-b border-base-300">
+        <h2 class="text-xl font-bold">Abonnements</h2>
+        {% if request.session.is_platform_admin %}
+            <a href="{% url 'plans_admin' %}" class="btn btn-ghost btn-sm">Gérer les plans</a>
+        {% endif %}
+    </div>
+
+    {% if souscription_inactive %}
+        <div role="alert" class="alert alert-warning">
+            <span>
+                Votre abonnement{% if plan_inactif_libelle %} « {{ plan_inactif_libelle }} »{% endif %}
+                est {{ statut_inactif_label }}
+                {% if souscription_inactive.date_fin %}(fin le {{ souscription_inactive.date_fin|date:"d/m/Y" }}){% endif %}.
+            </span>
+        </div>
+    {% endif %}
+
+    <div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {% for plan in plans %}
+            <div class="bg-base-100 rounded-lg shadow-md border p-6 flex flex-col gap-4
+                        {% if plan.id == current_plan_id %}border-primary ring-2 ring-primary{% else %}border-base-200{% endif %}">
+                <div class="flex items-start justify-between gap-2">
+                    <h3 class="text-lg font-bold">{{ plan.libelle }}</h3>
+                    {% if plan.id == current_plan_id %}
+                        <span class="badge badge-primary">Votre abonnement</span>
+                    {% endif %}
+                </div>
+
+                <p class="text-3xl font-bold">
+                    {{ plan.tarif_affiche }}&nbsp;€
+                    <span class="text-sm font-normal text-base-content/60">/mois</span>
+                </p>
+
+                {% if plan.description %}
+                    <p class="text-sm text-base-content/70">{{ plan.description }}</p>
+                {% endif %}
+
+                <ul class="space-y-2 text-sm mt-auto">
+                    <li class="flex items-center gap-2">
+                        <svg class="w-4 h-4 text-success shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                        {{ plan.nombre_max_utilisateurs }} utilisateur{{ plan.nombre_max_utilisateurs|pluralize }} maximum
+                    </li>
+                    <li class="flex items-center gap-2">
+                        <svg class="w-4 h-4 text-success shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                        {{ plan.nombre_max_factures_mois }} facture{{ plan.nombre_max_factures_mois|pluralize }} par mois
+                    </li>
+                </ul>
+
+                {% if plan.id == current_plan_id %}
+                    <div class="text-xs text-base-content/50 border-t border-base-300 pt-3 space-y-1">
+                        {% if souscription_active.date_debut %}
+                            <p>Souscrit depuis le {{ souscription_active.date_debut|date:"d/m/Y" }}</p>
+                        {% endif %}
+                        {% if souscription_active.date_fin %}
+                            <p>Votre abonnement expire le {{ souscription_active.date_fin|date:"d/m/Y" }}</p>
+                        {% else %}
+                            <p>Sans échéance</p>
+                        {% endif %}
+                    </div>
+                    {% if is_entreprise_admin and souscription_active.date_fin %}
+                        <form method="POST" action="{% url 'abonnement_prolonger' %}"
+                              onsubmit="return confirm('Prolonger votre abonnement d\'un mois ?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline btn-primary btn-block">Prolonger d'un mois</button>
+                        </form>
+                    {% endif %}
+                {% elif is_entreprise_admin %}
+                    <form method="POST" action="{% url 'abonnement_changer' plan.id %}"
+                          onsubmit="return confirm('Passer au plan {{ plan.libelle|escapejs }} ? Le changement est immédiat.');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-primary btn-block">Choisir ce plan</button>
+                    </form>
+                {% endif %}
+            </div>
+        {% empty %}
+            <p class="text-base-content/60 md:col-span-2 lg:col-span-3 text-center py-8">
+                Aucun plan d'abonnement disponible pour le moment.
+            </p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock content %}

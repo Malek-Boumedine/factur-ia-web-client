@@ -3,8 +3,15 @@
 {% comment %}
 État de la page géré par Alpine.js (composant `equipeModal`, défini en bas) :
 ouverture de la modal, bascule création/édition (titre, bouton, mot de passe
-requis, pré-remplissage). Le comportement serveur est inchangé : POST classiques
-vers {% url 'equipe' %}, actions add/edit/delete via champ caché, CSRF par form.
+requis, pré-remplissage), et modal de consultation en lecture seule alimentée
+par les données de la ligne (aucun appel API dédié). Le comportement serveur
+est inchangé : POST classiques vers {% url 'equipe' %}, actions
+add/edit/delete/deactivate/reactivate via champ caché, CSRF par form.
+
+Garde-fous UI : sur sa propre ligne (`current_user_email`), les actions
+désactiver/réactiver/supprimer sont masquées (perte d'accès incohérente) ;
+la suppression est aussi masquée sur le compte racine (`compte_protege`),
+le 403 du DELETE restant traduit côté vue en filet de sécurité.
 {% endcomment %}
 
 {% block content %}
@@ -53,19 +60,49 @@ vers {% url 'equipe' %}, actions add/edit/delete via champ caché, CSRF par form
                         </td>
                         <td class="text-right">
                             <div class="flex justify-end items-center gap-1">
+                                <button type="button" class="btn btn-ghost btn-sm btn-square" title="Voir"
+                                        @click="openView({nom: '{{ membre.nom|default_if_none:''|escapejs }}', prenom: '{{ membre.prenom|default_if_none:''|escapejs }}', email: '{{ membre.email|default_if_none:''|escapejs }}', role: '{{ membre.role|default_if_none:''|escapejs }}', est_admin: {{ membre.est_admin|yesno:'true,false' }}, est_actif: {{ membre.est_actif|yesno:'true,false' }}, adresse: '{{ membre.adresse|default_if_none:''|escapejs }}', adresse_complement: '{{ membre.adresse_complement|default_if_none:''|escapejs }}', code_postal: '{{ membre.code_postal|default_if_none:''|escapejs }}', ville: '{{ membre.ville|default_if_none:''|escapejs }}', telephone: '{{ membre.telephone|default_if_none:''|escapejs }}'})">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                                </button>
+
                                 <button type="button" class="btn btn-ghost btn-sm btn-square text-info" title="Modifier"
                                         @click="openEdit({id: '{{ membre.id }}', nom: '{{ membre.nom|default_if_none:''|escapejs }}', prenom: '{{ membre.prenom|default_if_none:''|escapejs }}', email: '{{ membre.email|default_if_none:''|escapejs }}', id_role: '{{ membre.id_role|default_if_none:'' }}', est_admin: {{ membre.est_admin|yesno:'true,false' }}, adresse: '{{ membre.adresse|default_if_none:''|escapejs }}', adresse_complement: '{{ membre.adresse_complement|default_if_none:''|escapejs }}', code_postal: '{{ membre.code_postal|default_if_none:''|escapejs }}', ville: '{{ membre.ville|default_if_none:''|escapejs }}', telephone: '{{ membre.telephone|default_if_none:''|escapejs }}'})">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                                 </button>
 
-                                <form method="POST" action="{% url 'equipe' %}" class="inline-block" onsubmit="return confirm('Êtes-vous sûr de vouloir retirer {{ membre.email }} de l\'équipe ?');">
-                                    {% csrf_token %}
-                                    <input type="hidden" name="action" value="delete">
-                                    <input type="hidden" name="user_id" value="{{ membre.id }}">
-                                    <button type="submit" class="btn btn-ghost btn-sm btn-square text-error" title="Supprimer">
-                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                    </button>
-                                </form>
+                                {% if membre.email != current_user_email %}
+                                    {% if membre.est_actif %}
+                                        <form method="POST" action="{% url 'equipe' %}" class="inline-block" onsubmit="return confirm('Désactiver le compte de {{ membre.email|escapejs }} ?');">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="deactivate">
+                                            <input type="hidden" name="user_id" value="{{ membre.id }}">
+                                            <button type="submit" class="btn btn-ghost btn-sm btn-square text-warning" title="Désactiver">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636a9 9 0 11-12.728 0M18.364 5.636L5.636 18.364"></path></svg>
+                                            </button>
+                                        </form>
+                                    {% else %}
+                                        <form method="POST" action="{% url 'equipe' %}" class="inline-block" onsubmit="return confirm('Réactiver le compte de {{ membre.email|escapejs }} ?');">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="reactivate">
+                                            <input type="hidden" name="user_id" value="{{ membre.id }}">
+                                            <button type="submit" class="btn btn-ghost btn-sm btn-square text-success" title="Réactiver">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                            </button>
+                                        </form>
+                                    {% endif %}
+
+                                    {# Compte racine protégé : suppression masquée (l'API refuse en 403, garde-fou conservé côté vue). #}
+                                    {% if not membre.compte_protege %}
+                                        <form method="POST" action="{% url 'equipe' %}" class="inline-block" onsubmit="return confirm('Êtes-vous sûr de vouloir retirer {{ membre.email }} de l\'équipe ?');">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="delete">
+                                            <input type="hidden" name="user_id" value="{{ membre.id }}">
+                                            <button type="submit" class="btn btn-ghost btn-sm btn-square text-error" title="Supprimer">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                            </button>
+                                        </form>
+                                    {% endif %}
+                                {% endif %}
                             </div>
                         </td>
                     </tr>
@@ -177,6 +214,58 @@ vers {% url 'equipe' %}, actions add/edit/delete via champ caché, CSRF par form
         {# Fond cliquable pour fermer la modal. #}
         <div class="modal-backdrop bg-black/40" @click="close()"></div>
     </div>
+
+    {# Modal de consultation (lecture seule), alimentée par les données de la ligne. #}
+    <div class="modal" :class="{ 'modal-open': viewOpen }" x-cloak role="dialog" aria-modal="true" aria-labelledby="view-modal-title"
+         @keydown.escape.window="viewOpen && closeView()">
+        <div class="modal-box w-11/12 max-w-lg">
+            <h3 class="text-lg font-semibold mb-1" id="view-modal-title" x-text="(viewData.prenom + ' ' + viewData.nom).trim() || 'Détails du collaborateur'"></h3>
+            <p class="text-sm text-base-content/60 mb-4" x-text="viewData.email"></p>
+
+            <dl class="space-y-3 text-sm">
+                <div class="flex justify-between gap-4">
+                    <dt class="text-base-content/60">Rôle métier</dt>
+                    <dd class="font-medium text-right" x-text="viewData.role || 'Non défini'"></dd>
+                </div>
+                <div class="flex justify-between gap-4">
+                    <dt class="text-base-content/60">Administrateur de l'entreprise</dt>
+                    <dd class="font-medium text-right" x-text="viewData.est_admin ? 'Oui' : 'Non'"></dd>
+                </div>
+                <div class="flex justify-between gap-4 items-center">
+                    <dt class="text-base-content/60">Statut</dt>
+                    <dd>
+                        <span class="badge badge-soft" :class="viewData.est_actif ? 'badge-success' : 'badge-error'"
+                              x-text="viewData.est_actif ? 'Actif' : 'Inactif'"></span>
+                    </dd>
+                </div>
+                <div class="border-t border-base-300 pt-3 space-y-3">
+                    <div class="flex justify-between gap-4">
+                        <dt class="text-base-content/60">Adresse</dt>
+                        <dd class="font-medium text-right" x-text="viewData.adresse || '—'"></dd>
+                    </div>
+                    <div class="flex justify-between gap-4">
+                        <dt class="text-base-content/60">Complément d'adresse</dt>
+                        <dd class="font-medium text-right" x-text="viewData.adresse_complement || '—'"></dd>
+                    </div>
+                    <div class="flex justify-between gap-4">
+                        <dt class="text-base-content/60">Code postal / Ville</dt>
+                        <dd class="font-medium text-right" x-text="((viewData.code_postal || '') + ' ' + (viewData.ville || '')).trim() || '—'"></dd>
+                    </div>
+                    <div class="flex justify-between gap-4">
+                        <dt class="text-base-content/60">Téléphone</dt>
+                        <dd class="font-medium text-right" x-text="viewData.telephone || '—'"></dd>
+                    </div>
+                </div>
+            </dl>
+
+            <div class="modal-action border-t border-base-300 pt-4">
+                <button type="button" class="btn btn-ghost" @click="closeView()">Fermer</button>
+            </div>
+        </div>
+
+        {# Fond cliquable pour fermer la modal de consultation. #}
+        <div class="modal-backdrop bg-black/40" @click="closeView()"></div>
+    </div>
 </div>
 
 <script>
@@ -189,6 +278,8 @@ vers {% url 'equipe' %}, actions add/edit/delete via champ caché, CSRF par form
             adresse: "", adresse_complement: "", code_postal: "", ville: "", telephone: "",
         };
         return {
+            viewOpen: false,
+            viewData: {},
             open: {% if open_modal %}true{% else %}false{% endif %},
             mode: "{{ form_action|default:'add'|escapejs }}",
             userId: "{{ edit_user_id|default:''|escapejs }}",
@@ -224,6 +315,13 @@ vers {% url 'equipe' %}, actions add/edit/delete via champ caché, CSRF par form
             },
             close() {
                 this.open = false;
+            },
+            openView(data) {
+                this.viewData = data;
+                this.viewOpen = true;
+            },
+            closeView() {
+                this.viewOpen = false;
             },
         };
     }

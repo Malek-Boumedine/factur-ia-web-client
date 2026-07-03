@@ -100,6 +100,8 @@ class ClientsClient(BaseAPIClient):
 
         Raises:
             TokenExpiredError: En cas de réponse 401.
+            ResourceConflictError: En cas de réponse 409 (SIRET ou numéro de
+                TVA déjà utilisé par un autre client).
             APIClientError: Toute autre erreur API mappée (404 introuvable,
                 422 validation, 5xx serveur) ou API injoignable
                 (APIUnavailableError).
@@ -122,6 +124,8 @@ class ClientsClient(BaseAPIClient):
 
         Raises:
             TokenExpiredError: En cas de réponse 401.
+            ResourceConflictError: En cas de réponse 409 (SIRET ou numéro de
+                TVA déjà utilisé par un autre client).
             APIClientError: Toute autre erreur API mappée (404 introuvable,
                 422 validation, 5xx serveur) ou API injoignable
                 (APIUnavailableError).

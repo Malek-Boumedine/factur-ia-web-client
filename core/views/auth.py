@@ -12,6 +12,7 @@ from clients.exceptions import (
     APIValidationError,
     TokenExpiredError,
 )
+from clients.utilisateurs_client import UtilisateursClient
 from core.forms import (
     EntrepriseForm,
     ForgotPasswordForm,
@@ -21,6 +22,11 @@ from core.forms import (
 
 # Libellé générique en cas d'indisponibilité de l'API (résilience réseau).
 _MSG_INDISPONIBLE = "Service momentanément indisponible. Veuillez réessayer."
+
+# Rôles d'entreprise autorisés à gérer l'équipe, alignés sur la permission
+# `users:read` du seed API (attribuée au seul rôle PROPRIETAIRE). Seul endroit
+# à ajuster si le mapping permission/rôle évolue côté API.
+_TEAM_MANAGEMENT_ROLES = {"PROPRIETAIRE"}
 
 
 def _appliquer_erreurs_api(form, detail):
@@ -43,6 +49,49 @@ def _appliquer_erreurs_api(form, detail):
         form.add_error(None, str(detail))
     else:
         form.add_error(None, "Données invalides.")
+
+
+def _appliquer_erreur_conflit(form, detail, field_keywords):
+    """Reporte l'erreur de conflit 409 de l'API dans le formulaire.
+
+    Le corps 409 est un message libre nommant la donnée en conflit (ex. « Un
+    client avec ce SIRET existe déjà. ») : on le rattache au champ concerné en
+    cherchant un mot-clé dans le message, sinon en erreur globale.
+
+    Args:
+        form: Formulaire Django cible.
+        detail: Message de conflit renvoyé par l'API (champ `detail`).
+        field_keywords (dict[str, str]): Mapping mot-clé (minuscule) -> nom du
+            champ du formulaire (ex. `{"siret": "siret", "tva": "numero_tva"}`).
+    """
+    msg = str(detail or "Cette valeur est déjà utilisée.")
+    lowered = msg.lower()
+    for keyword, field in field_keywords.items():
+        if keyword in lowered and field in form.fields:
+            form.add_error(field, msg)
+            return
+    form.add_error(None, msg)
+
+
+def _charger_flags_admin(request):
+    """Renseigne en session les statuts admin et le droit de gérer l'équipe.
+
+    Appelle GET /utilisateurs/me : le header `x-entreprise-id` est injecté
+    automatiquement par la couche clients si une entreprise active est déjà
+    en session, auquel cas l'API renseigne `est_admin` et `role` pour cette
+    entreprise (sinon ils restent nuls). `can_manage_team` dérive du rôle
+    (voir `_TEAM_MANAGEMENT_ROLES`), aligné sur la permission `users:read`
+    de l'API. Cet enrichissement ne doit JAMAIS bloquer la connexion : en
+    cas d'échec, les flags retombent à `False` (les liens et actions
+    réservés seront simplement masqués).
+    """
+    try:
+        profile = UtilisateursClient(request).get_my_profile()
+    except APIClientError:
+        profile = {}
+    request.session["is_platform_admin"] = bool(profile.get("admin_plateforme"))
+    request.session["is_entreprise_admin"] = bool(profile.get("est_admin"))
+    request.session["can_manage_team"] = profile.get("role") in _TEAM_MANAGEMENT_ROLES
 
 
 def login_view(request):
@@ -83,12 +132,18 @@ def login_view(request):
             return render(request, "core/auth/sign-in.html")
 
         # 4. Aucune entreprise rattachée : on oriente vers l'onboarding plutôt
-        #    que de bloquer (la session porte déjà le JWT nécessaire).
+        #    que de bloquer (la session porte déjà le JWT nécessaire). Les flags
+        #    admin sont posés sans contexte entreprise (`est_admin` restera à
+        #    False, seul le statut plateforme est exploitable).
         if not abonnements:
+            _charger_flags_admin(request)
             return redirect("onboarding")
 
-        # 5. MVP : on sélectionne la première entreprise rattachée.
+        # 5. MVP : on sélectionne la première entreprise rattachée. Les flags
+        #    admin sont posés APRÈS cette résolution : `est_admin` dépend de
+        #    l'entreprise active, transmise via le header `x-entreprise-id`.
         request.session["entreprise_id"] = abonnements[0].get("id_entreprise")
+        _charger_flags_admin(request)
         return redirect("home")
 
     # Affichage de la page de connexion (GET)
@@ -232,6 +287,11 @@ def onboarding_view(request):
                     form.to_api_payload()
                 )
                 request.session["entreprise_id"] = entreprise["id"]
+                # Le créateur est propriétaire de l'entreprise : l'API le
+                # rattache avec `est_admin=True` et le rôle PROPRIETAIRE, on
+                # reflète ces statuts en session sans appel supplémentaire.
+                request.session["is_entreprise_admin"] = True
+                request.session["can_manage_team"] = True
                 messages.success(
                     request, "Votre espace de travail a été créé avec succès."
                 )
