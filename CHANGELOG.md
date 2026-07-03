@@ -2,6 +2,46 @@
 
 <!-- version list -->
 
+## v0.6.0 (2026-07-03)
+
+### Bug Fixes
+
+- **equipe**: Affichage du message de limite du plan lors de l'ajout ou la réactivation d'un membre
+  ([`152c656`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/152c6566ca36febc6790f2ba38d183cc859527fa))
+
+- **gestion**: Affichage des conflits d'unicité renvoyés par l'API
+  ([`160f4da`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/160f4da82b6b5f6a0346d4a544cdfeb0304b6f4a))
+
+### Features
+
+- **abonnements**: Affichage des plans et gestion admin des abonnements
+  ([`d9bba92`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/d9bba9256d7f8169a0976802ea1b2fba8db9d598))
+
+- **abonnements**: Changement de plan depuis la page abonnements
+  ([`b5bfe94`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/b5bfe94197472d34ab5828636970938ae1f0b0a4))
+
+- **abonnements**: Prolongation de l'abonnement et affichage de l'échéance
+  ([`2db228e`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/2db228e8434d6f3985d3bb92065d4e8d150d7518))
+
+- **admins-plateforme**: Gestion des administrateurs de plateforme
+  ([`9d81ac6`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/9d81ac693af68246ac146f9e003fa69260939afd))
+
+- **equipe**: Accès à la page équipe réservé aux rôles autorisés
+  ([`1b58611`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/1b5861186263f889722bed906cc13c6889a38a71))
+
+- **equipe**: Masquage préventif de la suppression du compte protégé
+  ([`45e69a5`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/45e69a51742354e7b15a12c14a4cb626a72b1094))
+
+- **equipe**: Visualisation, désactivation et réactivation des membres
+  ([`d84a2de`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/d84a2ded14e8a8199ce5c7409d91beeb02fd1fe3))
+
+- **gestion**: CRUD des clients et du catalogue produits
+  ([`9862657`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/986265792688fd0c0575d2b50f8f7d228ef702af))
+
+- **gestion**: Réactivation des clients et produits depuis la liste
+  ([`935364a`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/935364ae1efa03f4078b484411fa9c0e6bf3de11))
+
+
 ## v0.5.0 (2026-07-02)
 
 ### Features
