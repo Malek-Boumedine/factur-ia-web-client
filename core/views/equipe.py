@@ -18,6 +18,10 @@ from core.views.auth import _MSG_INDISPONIBLE
 # sécurité (soumission forgée ou flag obsolète), l'API restant juge.
 _MSG_COMPTE_PROTEGE = "Ce compte est protégé et ne peut pas être supprimé."
 
+# Message du garde-fou d'accès à la page (flag `can_manage_team` posé au
+# login, dérivé du rôle dans l'entreprise active — permission `users:read`).
+_MSG_ACCES_EQUIPE = "Accès réservé aux administrateurs de l'entreprise."
+
 
 def _charger_roles(client):
     """Récupère les rôles et construit la table libellé -> id."""
@@ -27,8 +31,17 @@ def _charger_roles(client):
 
 
 def equipe_view(request):
+    """Page de gestion de l'équipe (liste, ajout, édition, statut, suppression).
+
+    Accès réservé aux rôles autorisés à gérer l'équipe (`can_manage_team`,
+    posé au login) : le garde-fou couvre le GET et toutes les actions POST.
+    Commodité d'UX seulement — l'API reste l'autorité (403 sinon).
+    """
     if not request.session.get("is_authenticated"):
         return redirect("login")
+    if not request.session.get("can_manage_team"):
+        messages.error(request, _MSG_ACCES_EQUIPE)
+        return redirect("home")
 
     client = UtilisateursClient(request)
 

@@ -23,6 +23,11 @@ from core.forms import (
 # Libellé générique en cas d'indisponibilité de l'API (résilience réseau).
 _MSG_INDISPONIBLE = "Service momentanément indisponible. Veuillez réessayer."
 
+# Rôles d'entreprise autorisés à gérer l'équipe, alignés sur la permission
+# `users:read` du seed API (attribuée au seul rôle PROPRIETAIRE). Seul endroit
+# à ajuster si le mapping permission/rôle évolue côté API.
+_TEAM_MANAGEMENT_ROLES = {"PROPRIETAIRE"}
+
 
 def _appliquer_erreurs_api(form, detail):
     """Reporte les erreurs 422 de l'API dans les champs du formulaire.
@@ -69,14 +74,16 @@ def _appliquer_erreur_conflit(form, detail, field_keywords):
 
 
 def _charger_flags_admin(request):
-    """Renseigne en session les statuts admin (plateforme et entreprise).
+    """Renseigne en session les statuts admin et le droit de gérer l'équipe.
 
     Appelle GET /utilisateurs/me : le header `x-entreprise-id` est injecté
     automatiquement par la couche clients si une entreprise active est déjà
-    en session, auquel cas l'API renseigne `est_admin` pour cette entreprise
-    (sinon il reste nul). Cet enrichissement ne doit JAMAIS bloquer la
-    connexion : en cas d'échec, les deux flags retombent à `False` (les
-    liens et actions réservés seront simplement masqués).
+    en session, auquel cas l'API renseigne `est_admin` et `role` pour cette
+    entreprise (sinon ils restent nuls). `can_manage_team` dérive du rôle
+    (voir `_TEAM_MANAGEMENT_ROLES`), aligné sur la permission `users:read`
+    de l'API. Cet enrichissement ne doit JAMAIS bloquer la connexion : en
+    cas d'échec, les flags retombent à `False` (les liens et actions
+    réservés seront simplement masqués).
     """
     try:
         profile = UtilisateursClient(request).get_my_profile()
@@ -84,6 +91,7 @@ def _charger_flags_admin(request):
         profile = {}
     request.session["is_platform_admin"] = bool(profile.get("admin_plateforme"))
     request.session["is_entreprise_admin"] = bool(profile.get("est_admin"))
+    request.session["can_manage_team"] = profile.get("role") in _TEAM_MANAGEMENT_ROLES
 
 
 def login_view(request):
@@ -280,9 +288,10 @@ def onboarding_view(request):
                 )
                 request.session["entreprise_id"] = entreprise["id"]
                 # Le créateur est propriétaire de l'entreprise : l'API le
-                # rattache avec `est_admin=True`, on reflète ce statut en
-                # session sans appel supplémentaire.
+                # rattache avec `est_admin=True` et le rôle PROPRIETAIRE, on
+                # reflète ces statuts en session sans appel supplémentaire.
                 request.session["is_entreprise_admin"] = True
+                request.session["can_manage_team"] = True
                 messages.success(
                     request, "Votre espace de travail a été créé avec succès."
                 )
