@@ -9,9 +9,9 @@ est inchangé : POST classiques vers {% url 'equipe' %}, actions
 add/edit/delete/deactivate/reactivate via champ caché, CSRF par form.
 
 Garde-fous UI : sur sa propre ligne (`current_user_email`), les actions
-désactiver/réactiver/supprimer sont masquées (perte d'accès incohérente).
-Le compte protégé n'étant pas exposé au contrat, le 403 du DELETE est traduit
-côté vue.
+désactiver/réactiver/supprimer sont masquées (perte d'accès incohérente) ;
+la suppression est aussi masquée sur le compte racine (`compte_protege`),
+le 403 du DELETE restant traduit côté vue en filet de sécurité.
 {% endcomment %}
 
 {% block content %}
@@ -91,14 +91,17 @@ côté vue.
                                         </form>
                                     {% endif %}
 
-                                    <form method="POST" action="{% url 'equipe' %}" class="inline-block" onsubmit="return confirm('Êtes-vous sûr de vouloir retirer {{ membre.email }} de l\'équipe ?');">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="action" value="delete">
-                                        <input type="hidden" name="user_id" value="{{ membre.id }}">
-                                        <button type="submit" class="btn btn-ghost btn-sm btn-square text-error" title="Supprimer">
-                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                        </button>
-                                    </form>
+                                    {# Compte racine protégé : suppression masquée (l'API refuse en 403, garde-fou conservé côté vue). #}
+                                    {% if not membre.compte_protege %}
+                                        <form method="POST" action="{% url 'equipe' %}" class="inline-block" onsubmit="return confirm('Êtes-vous sûr de vouloir retirer {{ membre.email }} de l\'équipe ?');">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="delete">
+                                            <input type="hidden" name="user_id" value="{{ membre.id }}">
+                                            <button type="submit" class="btn btn-ghost btn-sm btn-square text-error" title="Supprimer">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                            </button>
+                                        </form>
+                                    {% endif %}
                                 {% endif %}
                             </div>
                         </td>

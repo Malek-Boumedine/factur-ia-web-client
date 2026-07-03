@@ -13,9 +13,9 @@ from clients.utilisateurs_client import UtilisateursClient
 from core.forms import CollaborateurForm
 from core.views.auth import _MSG_INDISPONIBLE
 
-# Message affiché sur le 403 du DELETE : le contrat n'expose pas le flag
-# `compte_protege` dans UtilisateurRead, l'UI ne peut donc pas masquer le
-# bouton préventivement — l'API reste juge et on traduit son refus.
+# Message affiché sur le 403 du DELETE. Le template masque déjà le bouton
+# via le flag `compte_protege` du contrat : ce mapping reste en filet de
+# sécurité (soumission forgée ou flag obsolète), l'API restant juge.
 _MSG_COMPTE_PROTEGE = "Ce compte est protégé et ne peut pas être supprimé."
 
 
