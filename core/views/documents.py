@@ -10,6 +10,7 @@ from clients.exceptions import (
     APIValidationError,
     TokenExpiredError,
 )
+from core.views.auth import _guard_entreprise
 
 
 def _contexte_upload() -> dict[str, object]:
@@ -49,8 +50,9 @@ def upload_document_view(request: HttpRequest) -> HttpResponse:
         HttpResponse: Redirection vers la page d'upload en cas de succès, sinon
         rendu du formulaire avec un message d'erreur.
     """
-    if not request.session.get("is_authenticated"):
-        return redirect("login")
+    refus = _guard_entreprise(request)
+    if refus:
+        return refus
 
     if request.method == "POST":
         fichier = request.FILES.get("file")

@@ -29,6 +29,7 @@ from core.views.auth import (
     _MSG_INDISPONIBLE,
     _appliquer_erreur_conflit,
     _appliquer_erreurs_api,
+    _guard_entreprise,
 )
 from core.pagination import (
     PAGE_SIZE,
@@ -41,8 +42,9 @@ from core.pagination import (
 
 def catalogue_list_view(request: HttpRequest) -> HttpResponse:
     """Affiche la liste paginée et filtrée du catalogue de l'entreprise active."""
-    if not request.session.get("is_authenticated"):
-        return redirect("login")
+    refus = _guard_entreprise(request)
+    if refus:
+        return refus
 
     # Lecture défensive des query params.
     search = request.GET.get("q", "").strip()
@@ -149,8 +151,9 @@ def _load_taux_choices(request: HttpRequest) -> list[tuple[int, str]]:
 
 def catalogue_create_view(request: HttpRequest) -> HttpResponse:
     """Crée un produit du catalogue."""
-    if not request.session.get("is_authenticated"):
-        return redirect("login")
+    refus = _guard_entreprise(request)
+    if refus:
+        return refus
 
     try:
         taux_choices = _load_taux_choices(request)
@@ -183,8 +186,9 @@ def catalogue_create_view(request: HttpRequest) -> HttpResponse:
 
 def catalogue_detail_view(request: HttpRequest, produit_id: int) -> HttpResponse:
     """Affiche la fiche d'un produit du catalogue."""
-    if not request.session.get("is_authenticated"):
-        return redirect("login")
+    refus = _guard_entreprise(request)
+    if refus:
+        return refus
 
     try:
         produit = ProduitsClient(request).get_product(produit_id)
@@ -227,8 +231,9 @@ def catalogue_detail_view(request: HttpRequest, produit_id: int) -> HttpResponse
 
 def catalogue_update_view(request: HttpRequest, produit_id: int) -> HttpResponse:
     """Édite un produit du catalogue (formulaire pré-rempli, PATCH)."""
-    if not request.session.get("is_authenticated"):
-        return redirect("login")
+    refus = _guard_entreprise(request)
+    if refus:
+        return refus
 
     client = ProduitsClient(request)
 
@@ -278,8 +283,9 @@ def catalogue_update_view(request: HttpRequest, produit_id: int) -> HttpResponse
 @require_POST
 def catalogue_deactivate_view(request: HttpRequest, produit_id: int) -> HttpResponse:
     """Désactive un produit (soft delete via DELETE côté API)."""
-    if not request.session.get("is_authenticated"):
-        return redirect("login")
+    refus = _guard_entreprise(request)
+    if refus:
+        return refus
 
     try:
         ProduitsClient(request).delete_product(produit_id)
@@ -301,8 +307,9 @@ def catalogue_deactivate_view(request: HttpRequest, produit_id: int) -> HttpResp
 @require_POST
 def catalogue_reactivate_view(request: HttpRequest, produit_id: int) -> HttpResponse:
     """Réactive un produit (PATCH est_actif=true côté API)."""
-    if not request.session.get("is_authenticated"):
-        return redirect("login")
+    refus = _guard_entreprise(request)
+    if refus:
+        return refus
 
     try:
         ProduitsClient(request).update_product(produit_id, {"est_actif": True})

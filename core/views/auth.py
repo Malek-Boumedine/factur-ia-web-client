@@ -23,6 +23,20 @@ from core.forms import (
 # Libellé générique en cas d'indisponibilité de l'API (résilience réseau).
 _MSG_INDISPONIBLE = "Service momentanément indisponible. Veuillez réessayer."
 
+# Message affiché à un admin plateforme sans entreprise qui accède à une page
+# métier d'entreprise (voir `_guard_entreprise`).
+_MSG_PAGE_ENTREPRISE = (
+    "Cette page concerne un espace de travail entreprise. "
+    "Votre compte administrateur de plateforme n'y est pas rattaché."
+)
+
+# Message affiché à un admin plateforme sans entreprise qui accède à
+# l'onboarding : il gère la plateforme, pas un espace de travail client.
+_MSG_ONBOARDING_ADMIN = (
+    "En tant qu'administrateur de la plateforme, vous n'avez pas "
+    "d'espace de travail entreprise à créer."
+)
+
 # Rôles d'entreprise autorisés à gérer l'équipe, alignés sur la permission
 # `users:read` du seed API (attribuée au seul rôle PROPRIETAIRE). Seul endroit
 # à ajuster si le mapping permission/rôle évolue côté API.
@@ -94,6 +108,24 @@ def _charger_flags_admin(request):
     request.session["can_manage_team"] = profile.get("role") in _TEAM_MANAGEMENT_ROLES
 
 
+def _guard_entreprise(request):
+    """Garde-fou des pages métier : exige une entreprise active en session.
+
+    Non authentifié → login. Sans entreprise active : un admin plateforme est
+    orienté vers la gestion des plans avec un message informatif (les pages
+    métier ne le concernent pas), un utilisateur classique vers l'onboarding
+    pour créer son espace de travail. Renvoie `None` si l'accès est autorisé.
+    """
+    if not request.session.get("is_authenticated"):
+        return redirect("login")
+    if not request.session.get("entreprise_id"):
+        if request.session.get("is_platform_admin"):
+            messages.info(request, _MSG_PAGE_ENTREPRISE)
+            return redirect("plans_admin")
+        return redirect("onboarding")
+    return None
+
+
 def login_view(request):
     if request.method == "POST":
         email = request.POST.get("email")
@@ -134,9 +166,13 @@ def login_view(request):
         # 4. Aucune entreprise rattachée : on oriente vers l'onboarding plutôt
         #    que de bloquer (la session porte déjà le JWT nécessaire). Les flags
         #    admin sont posés sans contexte entreprise (`est_admin` restera à
-        #    False, seul le statut plateforme est exploitable).
+        #    False, seul le statut plateforme est exploitable). Exception : un
+        #    admin plateforme gère la plateforme, pas un espace client — il
+        #    atterrit sur la gestion des plans, sans onboarding forcé.
         if not abonnements:
             _charger_flags_admin(request)
+            if request.session.get("is_platform_admin"):
+                return redirect("plans_admin")
             return redirect("onboarding")
 
         # 5. MVP : on sélectionne la première entreprise rattachée. Les flags
@@ -278,6 +314,12 @@ def onboarding_view(request):
     # Déjà un espace de travail : rien à créer, on renvoie vers l'app.
     if request.session.get("entreprise_id"):
         return redirect("home")
+    # Un admin plateforme sans entreprise n'a pas d'espace à créer : on
+    # l'oriente vers ses pages d'administration (évite une création par
+    # accident ; la double casquette volontaire n'est pas gérée à ce stade).
+    if request.session.get("is_platform_admin"):
+        messages.info(request, _MSG_ONBOARDING_ADMIN)
+        return redirect("plans_admin")
 
     if request.method == "POST":
         form = EntrepriseForm(request.POST)

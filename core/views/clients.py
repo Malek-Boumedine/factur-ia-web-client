@@ -27,6 +27,7 @@ from core.views.auth import (
     _MSG_INDISPONIBLE,
     _appliquer_erreur_conflit,
     _appliquer_erreurs_api,
+    _guard_entreprise,
 )
 from core.pagination import (
     PAGE_SIZE,
@@ -39,8 +40,9 @@ from core.pagination import (
 
 def clients_list_view(request: HttpRequest) -> HttpResponse:
     """Affiche la liste paginée et filtrée des clients de l'entreprise active."""
-    if not request.session.get("is_authenticated"):
-        return redirect("login")
+    refus = _guard_entreprise(request)
+    if refus:
+        return refus
 
     # Lecture défensive des query params.
     search = request.GET.get("q", "").strip()
@@ -111,8 +113,9 @@ def client_create_view(request: HttpRequest) -> HttpResponse:
     fourni en query param (`siret`). POST : validation puis création via l'API
     et redirection vers la fiche du client créé.
     """
-    if not request.session.get("is_authenticated"):
-        return redirect("login")
+    refus = _guard_entreprise(request)
+    if refus:
+        return refus
 
     client = ClientsClient(request)
 
@@ -182,8 +185,9 @@ def client_create_view(request: HttpRequest) -> HttpResponse:
 
 def client_detail_view(request: HttpRequest, client_id: int) -> HttpResponse:
     """Affiche la fiche d'un client."""
-    if not request.session.get("is_authenticated"):
-        return redirect("login")
+    refus = _guard_entreprise(request)
+    if refus:
+        return refus
 
     try:
         client_data = ClientsClient(request).get_client(client_id)
@@ -204,8 +208,9 @@ def client_detail_view(request: HttpRequest, client_id: int) -> HttpResponse:
 
 def client_update_view(request: HttpRequest, client_id: int) -> HttpResponse:
     """Édite un client (formulaire pré-rempli, PATCH à la soumission)."""
-    if not request.session.get("is_authenticated"):
-        return redirect("login")
+    refus = _guard_entreprise(request)
+    if refus:
+        return refus
 
     client = ClientsClient(request)
 
@@ -254,8 +259,9 @@ def client_update_view(request: HttpRequest, client_id: int) -> HttpResponse:
 @require_POST
 def client_deactivate_view(request: HttpRequest, client_id: int) -> HttpResponse:
     """Désactive un client (soft delete via DELETE côté API)."""
-    if not request.session.get("is_authenticated"):
-        return redirect("login")
+    refus = _guard_entreprise(request)
+    if refus:
+        return refus
 
     try:
         ClientsClient(request).delete_client(client_id)
@@ -277,8 +283,9 @@ def client_deactivate_view(request: HttpRequest, client_id: int) -> HttpResponse
 @require_POST
 def client_reactivate_view(request: HttpRequest, client_id: int) -> HttpResponse:
     """Réactive un client (PATCH est_actif=true côté API)."""
-    if not request.session.get("is_authenticated"):
-        return redirect("login")
+    refus = _guard_entreprise(request)
+    if refus:
+        return refus
 
     try:
         ClientsClient(request).update_client(client_id, {"est_actif": True})

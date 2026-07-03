@@ -13,20 +13,22 @@
       {# Navigation — desktop #}
       <nav class="hidden lg:flex lg:items-center lg:gap-1">
         {% if request.session.is_authenticated %}
-          <a href="{% url 'upload_document' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Documents</a>
-          {% if request.session.can_manage_team %}
-            <a href="{% url 'equipe' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Équipe</a>
+          {% if request.session.entreprise_id %}
+            <a href="{% url 'upload_document' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Documents</a>
+            {% if request.session.can_manage_team %}
+              <a href="{% url 'equipe' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Équipe</a>
+            {% endif %}
+            <a href="{% url 'clients' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Clients</a>
+            <a href="{% url 'catalogue' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Catalogue</a>
+            <a href="{% url 'abonnements' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Abonnements</a>
+            {# Sections métier à venir — pas encore de vue/URL dédiée. #}
+            <a href="#" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Factures</a>
+            <a href="#" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Tableau de bord</a>
           {% endif %}
-          <a href="{% url 'clients' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Clients</a>
-          <a href="{% url 'catalogue' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Catalogue</a>
-          <a href="{% url 'abonnements' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Abonnements</a>
           {% if request.session.is_platform_admin %}
             <a href="{% url 'plans_admin' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Gestion des plans</a>
             <a href="{% url 'admins_plateforme' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Admins plateforme</a>
           {% endif %}
-          {# Sections métier à venir — pas encore de vue/URL dédiée. #}
-          <a href="#" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Factures</a>
-          <a href="#" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Tableau de bord</a>
         {% else %}
           <a href="#fonctionnalites" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Fonctionnalités</a>
           <a href="#conformite" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Conformité</a>
@@ -68,20 +70,24 @@
        class="border-t border-white/10 lg:hidden">
     <div class="space-y-1 px-4 py-3">
       {% if request.session.is_authenticated %}
-        <a href="{% url 'upload_document' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Documents</a>
-        {% if request.session.can_manage_team %}
-          <a href="{% url 'equipe' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Équipe</a>
+        {# Pages métier : réservées aux sessions avec une entreprise active
+           (un admin plateforme pur ne voit que ses pages d'administration). #}
+        {% if request.session.entreprise_id %}
+          <a href="{% url 'upload_document' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Documents</a>
+          {% if request.session.can_manage_team %}
+            <a href="{% url 'equipe' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Équipe</a>
+          {% endif %}
+          <a href="{% url 'clients' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Clients</a>
+          <a href="{% url 'catalogue' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Catalogue</a>
+          <a href="{% url 'abonnements' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Abonnements</a>
+          {# Sections métier à venir — pas encore de vue/URL dédiée. #}
+          <a href="#" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Factures</a>
+          <a href="#" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Tableau de bord</a>
         {% endif %}
-        <a href="{% url 'clients' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Clients</a>
-        <a href="{% url 'catalogue' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Catalogue</a>
-        <a href="{% url 'abonnements' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Abonnements</a>
         {% if request.session.is_platform_admin %}
           <a href="{% url 'plans_admin' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Gestion des plans</a>
           <a href="{% url 'admins_plateforme' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Admins plateforme</a>
         {% endif %}
-        {# Sections métier à venir — pas encore de vue/URL dédiée. #}
-        <a href="#" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Factures</a>
-        <a href="#" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Tableau de bord</a>
         <div class="my-2 border-t border-white/10"></div>
         <p class="truncate px-3 py-1 text-sm text-gray-400">{{ request.session.user_email }}</p>
         <a href="{% url 'profil' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Mon profil</a>

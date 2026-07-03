@@ -2,9 +2,9 @@
 
 Trois volets :
 
-- affichage (`/abonnements/`, tout utilisateur authentifié) : liste des plans
-  disponibles avec mise en évidence de l'abonnement actif de l'entreprise
-  courante (croisement GET /abonnements/ et GET /abonnements/me) ;
+- affichage (`/abonnements/`, utilisateur rattaché à une entreprise active) :
+  liste des plans disponibles avec mise en évidence de l'abonnement actif de
+  l'entreprise courante (croisement GET /abonnements/ et GET /abonnements/me) ;
 - changement de plan (`/abonnements/<id>/choisir/`) et prolongation d'un mois
   (`/abonnements/prolonger/`), réservés aux admins de l'entreprise active :
   POST /abonnements/me/changer et /abonnements/me/prolonger, gardés par le
@@ -40,6 +40,7 @@ from core.views.auth import (
     _MSG_INDISPONIBLE,
     _appliquer_erreur_conflit,
     _appliquer_erreurs_api,
+    _guard_entreprise,
 )
 
 # Rattachement des messages de conflit 409 aux champs du formulaire plan
@@ -140,8 +141,9 @@ def abonnements_view(request: HttpRequest) -> HttpResponse:
     évidence. À défaut, la souscription la plus récente est signalée avec son
     statut réel (expiré, suspendu…), sans mise en évidence.
     """
-    if not request.session.get("is_authenticated"):
-        return redirect("login")
+    refus = _guard_entreprise(request)
+    if refus:
+        return refus
 
     client = AbonnementsClient(request)
 
@@ -227,8 +229,9 @@ def abonnement_changer_view(request: HttpRequest, abonnement_id: int) -> HttpRes
     plan, ou trop d'utilisateurs actifs pour le plan cible) : il est affiché
     tel quel plutôt que remplacé par un générique.
     """
-    if not request.session.get("is_authenticated"):
-        return redirect("login")
+    refus = _guard_entreprise(request)
+    if refus:
+        return refus
     if not request.session.get("is_entreprise_admin"):
         messages.error(request, _MSG_RESERVE_ADMIN_ENTREPRISE)
         return redirect("abonnements")
@@ -274,8 +277,9 @@ def abonnement_prolonger_view(request: HttpRequest) -> HttpResponse:
     d'échéance : l'API répond 409 et son message est affiché tel quel. En cas
     de succès, la nouvelle échéance renvoyée est reprise dans le message.
     """
-    if not request.session.get("is_authenticated"):
-        return redirect("login")
+    refus = _guard_entreprise(request)
+    if refus:
+        return refus
     if not request.session.get("is_entreprise_admin"):
         messages.error(request, _MSG_RESERVE_ADMIN_ENTREPRISE)
         return redirect("abonnements")
