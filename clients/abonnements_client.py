@@ -5,15 +5,17 @@ Couvre le domaine `abonnements` de l'API :
 - GET /abonnements/ : liste des abonnements disponibles.
 - GET /abonnements/me : abonnement de l'entreprise courante.
 - POST /abonnements/me/changer : changement de plan de l'entreprise active.
+- POST /abonnements/me/prolonger : prolongation d'un mois de l'abonnement
+  payant de l'entreprise active.
 - POST /abonnements/ : création d'un abonnement (schéma AbonnementCreate).
 - PATCH /abonnements/{abonnement_id} : mise à jour partielle
   (schéma AbonnementUpdate).
 - DELETE /abonnements/{abonnement_id} : suppression d'un abonnement.
 
 Les routes des offres sont globales (le header `x-entreprise-id` reste
-transmis s'il est en session, sans effet). Exception : POST
-/abonnements/me/changer EXIGE ce header — il désigne l'entreprise dont le
-plan est changé.
+transmis s'il est en session, sans effet). Exception : les routes
+/abonnements/me/changer et /abonnements/me/prolonger EXIGENT ce header —
+il désigne l'entreprise dont l'abonnement est modifié.
 """
 
 from typing import Any
@@ -26,8 +28,9 @@ class AbonnementsClient(BaseAPIClient):
 
     Hérite de `BaseAPIClient` et réutilise ses méthodes HTTP ; le JWT et le
     header `x-entreprise-id` sont injectés automatiquement depuis la session.
-    Les routes des offres sont globales (header tenant sans effet), sauf le
-    changement de plan (`change_plan`) qui l'exige pour cibler l'entreprise.
+    Les routes des offres sont globales (header tenant sans effet), sauf les
+    actions sur l'abonnement de l'entreprise active (`change_plan`,
+    `extend_plan`) qui l'exigent pour cibler l'entreprise.
     """
 
     def list_subscriptions(self) -> Any:
@@ -93,6 +96,31 @@ class AbonnementsClient(BaseAPIClient):
         return self.post(
             "/abonnements/me/changer", data={"id_abonnement": abonnement_id}
         )
+
+    def extend_plan(self) -> Any:
+        """Prolonge d'un mois l'abonnement payant de l'entreprise active.
+
+        Appelle POST /abonnements/me/prolonger (sans corps). L'entreprise
+        ciblée est TOUJOURS celle du header `x-entreprise-id` (injecté depuis
+        la session) ; l'action est réservée côté API aux administrateurs de
+        cette entreprise. Le plan gratuit, sans échéance, n'est pas
+        prolongeable (409).
+
+        Returns:
+            dict: La souscription active avec sa nouvelle échéance
+            (EntrepriseAbonnementRead) renvoyée par l'API (200).
+
+        Raises:
+            TokenExpiredError: En cas de réponse 401.
+            ResourceNotFoundError: Aucune souscription active à prolonger
+                (404).
+            ResourceConflictError: Plan gratuit non prolongeable (409,
+                message métier dans `detail`).
+            APIClientError: Toute autre erreur API mappée (403 non membre ou
+                non admin de l'entreprise, 422 validation, 5xx serveur) ou
+                API injoignable (APIUnavailableError).
+        """
+        return self.post("/abonnements/me/prolonger")
 
     def create_subscription(self, payload: dict[str, Any]) -> Any:
         """Crée un abonnement.

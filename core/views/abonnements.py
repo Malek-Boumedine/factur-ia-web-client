@@ -5,9 +5,10 @@ Trois volets :
 - affichage (`/abonnements/`, tout utilisateur authentifié) : liste des plans
   disponibles avec mise en évidence de l'abonnement actif de l'entreprise
   courante (croisement GET /abonnements/ et GET /abonnements/me) ;
-- changement de plan (`/abonnements/<id>/choisir/`, admin de l'entreprise
-  active) : POST /abonnements/me/changer, gardé par le flag de session
-  `is_entreprise_admin` (posé au login) ;
+- changement de plan (`/abonnements/<id>/choisir/`) et prolongation d'un mois
+  (`/abonnements/prolonger/`), réservés aux admins de l'entreprise active :
+  POST /abonnements/me/changer et /abonnements/me/prolonger, gardés par le
+  flag de session `is_entreprise_admin` (posé au login) ;
 - gestion (`/plans/...`, admin plateforme uniquement) : CRUD des plans via
   POST/PATCH/DELETE /abonnements/{id}. L'accès est gardé par le flag de session
   `is_platform_admin` (posé au login).
@@ -16,6 +17,7 @@ Dans les deux cas gardés, l'API reste juge de vérité (un 403 est traité comm
 un accès refusé). Tout appel réseau passe par la couche `clients/`.
 """
 
+from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
@@ -48,10 +50,11 @@ _CONFLICT_FIELD_KEYWORDS = {
     "libelle": "libelle",
 }
 
-# Message affiché quand un non-admin de l'entreprise tente un changement de
-# plan (garde-fou de session, ou 403 renvoyé par l'API si le flag est obsolète).
+# Message affiché quand un non-admin de l'entreprise tente une action sur
+# l'abonnement — changement ou prolongation (garde-fou de session, ou 403
+# renvoyé par l'API si le flag est obsolète).
 _MSG_RESERVE_ADMIN_ENTREPRISE = (
-    "Le changement d'abonnement est réservé aux administrateurs de l'entreprise."
+    "La gestion de l'abonnement est réservée aux administrateurs de l'entreprise."
 )
 
 # Libellés affichés pour les statuts de souscription (enum StatutSouscription).
@@ -81,6 +84,32 @@ def _with_display_tarif(plans: list) -> list:
     for plan in plans:
         plan["tarif_affiche"] = _format_tarif(plan.get("tarif"))
     return plans
+
+
+def _parse_date(value) -> date | None:
+    """Convertit une date ISO de l'API (ex. "2026-08-03") en objet `date`.
+
+    Best-effort : renvoie `None` si la valeur est absente ou inattendue, pour
+    que l'affichage se dégrade proprement (champ simplement omis).
+    """
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(str(value))
+    except ValueError:
+        return None
+
+
+def _with_display_dates(souscription: dict | None) -> dict | None:
+    """Convertit les dates ISO d'une souscription en objets `date`.
+
+    Permet au template d'utiliser le filtre `date` de Django pour un
+    affichage au format français (l'API renvoie des chaînes ISO).
+    """
+    if souscription:
+        souscription["date_debut"] = _parse_date(souscription.get("date_debut"))
+        souscription["date_fin"] = _parse_date(souscription.get("date_fin"))
+    return souscription
 
 
 def _guard_platform_admin(request: HttpRequest) -> HttpResponse | None:
@@ -152,6 +181,10 @@ def abonnements_view(request: HttpRequest) -> HttpResponse:
             mes_souscriptions, key=lambda s: str(s.get("date_debut") or "")
         )
 
+    # Dates ISO -> objets `date`, pour un affichage français dans le template.
+    souscription_active = _with_display_dates(souscription_active)
+    souscription_inactive = _with_display_dates(souscription_inactive)
+
     current_plan_id = (
         souscription_active.get("id_abonnement") if souscription_active else None
     )
@@ -174,7 +207,7 @@ def abonnements_view(request: HttpRequest) -> HttpResponse:
         "souscription_inactive": souscription_inactive,
         "plan_inactif_libelle": plan_inactif_libelle,
         "statut_inactif_label": (
-            _STATUT_LABELS.get(souscription_inactive.get("statut"), "inactif")
+            _STATUT_LABELS.get(str(souscription_inactive.get("statut")), "inactif")
             if souscription_inactive
             else None
         ),
@@ -226,6 +259,61 @@ def abonnement_changer_view(request: HttpRequest, abonnement_id: int) -> HttpRes
             messages.error(request, "Erreur lors du changement d'abonnement.")
     else:
         messages.success(request, "Votre abonnement a été mis à jour avec succès.")
+
+    return redirect("abonnements")
+
+
+@require_POST
+def abonnement_prolonger_view(request: HttpRequest) -> HttpResponse:
+    """Prolonge d'un mois l'abonnement de l'entreprise active.
+
+    Appelle POST /abonnements/me/prolonger (l'entreprise ciblée est celle du
+    header `x-entreprise-id`, injecté par la couche clients). Action réservée
+    aux administrateurs de l'entreprise : flag de session `is_entreprise_admin`
+    en garde-fou UI, l'API restant juge de vérité. Le plan gratuit n'a pas
+    d'échéance : l'API répond 409 et son message est affiché tel quel. En cas
+    de succès, la nouvelle échéance renvoyée est reprise dans le message.
+    """
+    if not request.session.get("is_authenticated"):
+        return redirect("login")
+    if not request.session.get("is_entreprise_admin"):
+        messages.error(request, _MSG_RESERVE_ADMIN_ENTREPRISE)
+        return redirect("abonnements")
+
+    try:
+        souscription = AbonnementsClient(request).extend_plan()
+    except TokenExpiredError:
+        return redirect("login")
+    except ResourceConflictError as e:
+        messages.error(
+            request,
+            str(e.detail or "Cet abonnement ne peut pas être prolongé."),
+        )
+    except ResourceNotFoundError:
+        messages.error(request, "Aucune souscription active à prolonger.")
+    except APIValidationError as e:
+        messages.error(request, str(e.detail or "Prolongation refusée."))
+    except APIUnavailableError:
+        messages.error(request, _MSG_INDISPONIBLE)
+    except APIClientError as e:
+        if e.status_code == 403:
+            messages.error(request, _MSG_RESERVE_ADMIN_ENTREPRISE)
+        else:
+            messages.error(request, "Erreur lors de la prolongation de l'abonnement.")
+    else:
+        date_fin = (
+            _parse_date(souscription.get("date_fin"))
+            if isinstance(souscription, dict)
+            else None
+        )
+        if date_fin:
+            messages.success(
+                request,
+                "Votre abonnement a été prolongé jusqu'au "
+                f"{date_fin.strftime('%d/%m/%Y')}.",
+            )
+        else:
+            messages.success(request, "Votre abonnement a été prolongé d'un mois.")
 
     return redirect("abonnements")
 

@@ -13,6 +13,13 @@ Changement de plan : chaque plan différent du plan actuel porte un bouton
 « Choisir ce plan » (POST avec confirmation vers `abonnement_changer`), visible
 uniquement pour les administrateurs de l'entreprise (`is_entreprise_admin`),
 l'API restant juge de vérité.
+
+Échéance et prolongation : la carte du plan actuel affiche l'échéance
+(`date_fin`, « Sans échéance » pour le gratuit qui n'expire pas) et, pour un
+admin d'entreprise sur un plan payant (`date_fin` présente — le critère même
+du 409 de l'API), un bouton « Prolonger d'un mois » (POST avec confirmation
+vers `abonnement_prolonger`). L'expiration est paresseuse côté API : une
+entreprise échue apparaît déjà rebasculée sur le gratuit dans /abonnements/me.
 {% endcomment %}
 
 {% block title %}Abonnements — Factur-IA{% endblock %}
@@ -42,7 +49,7 @@ l'API restant juge de vérité.
             <span>
                 Votre abonnement{% if plan_inactif_libelle %} « {{ plan_inactif_libelle }} »{% endif %}
                 est {{ statut_inactif_label }}
-                {% if souscription_inactive.date_fin %}(fin le {{ souscription_inactive.date_fin }}){% endif %}.
+                {% if souscription_inactive.date_fin %}(fin le {{ souscription_inactive.date_fin|date:"d/m/Y" }}){% endif %}.
             </span>
         </div>
     {% endif %}
@@ -79,10 +86,22 @@ l'API restant juge de vérité.
                 </ul>
 
                 {% if plan.id == current_plan_id %}
-                    {% if souscription_active.date_debut %}
-                        <p class="text-xs text-base-content/50 border-t border-base-300 pt-3">
-                            Souscrit depuis le {{ souscription_active.date_debut }}
-                        </p>
+                    <div class="text-xs text-base-content/50 border-t border-base-300 pt-3 space-y-1">
+                        {% if souscription_active.date_debut %}
+                            <p>Souscrit depuis le {{ souscription_active.date_debut|date:"d/m/Y" }}</p>
+                        {% endif %}
+                        {% if souscription_active.date_fin %}
+                            <p>Votre abonnement expire le {{ souscription_active.date_fin|date:"d/m/Y" }}</p>
+                        {% else %}
+                            <p>Sans échéance</p>
+                        {% endif %}
+                    </div>
+                    {% if is_entreprise_admin and souscription_active.date_fin %}
+                        <form method="POST" action="{% url 'abonnement_prolonger' %}"
+                              onsubmit="return confirm('Prolonger votre abonnement d\'un mois ?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline btn-primary btn-block">Prolonger d'un mois</button>
+                        </form>
                     {% endif %}
                 {% elif is_entreprise_admin %}
                     <form method="POST" action="{% url 'abonnement_changer' plan.id %}"
