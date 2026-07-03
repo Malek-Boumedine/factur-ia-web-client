@@ -126,7 +126,39 @@ def _guard_entreprise(request):
     return None
 
 
+def _redirect_to_user_space(request):
+    """Redirige un utilisateur authentifié vers son espace approprié.
+
+    Destination post-login factorisée, partagée par `login_view` et le garde
+    des pages publiques : un admin plateforme sans entreprise gère les plans,
+    un utilisateur sans entreprise passe par l'onboarding, sinon (entreprise
+    active) il atterrit sur l'accueil applicatif. Suppose les flags de session
+    déjà posés (voir `_charger_flags_admin`).
+    """
+    if not request.session.get("entreprise_id"):
+        if request.session.get("is_platform_admin"):
+            return redirect("plans_admin")
+        return redirect("onboarding")
+    return redirect("home")
+
+
+def _redirect_if_authenticated(request):
+    """Garde des pages publiques (connexion, inscription, mots de passe).
+
+    Empêche un utilisateur déjà connecté de « se reconnecter » par-dessus sa
+    session (comportement incohérent) : renvoie une redirection vers son espace
+    le cas échéant, sinon `None` (la page publique s'affiche normalement).
+    """
+    if request.session.get("is_authenticated"):
+        return _redirect_to_user_space(request)
+    return None
+
+
 def login_view(request):
+    deja_connecte = _redirect_if_authenticated(request)
+    if deja_connecte:
+        return deja_connecte
+
     if request.method == "POST":
         email = request.POST.get("email")
         password = request.POST.get("password")
@@ -171,16 +203,14 @@ def login_view(request):
         #    atterrit sur la gestion des plans, sans onboarding forcé.
         if not abonnements:
             _charger_flags_admin(request)
-            if request.session.get("is_platform_admin"):
-                return redirect("plans_admin")
-            return redirect("onboarding")
+            return _redirect_to_user_space(request)
 
         # 5. MVP : on sélectionne la première entreprise rattachée. Les flags
         #    admin sont posés APRÈS cette résolution : `est_admin` dépend de
         #    l'entreprise active, transmise via le header `x-entreprise-id`.
         request.session["entreprise_id"] = abonnements[0].get("id_entreprise")
         _charger_flags_admin(request)
-        return redirect("home")
+        return _redirect_to_user_space(request)
 
     # Affichage de la page de connexion (GET)
     return render(request, "core/auth/sign-in.html")
@@ -199,6 +229,10 @@ def signup_view(request):
     connexion avec un message. Le rôle est injecté depuis les settings
     (aucun sélecteur public, /auth/roles exigeant une authentification).
     """
+    deja_connecte = _redirect_if_authenticated(request)
+    if deja_connecte:
+        return deja_connecte
+
     if request.method == "POST":
         form = SignUpForm(request.POST)
         if form.is_valid():
@@ -229,6 +263,10 @@ def forgot_password_view(request):
     Comportement neutre : après une soumission valide, on affiche toujours le
     même message, que le compte existe ou non (ne pas divulguer l'existence).
     """
+    deja_connecte = _redirect_if_authenticated(request)
+    if deja_connecte:
+        return deja_connecte
+
     if request.method == "POST":
         form = ForgotPasswordForm(request.POST)
         if form.is_valid():
@@ -255,6 +293,10 @@ def reset_password_view(request):
     puis conservé dans un champ caché du formulaire. Un token absent affiche un
     message d'erreur clair ; un token invalide/expiré est signalé via l'API.
     """
+    deja_connecte = _redirect_if_authenticated(request)
+    if deja_connecte:
+        return deja_connecte
+
     if request.method == "POST":
         token = request.POST.get("token", "")
         form = ResetPasswordForm(request.POST)
