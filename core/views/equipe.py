@@ -11,7 +11,7 @@ from clients.exceptions import (
 )
 from clients.utilisateurs_client import UtilisateursClient
 from core.forms import CollaborateurForm
-from core.views.auth import _MSG_INDISPONIBLE
+from core.views.auth import _MSG_INDISPONIBLE, _guard_entreprise
 
 # Message affiché sur le 403 du DELETE. Le template masque déjà le bouton
 # via le flag `compte_protege` du contrat : ce mapping reste en filet de
@@ -37,8 +37,9 @@ def equipe_view(request):
     posé au login) : le garde-fou couvre le GET et toutes les actions POST.
     Commodité d'UX seulement — l'API reste l'autorité (403 sinon).
     """
-    if not request.session.get("is_authenticated"):
-        return redirect("login")
+    refus = _guard_entreprise(request)
+    if refus:
+        return refus
     if not request.session.get("can_manage_team"):
         messages.error(request, _MSG_ACCES_EQUIPE)
         return redirect("home")

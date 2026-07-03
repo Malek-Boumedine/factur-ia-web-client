@@ -1,43 +1,67 @@
 {% extends "base.html" %}
 
 {% comment %}
-Page d'accueil (vitrine publique). Contenu tiré de docs/description.txt :
-hero → fonctionnalités cœur (conformité) → cash & relance → pilotage → tarifs.
+Page d'accueil (vitrine publique) — landing SaaS de facturation électronique.
+Sections : hero → chiffres de confiance → fonctionnalités → « comment ça
+marche » → conformité (réforme) → tarifs (plans réels via l'API) → CTA final.
+
+- Les ancres #fonctionnalites / #conformite / #tarifs sont ciblées par la nav
+  de l'en-tête (visiteur non connecté) : ne pas renommer sans mettre à jour
+  partials/header.html.
+- Les CTA s'adaptent à l'état de session (même logique que l'en-tête).
+- La grille tarifaire consomme `plans` (contexte fourni par home_view depuis
+  GET /abonnements/, route publique) ; `plans` vaut None si l'API est
+  injoignable → repli statique, jamais de plantage.
 Surcharge {% block content_full %} pour des sections pleine largeur.
 {% endcomment %}
 
-{% block title %}Factur-IA — La facturation électronique conforme, sans effort{% endblock %}
+{% block title %}Factur-IA — La facturation électronique conforme, propulsée par l'IA{% endblock %}
 
 {% block content_full %}
 
 {# ===================== HERO ===================== #}
 <section class="relative overflow-hidden bg-gray-900 text-white">
-    {# Halos décoratifs indigo/purple (esprit « Stellar »). #}
+    {# Halos décoratifs indigo/purple. #}
     <div class="pointer-events-none absolute -top-24 -left-24 h-72 w-72 rounded-full bg-indigo-600/30 blur-3xl"></div>
     <div class="pointer-events-none absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-purple-600/30 blur-3xl"></div>
 
     <div class="relative mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
         <div class="mx-auto max-w-3xl text-center">
             <span class="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-sm font-medium text-indigo-200">
-                Réforme de la facturation électronique &mdash; prêt pour 2026
+                <span class="inline-block h-2 w-2 rounded-full bg-indigo-400"></span>
+                Prêt pour la réforme de la facturation électronique 2026
             </span>
             <h1 class="mt-6 text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl">
-                Vos factures conformes,
-                <span class="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">gérées par l'IA</span>
+                La facturation qui se
+                <span class="bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">remplit toute seule</span>
             </h1>
             <p class="mx-auto mt-6 max-w-2xl text-lg text-gray-300">
-                Transformez un PDF ou un Word existant en facture électronique conforme,
-                orchestrez l'envoi via une plateforme agréée (PDP/PPF), suivez les statuts
-                et automatisez vos relances. Vous gardez vos habitudes, l'IA s'occupe du reste.
+                Pensée pour les indépendants, TPE et PME. Importez un PDF ou un Word,
+                l'IA en extrait clients, lignes et montants ; gérez votre catalogue et
+                vos factures, et restez conforme à la réforme française — sans changer
+                vos habitudes.
             </p>
+
+            {# CTA principal — adapté à l'état de session. #}
             <div class="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 {% if request.session.is_authenticated %}
-                    <a href="{% url 'upload_document' %}" class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 px-6 py-3 text-base font-semibold text-white shadow-lg transition hover:from-indigo-400 hover:to-purple-400">
-                        Envoyer un document <span aria-hidden="true">&rarr;</span>
-                    </a>
-                    <a href="{% url 'equipe' %}" class="inline-flex items-center gap-2 rounded-lg border border-white/20 px-6 py-3 text-base font-semibold text-white transition hover:bg-white/5">
-                        Gérer mon équipe
-                    </a>
+                    {% if request.session.entreprise_id %}
+                        {# TODO(tableau-de-bord) : rebrancher ce CTA vers le tableau de
+                           bord dédié quand il existera (le lien « Tableau de bord » de
+                           l'en-tête pointe encore vers #). En attendant, on entre dans
+                           l'espace de travail par une page existante (liste clients). #}
+                        <a href="{% url 'clients' %}" class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 px-6 py-3 text-base font-semibold text-white shadow-lg transition hover:from-indigo-400 hover:to-purple-400">
+                            Accéder à mon espace <span aria-hidden="true">&rarr;</span>
+                        </a>
+                    {% elif request.session.is_platform_admin %}
+                        <a href="{% url 'plans_admin' %}" class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 px-6 py-3 text-base font-semibold text-white shadow-lg transition hover:from-indigo-400 hover:to-purple-400">
+                            Gérer les plans <span aria-hidden="true">&rarr;</span>
+                        </a>
+                    {% else %}
+                        <a href="{% url 'onboarding' %}" class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 px-6 py-3 text-base font-semibold text-white shadow-lg transition hover:from-indigo-400 hover:to-purple-400">
+                            Créer mon espace <span aria-hidden="true">&rarr;</span>
+                        </a>
+                    {% endif %}
                 {% else %}
                     <a href="{% url 'signup' %}" class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 px-6 py-3 text-base font-semibold text-white shadow-lg transition hover:from-indigo-400 hover:to-purple-400">
                         Commencer gratuitement <span aria-hidden="true">&rarr;</span>
@@ -47,138 +71,249 @@ Surcharge {% block content_full %} pour des sections pleine largeur.
                     </a>
                 {% endif %}
             </div>
+
+            <p class="mt-6 text-sm text-gray-400">
+                Sans engagement &bull; Plan gratuit pour démarrer &bull; Conforme PDP/PPF
+            </p>
+        </div>
+
+        {# Bandeau de réassurance. #}
+        <div class="mx-auto mt-16 grid max-w-3xl grid-cols-2 gap-6 border-t border-white/10 pt-8 text-center sm:grid-cols-4">
+            <div>
+                <p class="text-2xl font-bold text-white">PDF · Word</p>
+                <p class="mt-1 text-xs uppercase tracking-wide text-gray-400">Formats acceptés</p>
+            </div>
+            <div>
+                <p class="text-2xl font-bold text-white">Factur-X</p>
+                <p class="mt-1 text-xs uppercase tracking-wide text-gray-400">UBL &amp; CII</p>
+            </div>
+            <div>
+                <p class="text-2xl font-bold text-white">SIREN</p>
+                <p class="mt-1 text-xs uppercase tracking-wide text-gray-400">Vérifié officiellement</p>
+            </div>
+            <div>
+                <p class="text-2xl font-bold text-white">2026</p>
+                <p class="mt-1 text-xs uppercase tracking-wide text-gray-400">Réforme prête</p>
+            </div>
         </div>
     </div>
 </section>
 
-{# ===================== FONCTIONNALITÉS CŒUR (CONFORMITÉ) ===================== #}
+{# ===================== FONCTIONNALITÉS CLÉS ===================== #}
 <section id="fonctionnalites" class="scroll-mt-16 bg-white py-20">
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div id="conformite" class="scroll-mt-16 mx-auto max-w-2xl text-center">
-            <h2 class="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">Conformité, de bout en bout</h2>
+        <div class="mx-auto max-w-2xl text-center">
+            <span class="text-sm font-semibold uppercase tracking-wide text-indigo-600">Fonctionnalités</span>
+            <h2 class="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">Tout ce qu'il faut pour facturer sereinement</h2>
             <p class="mt-4 text-lg text-gray-600">
-                De l'ingestion du document jusqu'au dépôt sur une plateforme agréée,
-                chaque étape est automatisée et fiabilisée par l'IA.
+                De l'import d'un document à l'émission conforme, chaque étape est
+                automatisée et fiabilisée par l'IA.
             </p>
         </div>
 
         <div class="mt-14 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-            <div class="rounded-2xl border border-gray-100 bg-gray-50 p-6 transition hover:shadow-md">
-                <div class="flex h-11 w-11 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
-                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/></svg>
-                </div>
-                <h3 class="mt-4 text-lg font-semibold text-gray-900">Ingestion universelle</h3>
-                <p class="mt-2 text-sm text-gray-600">Glisser-déposer de PDF, Word ou scan. L'outil détecte le type (devis, facture, avoir) et lance l'extraction automatiquement.</p>
-            </div>
-
+            {# Extraction IA #}
             <div class="rounded-2xl border border-gray-100 bg-gray-50 p-6 transition hover:shadow-md">
                 <div class="flex h-11 w-11 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
                     <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/></svg>
                 </div>
-                <h3 class="mt-4 text-lg font-semibold text-gray-900">Extraction intelligente (IDP)</h3>
-                <p class="mt-2 text-sm text-gray-600">OCR + NLP pour capter émetteur, client, SIREN/SIRET, lignes, TVA, montants HT/TVA/TTC, échéance et IBAN, quelle que soit la mise en page.</p>
+                <h3 class="mt-4 text-lg font-semibold text-gray-900">Extraction par IA (OCR)</h3>
+                <p class="mt-2 text-sm text-gray-600">Glissez un PDF, un Word ou un scan : l'IA capte l'émetteur, le client, les lignes, la TVA et les montants HT/TVA/TTC, quelle que soit la mise en page.</p>
             </div>
 
+            {# Gestion clients #}
             <div class="rounded-2xl border border-gray-100 bg-gray-50 p-6 transition hover:shadow-md">
                 <div class="flex h-11 w-11 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
-                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z"/></svg>
                 </div>
-                <h3 class="mt-4 text-lg font-semibold text-gray-900">Vérification humain-dans-la-boucle</h3>
-                <p class="mt-2 text-sm text-gray-600">Récapitulatif pré-rempli avec surlignage des champs incertains ; correction en un clic pour fiabiliser les champs clés.</p>
+                <h3 class="mt-4 text-lg font-semibold text-gray-900">Gestion des clients</h3>
+                <p class="mt-2 text-sm text-gray-600">Un annuaire client centralisé, avec vérification SIREN/SIRET via l'API gouvernementale pour fiabiliser vos coordonnées à 100 %.</p>
             </div>
 
+            {# Catalogue #}
             <div class="rounded-2xl border border-gray-100 bg-gray-50 p-6 transition hover:shadow-md">
                 <div class="flex h-11 w-11 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
-                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/></svg>
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z"/></svg>
                 </div>
-                <h3 class="mt-4 text-lg font-semibold text-gray-900">Vérification SIREN officielle</h3>
-                <p class="mt-2 text-sm text-gray-600">Contrôle via l'API gouvernementale pour fiabiliser les données client à 100 %.</p>
+                <h3 class="mt-4 text-lg font-semibold text-gray-900">Catalogue produits &amp; services</h3>
+                <p class="mt-2 text-sm text-gray-600">Vos produits et prestations réutilisables, avec taux de TVA préconfigurés : composez une facture en quelques clics, sans ressaisie.</p>
             </div>
 
+            {# Factures électroniques #}
             <div class="rounded-2xl border border-gray-100 bg-gray-50 p-6 transition hover:shadow-md">
                 <div class="flex h-11 w-11 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
                     <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
                 </div>
-                <h3 class="mt-4 text-lg font-semibold text-gray-900">Génération Factur-X / UBL / CII</h3>
-                <p class="mt-2 text-sm text-gray-600">Conversion des données extraites en format structuré conforme, prêt pour la réforme.</p>
+                <h3 class="mt-4 text-lg font-semibold text-gray-900">Factures électroniques</h3>
+                <p class="mt-2 text-sm text-gray-600">Génération au format structuré Factur-X, UBL ou CII, prêt à être déposé — la conformité technique de la réforme est prise en charge pour vous.</p>
             </div>
 
+            {# Vérification humaine #}
             <div class="rounded-2xl border border-gray-100 bg-gray-50 p-6 transition hover:shadow-md">
                 <div class="flex h-11 w-11 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
-                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 0 1 3 12c0-1.605.42-3.113 1.157-4.418"/></svg>
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
                 </div>
-                <h3 class="mt-4 text-lg font-semibold text-gray-900">Dépôt PDP/PPF & e-reporting</h3>
-                <p class="mt-2 text-sm text-gray-600">Émission via annuaire, récupération des statuts de cycle de vie, archivage légal et transmission des données de e-reporting.</p>
+                <h3 class="mt-4 text-lg font-semibold text-gray-900">Contrôle en un clic</h3>
+                <p class="mt-2 text-sm text-gray-600">Un récapitulatif pré-rempli met en évidence les champs incertains : vous validez ou corrigez en un clic avant émission. Vous gardez la main.</p>
+            </div>
+
+            {# Équipe & rôles #}
+            <div class="rounded-2xl border border-gray-100 bg-gray-50 p-6 transition hover:shadow-md">
+                <div class="flex h-11 w-11 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z"/></svg>
+                </div>
+                <h3 class="mt-4 text-lg font-semibold text-gray-900">Équipe &amp; rôles</h3>
+                <p class="mt-2 text-sm text-gray-600">Invitez vos collaborateurs, attribuez des rôles et travaillez à plusieurs sur le même espace, avec des accès adaptés à chacun.</p>
             </div>
         </div>
     </div>
 </section>
 
-{# ===================== CASH & RELANCE + PILOTAGE ===================== #}
+{# ===================== COMMENT ÇA MARCHE ===================== #}
 <section class="bg-gray-50 py-20">
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div class="grid gap-10 lg:grid-cols-2">
-            <div class="rounded-2xl bg-white p-8 shadow-sm">
-                <span class="text-sm font-semibold uppercase tracking-wide text-indigo-600">Cash &amp; Relance</span>
-                <h3 class="mt-2 text-2xl font-bold text-gray-900">Encaissez plus vite, sans y penser</h3>
-                <ul class="mt-6 space-y-4 text-sm text-gray-600">
-                    <li class="flex gap-3"><span class="mt-1 text-indigo-600">&#10003;</span><span><strong class="text-gray-900">Scoring d'impayé</strong> : calcul du DSO, probabilité de retard et priorisation des relances par impact.</span></li>
-                    <li class="flex gap-3"><span class="mt-1 text-indigo-600">&#10003;</span><span><strong class="text-gray-900">Relances multicanales</strong> : scénarios paramétrables (J+3, J+7, J+15…), tonalités adaptées et preuve d'envoi.</span></li>
-                    <li class="flex gap-3"><span class="mt-1 text-indigo-600">&#10003;</span><span><strong class="text-gray-900">Synchronisation « payé »</strong> : rapprochement bancaire automatique ou validation manuelle en fallback.</span></li>
-                </ul>
-            </div>
+        <div class="mx-auto max-w-2xl text-center">
+            <span class="text-sm font-semibold uppercase tracking-wide text-purple-600">Comment ça marche</span>
+            <h2 class="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">Trois étapes, zéro ressaisie</h2>
+        </div>
 
-            <div class="rounded-2xl bg-white p-8 shadow-sm">
-                <span class="text-sm font-semibold uppercase tracking-wide text-purple-600">Pilotage financier</span>
-                <h3 class="mt-2 text-2xl font-bold text-gray-900">Gardez le cap sur votre trésorerie</h3>
-                <ul class="mt-6 space-y-4 text-sm text-gray-600">
-                    <li class="flex gap-3"><span class="mt-1 text-purple-600">&#10003;</span><span><strong class="text-gray-900">Prévision de trésorerie</strong> : projection 8 à 12 semaines avec alertes de tension et recommandations.</span></li>
-                    <li class="flex gap-3"><span class="mt-1 text-purple-600">&#10003;</span><span><strong class="text-gray-900">Tableaux de bord</strong> : chiffre d'affaires, TVA estimée, retards, performance des relances et coût par facture.</span></li>
-                    <li class="flex gap-3"><span class="mt-1 text-purple-600">&#10003;</span><span><strong class="text-gray-900">Détection d'anomalies</strong> : IBAN suspect, doublons, incohérences TVA ou divergences BC/BL/facture.</span></li>
-                </ul>
+        <div class="mt-14 grid gap-8 md:grid-cols-3">
+            <div class="relative rounded-2xl bg-white p-8 shadow-sm">
+                <span class="absolute -top-4 left-8 flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 text-sm font-bold text-white">1</span>
+                <h3 class="mt-3 text-lg font-semibold text-gray-900">Importez votre document</h3>
+                <p class="mt-2 text-sm text-gray-600">Déposez un PDF, un Word ou un scan de devis, facture ou avoir. Aucun format imposé.</p>
+            </div>
+            <div class="relative rounded-2xl bg-white p-8 shadow-sm">
+                <span class="absolute -top-4 left-8 flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 text-sm font-bold text-white">2</span>
+                <h3 class="mt-3 text-lg font-semibold text-gray-900">L'IA extrait, vous validez</h3>
+                <p class="mt-2 text-sm text-gray-600">Les données sont pré-remplies et vérifiées (SIREN inclus) ; vous ajustez les champs signalés si besoin.</p>
+            </div>
+            <div class="relative rounded-2xl bg-white p-8 shadow-sm">
+                <span class="absolute -top-4 left-8 flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 text-sm font-bold text-white">3</span>
+                <h3 class="mt-3 text-lg font-semibold text-gray-900">Émettez en conformité</h3>
+                <p class="mt-2 text-sm text-gray-600">La facture est convertie au format légal et prête pour le dépôt via une plateforme agréée (PDP/PPF).</p>
             </div>
         </div>
     </div>
 </section>
 
-{# ===================== TARIFS ===================== #}
-<section id="tarifs" class="scroll-mt-16 bg-white py-20">
+{# ===================== CONFORMITÉ (RÉFORME) ===================== #}
+<section id="conformite" class="scroll-mt-16 bg-white py-20">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="grid items-center gap-12 lg:grid-cols-2">
+            <div>
+                <span class="text-sm font-semibold uppercase tracking-wide text-indigo-600">Conformité</span>
+                <h2 class="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">En règle avec la réforme française</h2>
+                <p class="mt-4 text-lg text-gray-600">
+                    La facturation électronique devient obligatoire entre entreprises.
+                    Factur-IA vous met en conformité de bout en bout, sans expertise
+                    technique de votre côté.
+                </p>
+                <ul class="mt-8 space-y-4 text-sm text-gray-600">
+                    <li class="flex gap-3"><span class="mt-1 text-indigo-600">&#10003;</span><span><strong class="text-gray-900">Formats structurés</strong> : Factur-X, UBL et CII générés automatiquement à partir de vos documents.</span></li>
+                    <li class="flex gap-3"><span class="mt-1 text-indigo-600">&#10003;</span><span><strong class="text-gray-900">Dépôt PDP/PPF</strong> : transmission via une plateforme agréée et suivi des statuts du cycle de vie.</span></li>
+                    <li class="flex gap-3"><span class="mt-1 text-indigo-600">&#10003;</span><span><strong class="text-gray-900">E-reporting</strong> : transmission des données de transaction attendues par l'administration.</span></li>
+                    <li class="flex gap-3"><span class="mt-1 text-indigo-600">&#10003;</span><span><strong class="text-gray-900">Archivage légal</strong> : vos pièces conservées et traçables, prêtes en cas de contrôle.</span></li>
+                </ul>
+            </div>
+
+            <div class="rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 to-purple-50 p-8">
+                <div class="flex items-center gap-3">
+                    <span class="flex h-11 w-11 items-center justify-center rounded-lg bg-white text-indigo-600 shadow-sm">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z"/></svg>
+                    </span>
+                    <p class="text-lg font-semibold text-gray-900">Conforme, dès aujourd'hui</p>
+                </div>
+                <p class="mt-4 text-sm text-gray-600">
+                    Continuez à produire vos documents comme d'habitude : Factur-IA se
+                    charge de la mise au format légal, du dépôt et du suivi. Vous êtes
+                    prêt pour l'échéance, sans chantier informatique.
+                </p>
+                <div class="mt-6 flex flex-wrap gap-2">
+                    <span class="rounded-full bg-white px-3 py-1 text-xs font-medium text-indigo-700 shadow-sm">Factur-X</span>
+                    <span class="rounded-full bg-white px-3 py-1 text-xs font-medium text-indigo-700 shadow-sm">UBL</span>
+                    <span class="rounded-full bg-white px-3 py-1 text-xs font-medium text-indigo-700 shadow-sm">CII</span>
+                    <span class="rounded-full bg-white px-3 py-1 text-xs font-medium text-indigo-700 shadow-sm">PDP / PPF</span>
+                    <span class="rounded-full bg-white px-3 py-1 text-xs font-medium text-indigo-700 shadow-sm">E-reporting</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+{# ===================== TARIFS (PLANS RÉELS) ===================== #}
+<section id="tarifs" class="scroll-mt-16 bg-gray-50 py-20">
     <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div class="mx-auto max-w-2xl text-center">
-            <h2 class="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">Des offres qui grandissent avec vous</h2>
-            <p class="mt-4 text-lg text-gray-600">Commencez gratuitement pour vous mettre en conformité, puis débloquez le pilotage et les relances intelligentes.</p>
+            <span class="text-sm font-semibold uppercase tracking-wide text-indigo-600">Tarifs</span>
+            <h2 class="mt-2 text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">Des offres qui grandissent avec vous</h2>
+            <p class="mt-4 text-lg text-gray-600">
+                Démarrez gratuitement pour vous mettre en conformité, puis passez à une
+                offre supérieure quand votre activité l'exige.
+            </p>
         </div>
 
-        <div class="mx-auto mt-14 grid max-w-4xl gap-8 md:grid-cols-2">
-            {# Freemium #}
-            <div class="flex flex-col rounded-2xl border border-gray-200 p-8">
-                <h3 class="text-lg font-semibold text-gray-900">Freemium</h3>
-                <p class="mt-2 text-sm text-gray-600">La conformité de base et le dépôt via une PDP partenaire.</p>
-                <p class="mt-6"><span class="text-4xl font-extrabold text-gray-900">0 &euro;</span><span class="text-sm text-gray-500">/mois</span></p>
-                <ul class="mt-6 flex-1 space-y-3 text-sm text-gray-600">
-                    <li class="flex gap-2"><span class="text-indigo-600">&#10003;</span> Conformité &amp; dépôt PDP</li>
-                    <li class="flex gap-2"><span class="text-indigo-600">&#10003;</span> 1 administrateur + 1 utilisateur invité</li>
-                    <li class="flex gap-2"><span class="text-indigo-600">&#10003;</span> Extraction et génération Factur-X</li>
-                </ul>
-                <a href="{% url 'signup' %}" class="mt-8 inline-flex justify-center rounded-lg border border-indigo-600 px-5 py-2.5 text-sm font-semibold text-indigo-600 transition hover:bg-indigo-50">Commencer</a>
-            </div>
+        {% if plans %}
+            <div class="mx-auto mt-14 grid max-w-5xl gap-8 md:grid-cols-2 lg:grid-cols-3">
+                {% for plan in plans %}
+                    {% if plan.id == featured_plan_id %}
+                        {# Plan mis en avant (le plus premium). #}
+                        <div class="relative flex flex-col rounded-2xl border-2 border-indigo-600 bg-white p-8 shadow-lg">
+                            <span class="absolute -top-3 left-8 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 px-3 py-1 text-xs font-semibold text-white">Recommandé</span>
+                    {% else %}
+                        <div class="flex flex-col rounded-2xl border border-gray-200 bg-white p-8">
+                    {% endif %}
+                        <h3 class="text-lg font-semibold text-gray-900">{{ plan.libelle }}</h3>
+                        <p class="mt-2 min-h-[2.5rem] text-sm text-gray-600">{{ plan.description|default:"L'essentiel pour facturer en conformité." }}</p>
+                        <p class="mt-6">
+                            {% if plan.is_gratuit %}
+                                <span class="text-4xl font-extrabold text-gray-900">Gratuit</span>
+                            {% else %}
+                                <span class="text-4xl font-extrabold text-gray-900">{{ plan.tarif_affiche }}&nbsp;&euro;</span>
+                                <span class="text-sm text-gray-500">/mois</span>
+                            {% endif %}
+                        </p>
+                        <ul class="mt-6 flex-1 space-y-3 text-sm text-gray-600">
+                            <li class="flex gap-2"><span class="text-indigo-600">&#10003;</span> Jusqu'à {{ plan.nombre_max_utilisateurs }} utilisateur{{ plan.nombre_max_utilisateurs|pluralize }}</li>
+                            <li class="flex gap-2"><span class="text-indigo-600">&#10003;</span> {{ plan.nombre_max_factures_mois }} facture{{ plan.nombre_max_factures_mois|pluralize }} / mois</li>
+                            <li class="flex gap-2"><span class="text-indigo-600">&#10003;</span> Extraction IA &amp; génération Factur-X</li>
+                            <li class="flex gap-2"><span class="text-indigo-600">&#10003;</span> Dépôt PDP/PPF &amp; suivi des statuts</li>
+                        </ul>
 
-            {# Pro #}
-            <div class="relative flex flex-col rounded-2xl border-2 border-indigo-600 p-8 shadow-lg">
-                <span class="absolute -top-3 left-8 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 px-3 py-1 text-xs font-semibold text-white">Le plus populaire</span>
-                <h3 class="text-lg font-semibold text-gray-900">Pro</h3>
-                <p class="mt-2 text-sm text-gray-600">Relances intelligentes, prévision cash et intégrations avancées.</p>
-                <p class="mt-6"><span class="text-4xl font-extrabold text-gray-900">Sur devis</span></p>
-                <ul class="mt-6 flex-1 space-y-3 text-sm text-gray-600">
-                    <li class="flex gap-2"><span class="text-indigo-600">&#10003;</span> Tout le Freemium, plus :</li>
-                    <li class="flex gap-2"><span class="text-indigo-600">&#10003;</span> 3 administrateurs + 10 invités</li>
-                    <li class="flex gap-2"><span class="text-indigo-600">&#10003;</span> Relances multicanales &amp; scoring</li>
-                    <li class="flex gap-2"><span class="text-indigo-600">&#10003;</span> Prévision de trésorerie &amp; connecteurs</li>
-                </ul>
-                {# Contact commercial : formulaire pas encore développé. #}
-                <a href="#" class="mt-8 inline-flex justify-center rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:from-indigo-400 hover:to-purple-400">Nous contacter</a>
+                        {# CTA adapté à l'état de session. #}
+                        {% if request.session.is_authenticated %}
+                            {% if request.session.entreprise_id %}
+                                <a href="{% url 'abonnements' %}" class="mt-8 inline-flex justify-center rounded-lg {% if plan.id == featured_plan_id %}bg-gradient-to-r from-indigo-500 to-purple-500 text-white transition hover:from-indigo-400 hover:to-purple-400{% else %}border border-indigo-600 text-indigo-600 transition hover:bg-indigo-50{% endif %} px-5 py-2.5 text-sm font-semibold">Gérer mon abonnement</a>
+                            {% else %}
+                                <a href="{% url 'onboarding' %}" class="mt-8 inline-flex justify-center rounded-lg {% if plan.id == featured_plan_id %}bg-gradient-to-r from-indigo-500 to-purple-500 text-white transition hover:from-indigo-400 hover:to-purple-400{% else %}border border-indigo-600 text-indigo-600 transition hover:bg-indigo-50{% endif %} px-5 py-2.5 text-sm font-semibold">Créer mon espace</a>
+                            {% endif %}
+                        {% else %}
+                            <a href="{% url 'signup' %}" class="mt-8 inline-flex justify-center rounded-lg {% if plan.id == featured_plan_id %}bg-gradient-to-r from-indigo-500 to-purple-500 text-white transition hover:from-indigo-400 hover:to-purple-400{% else %}border border-indigo-600 text-indigo-600 transition hover:bg-indigo-50{% endif %} px-5 py-2.5 text-sm font-semibold">
+                                {% if plan.is_gratuit %}Commencer gratuitement{% else %}Choisir {{ plan.libelle }}{% endif %}
+                            </a>
+                        {% endif %}
+                        </div>
+                {% endfor %}
             </div>
-        </div>
+        {% else %}
+            {# Repli : plans indisponibles (API injoignable). La page reste utile. #}
+            <div class="mx-auto mt-14 max-w-xl rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm">
+                <h3 class="text-lg font-semibold text-gray-900">Nos offres arrivent</h3>
+                <p class="mt-2 text-sm text-gray-600">
+                    Le détail des tarifs est momentanément indisponible. Créez votre
+                    compte pour démarrer gratuitement dès maintenant.
+                </p>
+                {% if request.session.is_authenticated %}
+                    {% if request.session.entreprise_id %}
+                        <a href="{% url 'abonnements' %}" class="mt-6 inline-flex justify-center rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 px-6 py-3 text-sm font-semibold text-white transition hover:from-indigo-400 hover:to-purple-400">Voir mon abonnement</a>
+                    {% else %}
+                        <a href="{% url 'onboarding' %}" class="mt-6 inline-flex justify-center rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 px-6 py-3 text-sm font-semibold text-white transition hover:from-indigo-400 hover:to-purple-400">Créer mon espace</a>
+                    {% endif %}
+                {% else %}
+                    <a href="{% url 'signup' %}" class="mt-6 inline-flex justify-center rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 px-6 py-3 text-sm font-semibold text-white transition hover:from-indigo-400 hover:to-purple-400">Commencer gratuitement</a>
+                {% endif %}
+            </div>
+        {% endif %}
     </div>
 </section>
 
@@ -187,12 +322,19 @@ Surcharge {% block content_full %} pour des sections pleine largeur.
     <div class="pointer-events-none absolute inset-0 bg-gradient-to-r from-indigo-600/20 to-purple-600/20"></div>
     <div class="relative mx-auto max-w-3xl px-4 text-center sm:px-6 lg:px-8">
         <h2 class="text-3xl font-bold tracking-tight sm:text-4xl">Prêt à passer à la facturation électronique&nbsp;?</h2>
-        <p class="mx-auto mt-4 max-w-xl text-gray-300">Gardez votre flux PDF/Word habituel : Factur-IA se charge de la conformité, du suivi et des relances.</p>
+        <p class="mx-auto mt-4 max-w-xl text-gray-300">Gardez votre flux PDF/Word habituel : Factur-IA se charge de l'extraction, de la conformité et du suivi.</p>
         <div class="mt-8 flex justify-center">
             {% if request.session.is_authenticated %}
-                <a href="{% url 'upload_document' %}" class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 px-6 py-3 text-base font-semibold text-white shadow-lg transition hover:from-indigo-400 hover:to-purple-400">Envoyer un document <span aria-hidden="true">&rarr;</span></a>
+                {% if request.session.entreprise_id %}
+                    {# TODO(tableau-de-bord) : cibler le tableau de bord une fois disponible. #}
+                    <a href="{% url 'clients' %}" class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 px-6 py-3 text-base font-semibold text-white shadow-lg transition hover:from-indigo-400 hover:to-purple-400">Accéder à mon espace <span aria-hidden="true">&rarr;</span></a>
+                {% elif request.session.is_platform_admin %}
+                    <a href="{% url 'plans_admin' %}" class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 px-6 py-3 text-base font-semibold text-white shadow-lg transition hover:from-indigo-400 hover:to-purple-400">Gérer les plans <span aria-hidden="true">&rarr;</span></a>
+                {% else %}
+                    <a href="{% url 'onboarding' %}" class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 px-6 py-3 text-base font-semibold text-white shadow-lg transition hover:from-indigo-400 hover:to-purple-400">Créer mon espace <span aria-hidden="true">&rarr;</span></a>
+                {% endif %}
             {% else %}
-                <a href="{% url 'login' %}" class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 px-6 py-3 text-base font-semibold text-white shadow-lg transition hover:from-indigo-400 hover:to-purple-400">Se connecter <span aria-hidden="true">&rarr;</span></a>
+                <a href="{% url 'signup' %}" class="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 px-6 py-3 text-base font-semibold text-white shadow-lg transition hover:from-indigo-400 hover:to-purple-400">Commencer gratuitement <span aria-hidden="true">&rarr;</span></a>
             {% endif %}
         </div>
     </div>

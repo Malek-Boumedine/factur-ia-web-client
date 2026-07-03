@@ -15,7 +15,6 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 
-from django.contrib import admin
 from django.urls import path
 from core.views.auth import (
     forgot_password_view,
@@ -55,10 +54,17 @@ from core.views.clients import (
 from core.views.documents import upload_document_view
 from core.views.equipe import equipe_view
 from core.views.home import home_view
+from core.views.profil import profil_view
+from core.views.taux_tva import (
+    taux_tva_admin_view,
+    taux_tva_create_view,
+    taux_tva_deactivate_view,
+    taux_tva_reactivate_view,
+    taux_tva_update_view,
+)
 
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
     path("login/", login_view, name="login"),
     path("logout/", logout_view, name="logout"),
     path("inscription/", signup_view, name="signup"),
@@ -70,6 +76,7 @@ urlpatterns = [
     ),
     path("profile-lock/", profile_lock_view, name="profile_lock"),
     path("onboarding/", onboarding_view, name="onboarding"),
+    path("profil/", profil_view, name="profil"),
     path("equipe/", equipe_view, name="equipe"),
     path("admins/", admins_plateforme_view, name="admins_plateforme"),
     path("abonnements/", abonnements_view, name="abonnements"),
@@ -94,6 +101,23 @@ urlpatterns = [
         "plans/<int:abonnement_id>/supprimer/",
         plan_delete_view,
         name="plan_delete",
+    ),
+    path("taux-tva/", taux_tva_admin_view, name="taux_tva_admin"),
+    path("taux-tva/nouveau/", taux_tva_create_view, name="taux_tva_create"),
+    path(
+        "taux-tva/<int:taux_tva_id>/modifier/",
+        taux_tva_update_view,
+        name="taux_tva_update",
+    ),
+    path(
+        "taux-tva/<int:taux_tva_id>/desactiver/",
+        taux_tva_deactivate_view,
+        name="taux_tva_deactivate",
+    ),
+    path(
+        "taux-tva/<int:taux_tva_id>/reactiver/",
+        taux_tva_reactivate_view,
+        name="taux_tva_reactivate",
     ),
     path("clients/", clients_list_view, name="clients"),
     path("clients/nouveau/", client_create_view, name="client_create"),

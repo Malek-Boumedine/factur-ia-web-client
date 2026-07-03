@@ -3,11 +3,18 @@
 Couvre le domaine `utilisateurs` de l'API ainsi que la liste des rôles :
 
 - GET /utilisateurs/me : profil de l'utilisateur connecté (n'exige pas le tenant).
+- PATCH /utilisateurs/me : mise à jour de son propre profil (ProfilUpdate).
+- POST /utilisateurs/me/changer-email : changement de son propre email
+  (renvoie un nouveau token, l'email étant le sujet du JWT).
+- POST /utilisateurs/me/changer-mot-de-passe : changement de son propre
+  mot de passe.
 - GET /utilisateurs/ : liste des membres de l'entreprise active.
 - POST /utilisateurs/ : création d'un membre (schéma UtilisateurCreate).
 - PATCH /utilisateurs/{user_id} : mise à jour partielle (UtilisateurTeamUpdate).
 - DELETE /utilisateurs/{user_id} : suppression d'un membre.
 - GET /auth/roles : liste des rôles disponibles (n'exige pas le tenant).
+
+Les routes « soi-même » (/utilisateurs/me...) n'exigent pas le header tenant.
 """
 
 from .base_client import BaseAPIClient
@@ -39,6 +46,92 @@ class UtilisateursClient(BaseAPIClient):
                 (APIUnavailableError).
         """
         return self.get("/utilisateurs/me")
+
+    def update_my_profile(self, payload):
+        """Met à jour les informations personnelles de l'utilisateur connecté.
+
+        Appelle PATCH /utilisateurs/me (schéma ProfilUpdate : nom, prénom et
+        coordonnées uniquement — l'email et le mot de passe passent par leurs
+        routes dédiées). Route « soi-même », sans header tenant requis.
+
+        Args:
+            payload (dict): Champs du profil à mettre à jour, conformes au
+                schéma ProfilUpdate. Obligatoire.
+
+        Returns:
+            dict: Le profil mis à jour, tel que renvoyé par l'API (200).
+
+        Raises:
+            TokenExpiredError: En cas de réponse 401.
+            APIClientError: Toute autre erreur API mappée (422 validation,
+                5xx serveur) ou API injoignable (APIUnavailableError).
+        """
+        return self.patch("/utilisateurs/me", data=payload)
+
+    def change_my_email(self, current_password, new_email):
+        """Change l'email de connexion de l'utilisateur connecté.
+
+        Appelle POST /utilisateurs/me/changer-email (schéma
+        ChangementEmailRequest). L'email étant le sujet (`sub`) du JWT, la
+        réponse contient un nouvel `access_token` : l'appelant DOIT remplacer
+        le token en session par celui-ci, l'ancien devenant caduc.
+
+        Args:
+            current_password (str): Mot de passe actuel (vérifié par l'API).
+                Obligatoire.
+            new_email (str): Nouvel email de connexion. Obligatoire.
+
+        Returns:
+            dict: Réponse ChangementEmailResponse (`message`, `access_token`,
+            `token_type`).
+
+        Raises:
+            TokenExpiredError: En cas de réponse 401.
+            ResourceConflictError: Email déjà utilisé par un autre compte
+                (409, message dans `detail`).
+            APIClientError: Toute autre erreur API mappée (400 mot de passe
+                actuel incorrect ou email identique, 422 validation, 5xx
+                serveur) ou API injoignable (APIUnavailableError).
+        """
+        return self.post(
+            "/utilisateurs/me/changer-email",
+            data={
+                "mot_de_passe_actuel": current_password,
+                "nouvel_email": new_email,
+            },
+        )
+
+    def change_my_password(self, current_password, new_password):
+        """Change le mot de passe de l'utilisateur connecté.
+
+        Appelle POST /utilisateurs/me/changer-mot-de-passe (schéma
+        ChangementMotDePasseRequest). Distinct du flux « mot de passe
+        oublié » : ici l'utilisateur est authentifié et son mot de passe
+        actuel est exigé. Le token en session reste valide (le sujet du JWT
+        ne change pas).
+
+        Args:
+            current_password (str): Mot de passe actuel (vérifié par l'API).
+                Obligatoire.
+            new_password (str): Nouveau mot de passe (min 8 caractères).
+                Obligatoire.
+
+        Returns:
+            dict: Réponse MessageResponse de l'API (200).
+
+        Raises:
+            TokenExpiredError: En cas de réponse 401.
+            APIClientError: Toute autre erreur API mappée (400 mot de passe
+                actuel incorrect ou nouveau identique, 422 validation, 5xx
+                serveur) ou API injoignable (APIUnavailableError).
+        """
+        return self.post(
+            "/utilisateurs/me/changer-mot-de-passe",
+            data={
+                "mot_de_passe_actuel": current_password,
+                "nouveau_mot_de_passe": new_password,
+            },
+        )
 
     def get_equipe(self):
         """Liste les membres de l'équipe de l'entreprise active.
