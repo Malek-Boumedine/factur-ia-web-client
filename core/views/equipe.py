@@ -5,6 +5,7 @@ from clients.exceptions import (
     APIClientError,
     APIUnavailableError,
     APIValidationError,
+    ResourceConflictError,
     TokenExpiredError,
 )
 from clients.utilisateurs_client import UtilisateursClient
@@ -78,6 +79,16 @@ def equipe_view(request):
                 return redirect("equipe")
             except TokenExpiredError:
                 return redirect("login")
+            except ResourceConflictError as e:
+                # Limite d'utilisateurs du plan atteinte (ajout ou réactivation) :
+                # le message de l'API est actionnable, on l'affiche tel quel.
+                messages.error(
+                    request,
+                    str(
+                        e.detail
+                        or "La limite d'utilisateurs de votre plan est atteinte."
+                    ),
+                )
             except APIValidationError as e:
                 messages.error(request, str(e.detail or "Erreur de validation."))
             except APIUnavailableError:

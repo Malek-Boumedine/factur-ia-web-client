@@ -89,6 +89,8 @@ class UtilisateursClient(BaseAPIClient):
 
         Raises:
             TokenExpiredError: En cas de réponse 401.
+            ResourceConflictError: Limite d'utilisateurs du plan actif
+                atteinte (409, message actionnable dans `detail`).
             APIClientError: Toute autre erreur API mappée (404 introuvable,
                 422 validation, 5xx serveur) ou API injoignable
                 (APIUnavailableError).
@@ -111,6 +113,9 @@ class UtilisateursClient(BaseAPIClient):
 
         Raises:
             TokenExpiredError: En cas de réponse 401.
+            ResourceConflictError: Réactivation refusée, limite d'utilisateurs
+                du plan actif atteinte (409, message actionnable dans
+                `detail`).
             APIClientError: Toute autre erreur API mappée (404 introuvable,
                 422 validation, 5xx serveur) ou API injoignable
                 (APIUnavailableError).
