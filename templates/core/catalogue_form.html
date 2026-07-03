@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% comment %}
+Formulaire de création/édition d'un produit du catalogue.
+
+Champs alignés sur CatalogueCreate/CatalogueUpdate du contrat. Le menu des taux
+de TVA est alimenté par l'API (GET /taux-tva/?est_actif=true) ; s'il n'a pas pu
+être chargé, un message l'explique et la soumission est bloquée. `est_actif`
+n'apparaît qu'en édition (couvre la réactivation d'un produit désactivé).
+{% endcomment %}
+
+{% block title %}{% if is_edit %}Modifier le produit{% else %}Nouveau produit{% endif %} — Factur-IA{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-6">
+
+    {% if messages %}
+        <div class="space-y-2">
+            {% for message in messages %}
+                <div role="alert" class="alert {% if message.tags == 'error' %}alert-error{% else %}alert-success{% endif %}">
+                    <span>{{ message }}</span>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="flex justify-between items-center bg-base-100 rounded-t-lg shadow-sm p-4 border-b border-base-300">
+        <h2 class="text-xl font-bold">{% if is_edit %}Modifier le produit{% else %}Nouveau produit{% endif %}</h2>
+        <a href="{% if is_edit %}{% url 'catalogue_detail' produit_id=produit.id %}{% else %}{% url 'catalogue' %}{% endif %}" class="btn btn-ghost btn-sm">Retour</a>
+    </div>
+
+    <form method="post" class="bg-base-100 rounded-lg shadow-md border border-base-200 p-6 space-y-4">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+            <div role="alert" class="alert alert-error">
+                <span>{{ form.non_field_errors.0 }}</span>
+            </div>
+        {% endif %}
+
+        <div>
+            <label for="designation" class="block text-sm font-medium mb-1">Désignation</label>
+            <input type="text" id="designation" name="designation" required maxlength="255"
+                   value="{{ form.designation.value|default:'' }}" class="input w-full">
+            {% if form.designation.errors %}<p class="mt-1 text-xs text-error">{{ form.designation.errors.0 }}</p>{% endif %}
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label for="type_produit" class="block text-sm font-medium mb-1">Type</label>
+                <select id="type_produit" name="type_produit" class="select w-full">
+                    {% for value, label in form.type_produit.field.choices %}
+                        <option value="{{ value }}" {% if form.type_produit.value|default:"produit" == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                {% if form.type_produit.errors %}<p class="mt-1 text-xs text-error">{{ form.type_produit.errors.0 }}</p>{% endif %}
+            </div>
+            <div>
+                <label for="reference" class="block text-sm font-medium mb-1">Référence <span class="text-base-content/50 font-normal">(optionnel)</span></label>
+                <input type="text" id="reference" name="reference" maxlength="100"
+                       value="{{ form.reference.value|default:'' }}" class="input w-full">
+                {% if form.reference.errors %}<p class="mt-1 text-xs text-error">{{ form.reference.errors.0 }}</p>{% endif %}
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <label for="prix_unitaire_ht" class="block text-sm font-medium mb-1">Prix unitaire HT (€)</label>
+                <input type="number" id="prix_unitaire_ht" name="prix_unitaire_ht" required min="0" step="0.01"
+                       value="{{ form.prix_unitaire_ht.value|default:'' }}" class="input w-full">
+                {% if form.prix_unitaire_ht.errors %}<p class="mt-1 text-xs text-error">{{ form.prix_unitaire_ht.errors.0 }}</p>{% endif %}
+            </div>
+            <div>
+                <label for="unite" class="block text-sm font-medium mb-1">Unité <span class="text-base-content/50 font-normal">(optionnel)</span></label>
+                <input type="text" id="unite" name="unite" maxlength="50" placeholder="heure, jour, pièce…"
+                       value="{{ form.unite.value|default:'' }}" class="input w-full">
+                {% if form.unite.errors %}<p class="mt-1 text-xs text-error">{{ form.unite.errors.0 }}</p>{% endif %}
+            </div>
+            <div>
+                <label for="id_taux_tva" class="block text-sm font-medium mb-1">Taux de TVA</label>
+                <select id="id_taux_tva" name="id_taux_tva" required class="select w-full"
+                        {% if not form.id_taux_tva.field.choices %}disabled{% endif %}>
+                    {% if not form.id_taux_tva.field.choices %}
+                        <option value="">Taux indisponibles</option>
+                    {% else %}
+                        <option value="" disabled {% if not form.id_taux_tva.value %}selected{% endif %}>-- Sélectionnez --</option>
+                        {% for value, label in form.id_taux_tva.field.choices %}
+                            <option value="{{ value }}" {% if form.id_taux_tva.value|stringformat:'s' == value|stringformat:'s' %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    {% endif %}
+                </select>
+                {% if form.id_taux_tva.errors %}<p class="mt-1 text-xs text-error">{{ form.id_taux_tva.errors.0 }}</p>{% endif %}
+            </div>
+        </div>
+
+        {% if is_edit %}
+        <div class="flex items-center gap-2 border-t border-base-300 pt-4">
+            <input type="checkbox" id="est_actif" name="est_actif" class="checkbox checkbox-primary"
+                   {% if form.est_actif.value %}checked{% endif %}>
+            <label for="est_actif" class="text-sm font-medium">Produit actif (disponible à la vente)</label>
+        </div>
+        {% endif %}
+
+        <div class="flex justify-end gap-2 border-t border-base-300 pt-4">
+            <a href="{% if is_edit %}{% url 'catalogue_detail' produit_id=produit.id %}{% else %}{% url 'catalogue' %}{% endif %}" class="btn btn-ghost">Annuler</a>
+            <button type="submit" class="btn btn-primary" {% if not form.id_taux_tva.field.choices %}disabled{% endif %}>
+                {% if is_edit %}Enregistrer les modifications{% else %}Créer le produit{% endif %}
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock content %}

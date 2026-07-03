@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% comment %}
+Gestion des plans d'abonnement, réservée aux administrateurs de plateforme
+(garde-fou en vue via le flag de session `is_platform_admin`).
+
+Liste les plans avec les actions de création, d'édition et de suppression. La
+suppression (POST + confirmation) est refusée par l'API (409) si le plan est
+encore souscrit par une entreprise : le message renvoyé est affiché tel quel.
+{% endcomment %}
+
+{% block title %}Gestion des plans — Factur-IA{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-6">
+
+    {% if messages %}
+        <div class="space-y-2">
+            {% for message in messages %}
+                <div role="alert" class="alert {% if message.tags == 'error' %}alert-error{% else %}alert-success{% endif %}">
+                    <span>{{ message }}</span>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="flex justify-between items-center bg-base-100 rounded-t-lg shadow-sm p-4 border-b border-base-300">
+        <div class="flex items-center gap-3">
+            <h2 class="text-xl font-bold">Gestion des plans</h2>
+            <span class="text-sm text-base-content/60">{{ plans|length }} plan{{ plans|length|pluralize }}</span>
+        </div>
+        <a href="{% url 'plan_create' %}" class="btn btn-primary">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            Nouveau plan
+        </a>
+    </div>
+
+    <div class="bg-base-100 rounded-lg shadow-md border border-base-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Libellé</th>
+                        <th>Description</th>
+                        <th class="text-right">Tarif</th>
+                        <th class="text-right">Max utilisateurs</th>
+                        <th class="text-right">Max factures/mois</th>
+                        <th class="text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for plan in plans %}
+                    <tr class="hover">
+                        <td class="font-medium">{{ plan.libelle }}</td>
+                        <td class="text-base-content/70 max-w-xs truncate">{{ plan.description|default:"—" }}</td>
+                        <td class="text-right whitespace-nowrap">{{ plan.tarif_affiche }} € /mois</td>
+                        <td class="text-right">{{ plan.nombre_max_utilisateurs }}</td>
+                        <td class="text-right">{{ plan.nombre_max_factures_mois }}</td>
+                        <td class="text-right">
+                            <div class="flex justify-end items-center gap-1">
+                                <a href="{% url 'plan_update' abonnement_id=plan.id %}" class="btn btn-ghost btn-sm btn-square text-info" title="Modifier">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                                </a>
+                                <form method="post" action="{% url 'plan_delete' abonnement_id=plan.id %}" class="inline-block"
+                                      onsubmit="return confirm('Supprimer le plan {{ plan.libelle|escapejs }} ? Cette action est définitive.');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-ghost btn-sm btn-square text-error" title="Supprimer">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-base-content/60 py-8">Aucun plan d'abonnement.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock content %}

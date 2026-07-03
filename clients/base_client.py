@@ -31,6 +31,7 @@ from .exceptions import (
     APIClientError,
     APIUnavailableError,
     APIValidationError,
+    ResourceConflictError,
     ResourceNotFoundError,
     ServerError,
     TokenExpiredError,
@@ -267,6 +268,7 @@ class BaseAPIClient:
         Raises:
             TokenExpiredError: Réponse 401 (la session Django est d'abord vidée).
             ResourceNotFoundError: Réponse 404.
+            ResourceConflictError: Réponse 409 (message de conflit conservé).
             APIValidationError: Réponse 422 (détail de validation conservé).
             ServerError: Réponse 5xx (non transitoire).
             APIClientError: Tout autre statut 4xx non spécifique (400, 403, ...).
@@ -290,6 +292,8 @@ class BaseAPIClient:
             raise TokenExpiredError()
         if status == 404:
             raise ResourceNotFoundError()
+        if status == 409:
+            raise ResourceConflictError(detail=self._extract_detail(response))
         if status == 422:
             raise APIValidationError(detail=self._extract_detail(response))
         if status >= 500:

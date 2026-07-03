@@ -5,10 +5,22 @@ from clients.exceptions import (
     APIClientError,
     APIUnavailableError,
     APIValidationError,
+    ResourceConflictError,
+    ResourceNotFoundError,
     TokenExpiredError,
 )
 from clients.utilisateurs_client import UtilisateursClient
 from core.forms import CollaborateurForm
+from core.views.auth import _MSG_INDISPONIBLE
+
+# Message affiché sur le 403 du DELETE. Le template masque déjà le bouton
+# via le flag `compte_protege` du contrat : ce mapping reste en filet de
+# sécurité (soumission forgée ou flag obsolète), l'API restant juge.
+_MSG_COMPTE_PROTEGE = "Ce compte est protégé et ne peut pas être supprimé."
+
+# Message du garde-fou d'accès à la page (flag `can_manage_team` posé au
+# login, dérivé du rôle dans l'entreprise active — permission `users:read`).
+_MSG_ACCES_EQUIPE = "Accès réservé aux administrateurs de l'entreprise."
 
 
 def _charger_roles(client):
@@ -19,8 +31,17 @@ def _charger_roles(client):
 
 
 def equipe_view(request):
+    """Page de gestion de l'équipe (liste, ajout, édition, statut, suppression).
+
+    Accès réservé aux rôles autorisés à gérer l'équipe (`can_manage_team`,
+    posé au login) : le garde-fou couvre le GET et toutes les actions POST.
+    Commodité d'UX seulement — l'API reste l'autorité (403 sinon).
+    """
     if not request.session.get("is_authenticated"):
         return redirect("login")
+    if not request.session.get("can_manage_team"):
+        messages.error(request, _MSG_ACCES_EQUIPE)
+        return redirect("home")
 
     client = UtilisateursClient(request)
 
@@ -37,14 +58,51 @@ def equipe_view(request):
             except TokenExpiredError:
                 return redirect("login")
             except APIUnavailableError:
-                messages.error(
-                    request,
-                    "Service momentanément indisponible. Veuillez réessayer.",
-                )
+                messages.error(request, _MSG_INDISPONIBLE)
             except APIClientError as e:
+                if e.status_code == 403:
+                    messages.error(request, _MSG_COMPTE_PROTEGE)
+                else:
+                    messages.error(
+                        request,
+                        f"Erreur lors de la suppression ({e.status_code}).",
+                    )
+            return redirect("equipe")
+
+        # Désactivation / réactivation : PATCH sur `est_actif` uniquement.
+        # La réactivation peut être refusée en 409 si la limite d'utilisateurs
+        # du plan actif est atteinte : le message actionnable de l'API est
+        # affiché tel quel.
+        if action in ("deactivate", "reactivate"):
+            est_actif = action == "reactivate"
+            try:
+                client.update_utilisateur(user_id, {"est_actif": est_actif})
+                messages.success(
+                    request,
+                    "Le collaborateur a été réactivé."
+                    if est_actif
+                    else "Le collaborateur a été désactivé.",
+                )
+            except TokenExpiredError:
+                return redirect("login")
+            except ResourceConflictError as e:
                 messages.error(
                     request,
-                    f"Erreur lors de la suppression ({e.status_code}).",
+                    str(
+                        e.detail
+                        or "La limite d'utilisateurs de votre plan est atteinte."
+                    ),
+                )
+            except ResourceNotFoundError:
+                messages.error(request, "Collaborateur introuvable.")
+            except APIUnavailableError:
+                messages.error(request, _MSG_INDISPONIBLE)
+            except APIClientError:
+                messages.error(
+                    request,
+                    "Erreur lors de la réactivation."
+                    if est_actif
+                    else "Erreur lors de la désactivation.",
                 )
             return redirect("equipe")
 
@@ -78,13 +136,20 @@ def equipe_view(request):
                 return redirect("equipe")
             except TokenExpiredError:
                 return redirect("login")
+            except ResourceConflictError as e:
+                # Limite d'utilisateurs du plan atteinte (ajout ou réactivation) :
+                # le message de l'API est actionnable, on l'affiche tel quel.
+                messages.error(
+                    request,
+                    str(
+                        e.detail
+                        or "La limite d'utilisateurs de votre plan est atteinte."
+                    ),
+                )
             except APIValidationError as e:
                 messages.error(request, str(e.detail or "Erreur de validation."))
             except APIUnavailableError:
-                messages.error(
-                    request,
-                    "Service momentanément indisponible. Veuillez réessayer.",
-                )
+                messages.error(request, _MSG_INDISPONIBLE)
             except APIClientError:
                 messages.error(request, "Erreur lors de l'enregistrement.")
 
@@ -114,7 +179,11 @@ def equipe_view(request):
 
 
 def _contexte_liste(request, client):
-    """Charge la liste des membres (avec id_role résolu) et les rôles."""
+    """Charge la liste des membres (avec id_role résolu) et les rôles.
+
+    Fournit aussi `current_user_email` (session) : le template masque les
+    actions incohérentes sur sa propre ligne (se désactiver, se supprimer).
+    """
     membres = []
     roles = []
     role_map = {}
@@ -139,4 +208,8 @@ def _contexte_liste(request, client):
     except APIClientError:
         messages.error(request, "Impossible de charger la liste des membres.")
 
-    return {"membres": membres, "roles": roles}
+    return {
+        "membres": membres,
+        "roles": roles,
+        "current_user_email": request.session.get("user_email", ""),
+    }

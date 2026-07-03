@@ -2,6 +2,8 @@ import re
 
 from django import forms
 
+from core.constants import TYPES_PRODUIT
+
 
 class SignUpForm(forms.Form):
     """Validation serveur de l'inscription publique (POST /utilisateurs/inscription).
@@ -192,4 +194,165 @@ class CollaborateurForm(forms.Form):
             if value:
                 payload[field] = value
 
+        return payload
+
+
+class ClientForm(forms.Form):
+    """Validation serveur de la création/édition d'un client (tiers facturé).
+
+    Champs et contraintes alignés sur les schémas ClientCreate/ClientUpdate du
+    contrat OpenAPI (mêmes noms, mêmes longueurs). Requis : `raison_sociale`,
+    `code_postal`, `ville`. Le SIRET, optionnel, doit compter exactement
+    14 chiffres s'il est renseigné. `est_actif` n'est proposé qu'en édition
+    (défaut `true` côté API à la création) et couvre la réactivation.
+    """
+
+    raison_sociale = forms.CharField(max_length=255)
+    siret = forms.CharField(max_length=14, required=False)
+    numero_tva = forms.CharField(max_length=20, required=False)
+    adresse = forms.CharField(max_length=255, required=False)
+    adresse_complement = forms.CharField(max_length=255, required=False)
+    code_postal = forms.CharField(max_length=10)
+    ville = forms.CharField(max_length=150)
+    email = forms.EmailField(max_length=255, required=False)
+    telephone = forms.CharField(max_length=20, required=False)
+    est_actif = forms.BooleanField(required=False)
+
+    _OPTIONAL_FIELDS = (
+        "siret",
+        "numero_tva",
+        "adresse",
+        "adresse_complement",
+        "email",
+        "telephone",
+    )
+
+    def __init__(self, *args, is_edit=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.is_edit = is_edit
+        if not is_edit:
+            del self.fields["est_actif"]
+
+    def clean_siret(self):
+        value = (self.cleaned_data.get("siret") or "").strip()
+        if value and not re.fullmatch(r"\d{14}", value):
+            raise forms.ValidationError(
+                "Le SIRET doit comporter exactement 14 chiffres."
+            )
+        return value
+
+    def to_api_payload(self):
+        """Construit le corps ClientCreate/ClientUpdate depuis les données validées.
+
+        En création, les optionnels vides sont omis (l'API applique ses
+        défauts). En édition, tous les champs sont envoyés — `None` pour un
+        optionnel vidé, afin de pouvoir effacer une valeur (schéma nullable).
+        """
+        cd = self.cleaned_data
+        payload = {
+            "raison_sociale": cd["raison_sociale"],
+            "code_postal": cd["code_postal"],
+            "ville": cd["ville"],
+        }
+        for field in self._OPTIONAL_FIELDS:
+            value = (cd.get(field) or "").strip()
+            if value:
+                payload[field] = value
+            elif self.is_edit:
+                payload[field] = None
+        if self.is_edit:
+            payload["est_actif"] = cd["est_actif"]
+        return payload
+
+
+class AbonnementForm(forms.Form):
+    """Validation serveur de la création/édition d'un plan d'abonnement.
+
+    Champs et contraintes alignés sur AbonnementCreate/AbonnementUpdate du
+    contrat OpenAPI. Seul `libelle` est requis ; les autres champs portent les
+    défauts du schéma (tarif 0, 1 utilisateur, 10 factures/mois). Le tarif est
+    envoyé en chaîne (le schéma l'accepte) pour éviter les arrondis flottants ;
+    le contrat le borne à 8 chiffres entiers et 2 décimales.
+    """
+
+    libelle = forms.CharField(max_length=100)
+    description = forms.CharField(required=False)
+    tarif = forms.DecimalField(min_value=0, max_digits=10, decimal_places=2, initial=0)
+    nombre_max_utilisateurs = forms.IntegerField(min_value=1, initial=1)
+    nombre_max_factures_mois = forms.IntegerField(min_value=1, initial=10)
+
+    def __init__(self, *args, is_edit=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.is_edit = is_edit
+
+    def to_api_payload(self):
+        """Construit le corps AbonnementCreate/AbonnementUpdate depuis les données.
+
+        En création, la description vide est omise (l'API applique ses
+        défauts) ; en édition, elle est envoyée à `None` pour permettre
+        l'effacement (schéma nullable).
+        """
+        cd = self.cleaned_data
+        payload = {
+            "libelle": cd["libelle"],
+            "tarif": str(cd["tarif"]),
+            "nombre_max_utilisateurs": cd["nombre_max_utilisateurs"],
+            "nombre_max_factures_mois": cd["nombre_max_factures_mois"],
+        }
+        description = (cd.get("description") or "").strip()
+        if description:
+            payload["description"] = description
+        elif self.is_edit:
+            payload["description"] = None
+        return payload
+
+
+class CatalogueForm(forms.Form):
+    """Validation serveur de la création/édition d'un produit du catalogue.
+
+    Champs et contraintes alignés sur CatalogueCreate/CatalogueUpdate du
+    contrat OpenAPI. Requis : `designation`, `prix_unitaire_ht` (≥ 0),
+    `id_taux_tva`. Les taux de TVA sont injectés par la vue (choices depuis
+    GET /taux-tva/?est_actif=true) : id en valeur, libellé affiché. Le prix est
+    envoyé en chaîne (le schéma l'accepte) pour éviter les arrondis flottants.
+    `est_actif` n'est proposé qu'en édition (défaut `true` à la création).
+    """
+
+    type_produit = forms.ChoiceField(choices=(), initial="produit")
+    reference = forms.CharField(max_length=100, required=False)
+    designation = forms.CharField(max_length=255)
+    prix_unitaire_ht = forms.DecimalField(min_value=0, max_digits=12, decimal_places=2)
+    unite = forms.CharField(max_length=50, required=False)
+    id_taux_tva = forms.TypedChoiceField(choices=(), coerce=int)
+    est_actif = forms.BooleanField(required=False)
+
+    def __init__(self, *args, taux_choices=(), is_edit=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.is_edit = is_edit
+        self.fields["type_produit"].choices = TYPES_PRODUIT
+        self.fields["id_taux_tva"].choices = list(taux_choices)
+        if not is_edit:
+            del self.fields["est_actif"]
+
+    def to_api_payload(self):
+        """Construit le corps CatalogueCreate/CatalogueUpdate depuis les données.
+
+        En création, les optionnels vides sont omis ; en édition, ils sont
+        envoyés à `None` pour permettre l'effacement (schéma nullable).
+        """
+        cd = self.cleaned_data
+        payload = {
+            "type_produit": cd["type_produit"],
+            "designation": cd["designation"],
+            "prix_unitaire_ht": str(cd["prix_unitaire_ht"]),
+            "id_taux_tva": cd["id_taux_tva"],
+        }
+        for field in ("reference", "unite"):
+            value = (cd.get(field) or "").strip()
+            if value:
+                payload[field] = value
+            elif self.is_edit:
+                payload[field] = None
+        if self.is_edit:
+            payload["est_actif"] = cd["est_actif"]
         return payload

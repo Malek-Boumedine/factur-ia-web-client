@@ -2,6 +2,7 @@
 
 Couvre le domaine `utilisateurs` de l'API ainsi que la liste des rôles :
 
+- GET /utilisateurs/me : profil de l'utilisateur connecté (n'exige pas le tenant).
 - GET /utilisateurs/ : liste des membres de l'entreprise active.
 - POST /utilisateurs/ : création d'un membre (schéma UtilisateurCreate).
 - PATCH /utilisateurs/{user_id} : mise à jour partielle (UtilisateurTeamUpdate).
@@ -20,6 +21,24 @@ class UtilisateursClient(BaseAPIClient):
     La route `/auth/roles` n'exige pas le tenant, mais le header reste transmis
     s'il est présent en session, sans effet.
     """
+
+    def get_my_profile(self):
+        """Récupère le profil de l'utilisateur connecté.
+
+        Appelle GET /utilisateurs/me. Route « soi-même » : elle ne dépend pas du
+        header `x-entreprise-id`. Le schéma `UtilisateurRead` renvoyé porte
+        notamment le champ global `admin_plateforme`.
+
+        Returns:
+            dict: Le profil de l'utilisateur connecté, tel que renvoyé par l'API.
+
+        Raises:
+            TokenExpiredError: En cas de réponse 401.
+            APIClientError: Toute autre erreur API mappée (404 introuvable,
+                422 validation, 5xx serveur) ou API injoignable
+                (APIUnavailableError).
+        """
+        return self.get("/utilisateurs/me")
 
     def get_equipe(self):
         """Liste les membres de l'équipe de l'entreprise active.
@@ -70,6 +89,8 @@ class UtilisateursClient(BaseAPIClient):
 
         Raises:
             TokenExpiredError: En cas de réponse 401.
+            ResourceConflictError: Limite d'utilisateurs du plan actif
+                atteinte (409, message actionnable dans `detail`).
             APIClientError: Toute autre erreur API mappée (404 introuvable,
                 422 validation, 5xx serveur) ou API injoignable
                 (APIUnavailableError).
@@ -92,6 +113,9 @@ class UtilisateursClient(BaseAPIClient):
 
         Raises:
             TokenExpiredError: En cas de réponse 401.
+            ResourceConflictError: Réactivation refusée, limite d'utilisateurs
+                du plan actif atteinte (409, message actionnable dans
+                `detail`).
             APIClientError: Toute autre erreur API mappée (404 introuvable,
                 422 validation, 5xx serveur) ou API injoignable
                 (APIUnavailableError).

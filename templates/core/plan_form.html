@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% comment %}
+Formulaire de création/édition d'un plan d'abonnement (admin plateforme).
+
+Champs alignés sur AbonnementCreate/AbonnementUpdate du contrat : seul le
+libellé est requis, les autres champs portent les défauts du schéma (tarif 0,
+1 utilisateur, 10 factures/mois). Les erreurs 422/409 de l'API sont rattachées
+aux champs par la vue.
+{% endcomment %}
+
+{% block title %}{% if is_edit %}Modifier le plan{% else %}Nouveau plan{% endif %} — Factur-IA{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-6">
+
+    {% if messages %}
+        <div class="space-y-2">
+            {% for message in messages %}
+                <div role="alert" class="alert {% if message.tags == 'error' %}alert-error{% else %}alert-success{% endif %}">
+                    <span>{{ message }}</span>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="flex justify-between items-center bg-base-100 rounded-t-lg shadow-sm p-4 border-b border-base-300">
+        <h2 class="text-xl font-bold">{% if is_edit %}Modifier le plan{% if plan %} « {{ plan.libelle }} »{% endif %}{% else %}Nouveau plan{% endif %}</h2>
+        <a href="{% url 'plans_admin' %}" class="btn btn-ghost btn-sm">Retour</a>
+    </div>
+
+    <form method="post" class="bg-base-100 rounded-lg shadow-md border border-base-200 p-6 space-y-4">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+            <div role="alert" class="alert alert-error">
+                <span>{{ form.non_field_errors.0 }}</span>
+            </div>
+        {% endif %}
+
+        <div>
+            <label for="libelle" class="block text-sm font-medium mb-1">Libellé</label>
+            <input type="text" id="libelle" name="libelle" required maxlength="100"
+                   placeholder="Pro, Business…"
+                   value="{{ form.libelle.value|default:'' }}" class="input w-full">
+            {% if form.libelle.errors %}<p class="mt-1 text-xs text-error">{{ form.libelle.errors.0 }}</p>{% endif %}
+        </div>
+
+        <div>
+            <label for="description" class="block text-sm font-medium mb-1">Description <span class="text-base-content/50 font-normal">(optionnel)</span></label>
+            <textarea id="description" name="description" rows="3"
+                      class="textarea w-full">{{ form.description.value|default:'' }}</textarea>
+            {% if form.description.errors %}<p class="mt-1 text-xs text-error">{{ form.description.errors.0 }}</p>{% endif %}
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+                <label for="tarif" class="block text-sm font-medium mb-1">Tarif mensuel (€)</label>
+                <input type="number" id="tarif" name="tarif" required min="0" step="0.01"
+                       value="{{ form.tarif.value|default:'0' }}" class="input w-full">
+                {% if form.tarif.errors %}<p class="mt-1 text-xs text-error">{{ form.tarif.errors.0 }}</p>{% endif %}
+            </div>
+            <div>
+                <label for="nombre_max_utilisateurs" class="block text-sm font-medium mb-1">Max utilisateurs</label>
+                <input type="number" id="nombre_max_utilisateurs" name="nombre_max_utilisateurs" required min="1" step="1"
+                       value="{{ form.nombre_max_utilisateurs.value|default:'1' }}" class="input w-full">
+                {% if form.nombre_max_utilisateurs.errors %}<p class="mt-1 text-xs text-error">{{ form.nombre_max_utilisateurs.errors.0 }}</p>{% endif %}
+            </div>
+            <div>
+                <label for="nombre_max_factures_mois" class="block text-sm font-medium mb-1">Max factures/mois</label>
+                <input type="number" id="nombre_max_factures_mois" name="nombre_max_factures_mois" required min="1" step="1"
+                       value="{{ form.nombre_max_factures_mois.value|default:'10' }}" class="input w-full">
+                {% if form.nombre_max_factures_mois.errors %}<p class="mt-1 text-xs text-error">{{ form.nombre_max_factures_mois.errors.0 }}</p>{% endif %}
+            </div>
+        </div>
+
+        <div class="flex justify-end gap-2 border-t border-base-300 pt-4">
+            <a href="{% url 'plans_admin' %}" class="btn btn-ghost">Annuler</a>
+            <button type="submit" class="btn btn-primary">
+                {% if is_edit %}Enregistrer les modifications{% else %}Créer le plan{% endif %}
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock content %}

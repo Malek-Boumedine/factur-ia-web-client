@@ -10,6 +10,7 @@ Hiérarchie :
     APIClientError                (base commune)
     ├── TokenExpiredError         (401, authentification expirée/invalide)
     ├── ResourceNotFoundError     (404, ressource introuvable)
+    ├── ResourceConflictError     (409, conflit d'unicité — conserve le détail)
     ├── APIValidationError        (422, validation — conserve le détail)
     ├── ServerError               (5xx, erreur côté serveur)
     └── APIUnavailableError       (API injoignable après épuisement des retries)
@@ -54,6 +55,27 @@ class ResourceNotFoundError(APIClientError):
 
     def __init__(self, message: str = "Ressource introuvable.") -> None:
         super().__init__(message, status_code=404)
+
+
+class ResourceConflictError(APIClientError):
+    """Conflit d'unicité renvoyé par l'API (HTTP 409).
+
+    Levée quand une création/modification entre en conflit avec une ressource
+    existante (ex. SIRET ou numéro de TVA déjà utilisé par un autre client).
+    Conserve le message du corps d'erreur (`detail`) pour l'afficher à
+    l'utilisateur, idéalement rattaché au champ concerné.
+
+    Attributes:
+        detail (Any): Contenu du champ `detail` de la réponse 409 (message
+            nommant le champ en conflit), ou `None` si le corps n'est pas
+            exploitable.
+    """
+
+    def __init__(
+        self, detail: Any = None, message: str = "Conflit avec une ressource existante."
+    ) -> None:
+        super().__init__(message, status_code=409)
+        self.detail = detail
 
 
 class APIValidationError(APIClientError):
