@@ -197,6 +197,87 @@ class CollaborateurForm(forms.Form):
         return payload
 
 
+class ProfilForm(forms.Form):
+    """Validation serveur de la mise à jour du profil (PATCH /utilisateurs/me).
+
+    Champs alignés sur le schéma ProfilUpdate (mêmes noms — le mapping des
+    erreurs 422 retombe directement dans les bons champs). L'email et le mot
+    de passe ont leurs formulaires et routes dédiés. Nom et prénom requis ;
+    les coordonnées optionnelles vidées sont envoyées à `None` pour permettre
+    l'effacement (schéma nullable).
+    """
+
+    nom = forms.CharField(max_length=150)
+    prenom = forms.CharField(max_length=150)
+    adresse = forms.CharField(max_length=255, required=False)
+    adresse_complement = forms.CharField(max_length=255, required=False)
+    code_postal = forms.CharField(max_length=10, required=False)
+    ville = forms.CharField(max_length=150, required=False)
+    telephone = forms.CharField(max_length=20, required=False)
+
+    _OPTIONAL_FIELDS = (
+        "adresse",
+        "adresse_complement",
+        "code_postal",
+        "ville",
+        "telephone",
+    )
+
+    def clean_code_postal(self):
+        value = (self.cleaned_data.get("code_postal") or "").strip()
+        if value and not re.fullmatch(r"\d{4,10}", value):
+            raise forms.ValidationError("Code postal invalide (chiffres uniquement).")
+        return value
+
+    def to_api_payload(self):
+        """Construit le corps ProfilUpdate depuis les données validées.
+
+        Les optionnels vidés sont envoyés à `None` (effacement possible).
+        """
+        cd = self.cleaned_data
+        payload = {"nom": cd["nom"], "prenom": cd["prenom"]}
+        for field in self._OPTIONAL_FIELDS:
+            value = (cd.get(field) or "").strip()
+            payload[field] = value or None
+        return payload
+
+
+class ChangementEmailForm(forms.Form):
+    """Validation du changement d'email (POST /utilisateurs/me/changer-email).
+
+    Champs nommés comme le schéma ChangementEmailRequest. Le mot de passe
+    actuel est exigé par l'API (aucun changement à l'aveugle sur une session
+    ouverte) ; sa vérification reste côté API (400 si incorrect).
+    """
+
+    mot_de_passe_actuel = forms.CharField()
+    nouvel_email = forms.EmailField(max_length=255)
+
+
+class ChangementMotDePasseForm(forms.Form):
+    """Validation du changement de mot de passe (POST /utilisateurs/me/changer-mot-de-passe).
+
+    Champs nommés comme le schéma ChangementMotDePasseRequest, avec la même
+    règle de robustesse que l'API (min 8) et une confirmation de ressaisie
+    (pattern ResetPasswordForm). Le mot de passe actuel est vérifié par l'API
+    (400 si incorrect).
+    """
+
+    mot_de_passe_actuel = forms.CharField()
+    nouveau_mot_de_passe = forms.CharField(min_length=8)
+    confirm_password = forms.CharField()
+
+    def clean(self):
+        cleaned = super().clean()
+        password = cleaned.get("nouveau_mot_de_passe")
+        confirm = cleaned.get("confirm_password")
+        if password and confirm and password != confirm:
+            self.add_error(
+                "confirm_password", "Les deux mots de passe ne correspondent pas."
+            )
+        return cleaned
+
+
 class ClientForm(forms.Form):
     """Validation serveur de la création/édition d'un client (tiers facturé).
 

@@ -1,4 +1,4 @@
-/*! tailwindcss v4.2.2 | MIT License | https://tailwindcss.com */
+/*! tailwindcss v4.3.2 | MIT License | https://tailwindcss.com */
 @layer properties;
 @layer theme, base, components, utilities;
 @layer theme {
@@ -249,8 +249,8 @@
       pointer-events: none;
       visibility: hidden;
       position: fixed;
-      inset: calc(0.25rem * 0);
-      margin: calc(0.25rem * 0);
+      inset: 0;
+      margin: 0;
       display: grid;
       height: 100%;
       max-height: none;
@@ -259,9 +259,9 @@
       align-items: center;
       justify-items: center;
       background-color: transparent;
-      padding: calc(0.25rem * 0);
+      padding: 0;
       color: inherit;
-      transition: visibility 0.3s allow-discrete, background-color 0.3s ease-out, opacity 0.1s ease-out;
+      transition: overlay 0.3s allow-discrete, visibility 0.3s allow-discrete, background-color 0.3s ease-out, opacity 0.1s ease-out;
       overflow: clip;
       overscroll-behavior: contain;
       z-index: 999;
@@ -269,9 +269,23 @@
       &::backdrop {
         display: none;
       }
+      &[popover] {
+        inset: 0;
+        margin: 0;
+        border: 0;
+        padding: 0;
+        background: transparent;
+        color: inherit;
+        max-width: none;
+        max-height: none;
+        &::backdrop {
+          background-color: oklch(0% 0 0/ 0.4);
+          transition: background-color 0.3s ease-out;
+        }
+      }
     }
     @layer daisyui.l1.l2 {
-      &.modal-open, &[open], &:target, .modal-toggle:checked + & {
+      &.modal-open, &[open], &:popover-open, &:target, .modal-toggle:checked + & {
         pointer-events: auto;
         visibility: visible;
         opacity: 100%;
@@ -283,17 +297,11 @@
           opacity: 1;
         }
         :root:has(&) {
-          --page-has-backdrop: 1;
-          --page-overflow: hidden;
-          --page-scroll-bg: var(--page-scroll-bg-on);
-          --page-scroll-gutter: stable;
-          --page-scroll-transition: var(--page-scroll-transition-on);
-          animation: set-page-has-scroll forwards;
-          animation-timeline: scroll();
+          --page-scroll-lock:  ;
         }
       }
       @starting-style {
-        &.modal-open, &[open], &:target, .modal-toggle:checked + & {
+        &.modal-open, &[open], &:popover-open, &:target, .modal-toggle:checked + & {
           opacity: 0%;
         }
       }
@@ -309,7 +317,7 @@
       --menu-active-fg: var(--color-neutral-content);
       --menu-active-bg: var(--color-neutral);
       font-size: 0.875rem;
-      :where(li ul) {
+      :where(li ul, li menu) {
         position: relative;
         margin-inline-start: calc(0.25rem * 4);
         padding-inline-start: calc(0.25rem * 2);
@@ -328,7 +336,7 @@
       :where(li > .menu-dropdown:not(.menu-dropdown-show)) {
         display: none;
       }
-      :where(li:not(.menu-title) > *:not(ul, details, .menu-title, .btn)), :where(li:not(.menu-title) > details > summary:not(.menu-title)) {
+      :where(li:not(.menu-title) > *:not(ul, menu, details, .menu-title, .btn)), :where(li:not(.menu-title) > details > summary:not(.menu-title)) {
         display: grid;
         grid-auto-flow: column;
         align-content: flex-start;
@@ -342,7 +350,6 @@
         transition-duration: 0.2s;
         transition-timing-function: cubic-bezier(0, 0, 0.2, 1);
         grid-auto-columns: minmax(auto, max-content) auto max-content;
-        text-wrap: balance;
         user-select: none;
       }
       :where(li > details > summary) {
@@ -392,7 +399,7 @@
         rotate: 45deg;
         translate: 0 1px;
       }
-      :where( li:not(.menu-title, .disabled) > *:not(ul, details, .menu-title), li:not(.menu-title, .disabled) > details > summary:not(.menu-title) ):not(.menu-active, :active, .btn) {
+      :where(li:not(.menu-title, .disabled) > *:not(ul, menu, details, .menu-title), li:not(.menu-title, .disabled) > details > summary:not(.menu-title) ):not(.menu-active, :active, .btn) {
         &.menu-focus, &:focus-visible {
           cursor: pointer;
           background-color: var(--color-base-content);
@@ -408,7 +415,7 @@
           }
         }
       }
-      :where( li:not(.menu-title, .disabled) > *:not(ul, details, .menu-title):not(.menu-active, :active, .btn):hover, li:not(.menu-title, .disabled) > details > summary:not(.menu-title):not(.menu-active, :active, .btn):hover ) {
+      :where(li:not(.menu-title, .disabled) > *:not(ul, menu, details, .menu-title):not(.menu-active, :active, .btn):hover, li:not(.menu-title, .disabled) > details > summary:not(.menu-title):not(.menu-active, :active, .btn):hover ) {
         cursor: pointer;
         background-color: var(--color-base-content);
         @supports (color: color-mix(in lab, red, red)) {
@@ -438,7 +445,7 @@
         .badge {
           justify-self: flex-end;
         }
-        & > *:not(ul, .menu-title, details, .btn):active, & > *:not(ul, .menu-title, details, .btn).menu-active, & > details > summary:active {
+        & > *:not(ul, menu, .menu-title, details, .btn):active, & > *:not(ul, menu, .menu-title, details, .btn).menu-active, & > details > summary:active {
           --tw-outline-style: none;
           outline-style: none;
           @media (forced-colors: active) {
@@ -453,7 +460,7 @@
             box-shadow: 0 2px calc(var(--depth) * 3px) -2px var(--menu-active-bg);
           }
         }
-        &.menu-disabled {
+        &.menu-disabled, [disabled] {
           pointer-events: none;
           color: var(--color-base-content);
           @supports (color: color-mix(in lab, red, red)) {
@@ -486,6 +493,9 @@
       text-decoration-line: none;
     }
     @layer daisyui.l1.l2.l3 {
+      --size: calc(var(--size-field, 0.25rem) * 10);
+      --btn-p: 1rem;
+      --btn-fg: var(--color-base-content);
       display: inline-flex;
       flex-shrink: 0;
       cursor: pointer;
@@ -498,134 +508,179 @@
       outline-offset: 2px;
       webkit-user-select: none;
       user-select: none;
-      padding-inline: var(--btn-p);
-      color: var(--btn-fg);
-      --tw-prose-links: var(--btn-fg);
-      height: var(--size);
-      font-size: var(--fontsize, 0.875rem);
       font-weight: 600;
-      outline-color: var(--btn-color, var(--color-base-content));
-      transition-property: color, background-color, border-color, box-shadow;
-      transition-timing-function: cubic-bezier(0, 0, 0.2, 1);
-      transition-duration: 0.2s;
       border-start-start-radius: var(--join-ss, var(--radius-field));
       border-start-end-radius: var(--join-se, var(--radius-field));
       border-end-start-radius: var(--join-es, var(--radius-field));
       border-end-end-radius: var(--join-ee, var(--radius-field));
-      background-color: var(--btn-bg);
-      background-size: auto, calc(var(--noise) * 100%);
-      background-image: none, var(--btn-noise);
       border-width: var(--border);
-      border-style: solid;
-      border-color: var(--btn-border);
-      text-shadow: 0 0.5px oklch(100% 0 0 / calc(var(--depth) * 0.15));
       touch-action: manipulation;
-      box-shadow: 0 0.5px 0 0.5px oklch(100% 0 0 / calc(var(--depth) * 6%)) inset, var(--btn-shadow);
-      --size: calc(var(--size-field, 0.25rem) * 10);
+      transition-property: color, background-color, border-color, box-shadow, transform;
+      transition-timing-function: cubic-bezier(0, 0, 0.2, 1);
+      transition-duration: 0.2s;
       --btn-bg: var(--btn-color, var(--color-base-200));
-      --btn-fg: var(--color-base-content);
-      --btn-p: 1rem;
-      --btn-border: var(--btn-bg);
+      --btn-border: var(--btn-color, var(--color-base-200));
       @supports (color: color-mix(in lab, red, red)) {
-        --btn-border: color-mix(in oklab, var(--btn-bg), #000 calc(var(--depth) * 5%));
+        --btn-border: color-mix(
+      in oklab,
+      var(--btn-color, var(--color-base-200)),
+      #000 calc(var(--depth) * 5%)
+    );
       }
+      --btn-soft-bg: initial;
       --btn-shadow: 0 3px 2px -2px var(--btn-bg),
       0 4px 3px -2px var(--btn-bg);
       @supports (color: color-mix(in lab, red, red)) {
         --btn-shadow: 0 3px 2px -2px color-mix(in oklab, var(--btn-bg) calc(var(--depth) * 30%), #0000),
       0 4px 3px -2px color-mix(in oklab, var(--btn-bg) calc(var(--depth) * 30%), #0000);
       }
-      --btn-noise: var(--fx-noise);
-      @media (hover: hover) {
-        &:hover {
-          --btn-bg: var(--btn-color, var(--color-base-200));
-          @supports (color: color-mix(in lab, red, red)) {
-            --btn-bg: color-mix(in oklab, var(--btn-color, var(--color-base-200)), #000 7%);
-          }
-        }
-      }
-      &:focus-visible, &:has(:focus-visible) {
-        outline-width: 2px;
-        outline-style: solid;
-        isolation: isolate;
-      }
-      &:active:not(.btn-active) {
-        translate: 0 0.5px;
-        --btn-bg: var(--btn-color, var(--color-base-200));
-        @supports (color: color-mix(in lab, red, red)) {
-          --btn-bg: color-mix(in oklab, var(--btn-color, var(--color-base-200)), #000 5%);
-        }
-        --btn-border: var(--btn-color, var(--color-base-200));
-        @supports (color: color-mix(in lab, red, red)) {
-          --btn-border: color-mix(in oklab, var(--btn-color, var(--color-base-200)), #000 7%);
-        }
-        --btn-shadow: 0 0 0 0 oklch(0% 0 0/0), 0 0 0 0 oklch(0% 0 0/0);
-      }
-      &:is(input[type="checkbox"], input[type="radio"]) {
+      --btn-inset: 0 0.5px 0 0.5px oklch(100% 0 0 / calc(var(--depth) * 6%));
+      height: var(--size);
+      padding-inline: var(--btn-p);
+      font-size: var(--fontsize, 0.875rem);
+      background-color: var(--btn-bg);
+      color: var(--btn-fg);
+      border-color: var(--btn-border);
+      border-style: var(--btn-border-style, solid);
+      outline-color: var(--btn-color, var(--color-base-content));
+      --tw-prose-links: var(--btn-fg);
+      background-image: none, var(--fx-noise);
+      background-size: auto, calc(var(--noise, 0) * 100%);
+      text-shadow: 0 0.5px oklch(100% 0 0 / calc(var(--depth) * 0.15));
+      box-shadow: var(--btn-inset) inset, var(--btn-shadow);
+      &:is([type="checkbox"], [type="radio"]) {
         appearance: none;
         &[aria-label]::after {
           --tw-content: attr(aria-label);
           content: var(--tw-content);
         }
       }
-      &:where(input:checked:not(.filter .btn)) {
+    }
+    @layer daisyui.l1.l2 {
+      &:where(:checked:not(.filter [type="radio"].btn)) {
         --btn-color: var(--color-primary);
         --btn-fg: var(--color-primary-content);
         isolation: isolate;
       }
-    }
-    &:disabled {
-      @layer daisyui.l1.l2 {
-        &:not(.btn-link, .btn-ghost) {
-          background-color: var(--color-base-content);
+      @media (hover: hover) {
+        &:hover {
+          --btn-bg: var(--btn-hover-bg,
+          var(--btn-color, var(--color-base-200))
+        );
           @supports (color: color-mix(in lab, red, red)) {
-            background-color: color-mix(in oklab, var(--color-base-content) 10%, transparent);
+            --btn-bg: var(--btn-hover-bg,
+          color-mix(in oklab, var(--btn-color, var(--color-base-200)), #000 7%)
+        );
           }
-          box-shadow: none;
-        }
-        pointer-events: none;
-        --btn-border: #0000;
-        --btn-noise: none;
-        --btn-fg: var(--color-base-content);
-        @supports (color: color-mix(in lab, red, red)) {
-          --btn-fg: color-mix(in oklch, var(--color-base-content) 20%, #0000);
+          color: var(--btn-fg);
+          --btn-border: var(--btn-hover-border,
+          var(--btn-bg)
+        );
+          @supports (color: color-mix(in lab, red, red)) {
+            --btn-border: var(--btn-hover-border,
+          color-mix(in oklab, var(--btn-bg), #000 calc(var(--depth) * 5%))
+        );
+          }
+          --btn-border-style: solid;
+          --btn-inset: var(--btn-hover-inset,
+          0 0.5px 0 0.5px oklch(100% 0 0 / calc(var(--depth) * 6%))
+        );
+          --btn-shadow: var(--btn-hover-shadow,
+          0 3px 2px -2px var(--btn-bg),
+          0 4px 3px -2px var(--btn-bg)
+        );
+          @supports (color: color-mix(in lab, red, red)) {
+            --btn-shadow: var(--btn-hover-shadow,
+          0 3px 2px -2px color-mix(in oklab, var(--btn-bg) calc(var(--depth) * 30%), #0000),
+          0 4px 3px -2px color-mix(in oklab, var(--btn-bg) calc(var(--depth) * 30%), #0000)
+        );
+          }
         }
       }
+      &:active:not(.btn-active) {
+        translate: 0 var(--btn-active-translate, 0.5px);
+        --btn-bg: var(--btn-active-bg,
+        var(--btn-color, var(--color-base-200))
+      );
+        @supports (color: color-mix(in lab, red, red)) {
+          --btn-bg: var(--btn-active-bg,
+        color-mix(in oklab, var(--btn-color, var(--color-base-200)), #000 5%)
+      );
+        }
+        color: var(--btn-fg, var(--color-base-content));
+        --btn-border: var(--btn-active-border,
+        var(--btn-color, var(--color-base-200))
+      );
+        @supports (color: color-mix(in lab, red, red)) {
+          --btn-border: var(--btn-active-border,
+        color-mix(in oklab, var(--btn-color, var(--color-base-200)), #000 7%)
+      );
+        }
+        --btn-border-style: solid;
+        --btn-inset: var(--btn-active-inset, 0 0 0 0 oklch(0% 0 0/0));
+        --btn-shadow: var(--btn-active-shadow, 0 0 0 0 oklch(0% 0 0/0));
+      }
+      &:where(:checked:not(.filter [type="radio"].btn), :not([type="radio"], [type="checkbox"]):focus-visible ) {
+        --btn-bg: var(--btn-color, var(--color-base-200));
+        color: var(--btn-fg, var(--color-base-content));
+        --btn-border: var(--btn-bg);
+        @supports (color: color-mix(in lab, red, red)) {
+          --btn-border: color-mix(in oklab, var(--btn-bg), #000 calc(var(--depth) * 5%));
+        }
+        --btn-border-style: solid;
+        --btn-inset: 0 0.5px 0 0.5px oklch(100% 0 0 / calc(var(--depth) * 6%));
+        --btn-shadow: 0 3px 2px -2px var(--btn-bg),
+        0 4px 3px -2px var(--btn-bg);
+        @supports (color: color-mix(in lab, red, red)) {
+          --btn-shadow: 0 3px 2px -2px color-mix(in oklab, var(--btn-bg) calc(var(--depth) * 30%), #0000),
+        0 4px 3px -2px color-mix(in oklab, var(--btn-bg) calc(var(--depth) * 30%), #0000);
+        }
+        isolation: isolate;
+      }
+      &:focus-visible, &:has(:focus-visible) {
+        outline-width: 2px;
+        outline-style: solid;
+        isolation: isolate;
+      }
     }
-    &[disabled] {
-      @layer daisyui.l1.l2 {
+    &:is(:disabled, [disabled], [aria-disabled="true"]) {
+      @layer daisyui {
+        pointer-events: none;
+        color: var(--color-base-content);
+        @supports (color: color-mix(in lab, red, red)) {
+          color: color-mix(in oklch, var(--color-base-content) 20%, #0000);
+        }
+        --btn-bg: #0000;
+        --btn-border: #0000;
+        background-image: none;
+        --btn-inset: 0 0 0 0 oklch(0% 0 0/0);
+        --btn-shadow: 0 0 0 0 oklch(0% 0 0/0);
         &:not(.btn-link, .btn-ghost) {
           background-color: var(--color-base-content);
           @supports (color: color-mix(in lab, red, red)) {
             background-color: color-mix(in oklab, var(--color-base-content) 10%, transparent);
           }
-          box-shadow: none;
-        }
-        pointer-events: none;
-        --btn-border: #0000;
-        --btn-noise: none;
-        --btn-fg: var(--color-base-content);
-        @supports (color: color-mix(in lab, red, red)) {
-          --btn-fg: color-mix(in oklch, var(--color-base-content) 20%, #0000);
         }
       }
     }
   }
   .btn-disabled {
-    @layer daisyui.l1.l2 {
+    @layer daisyui {
+      pointer-events: none;
+      color: var(--color-base-content);
+      @supports (color: color-mix(in lab, red, red)) {
+        color: color-mix(in oklch, var(--color-base-content) 20%, #0000);
+      }
+      --btn-bg: #0000;
+      --btn-border: #0000;
+      background-image: none;
+      --btn-inset: 0 0 0 0 oklch(0% 0 0/0);
+      --btn-shadow: 0 0 0 0 oklch(0% 0 0/0);
       &:not(.btn-link, .btn-ghost) {
         background-color: var(--color-base-content);
         @supports (color: color-mix(in lab, red, red)) {
           background-color: color-mix(in oklab, var(--color-base-content) 10%, transparent);
         }
-        box-shadow: none;
-      }
-      pointer-events: none;
-      --btn-border: #0000;
-      --btn-noise: none;
-      --btn-fg: var(--color-base-content);
-      @supports (color: color-mix(in lab, red, red)) {
-        --btn-fg: color-mix(in oklch, var(--color-base-content) 20%, #0000);
       }
     }
   }
@@ -639,7 +694,6 @@
     @layer daisyui.l1.l2.l3 {
       display: grid;
       position: relative;
-      overflow: hidden;
       border-radius: var(--radius-box, 1rem);
       width: 100%;
       grid-template-rows: max-content 0fr;
@@ -648,7 +702,7 @@
       @media (prefers-reduced-motion: no-preference) {
         transition: grid-template-rows 0.2s;
       }
-      > input:is([type="checkbox"], [type="radio"]) {
+       > input:is([type="checkbox"], [type="radio"]) {
         grid-column-start: 1;
         grid-row-start: 1;
         appearance: none;
@@ -660,40 +714,69 @@
         min-height: 1lh;
         transition: background-color 0.2s ease-out;
       }
-      &:is( [open], [tabindex]:focus:not(.collapse-close), [tabindex]:focus-within:not(.collapse-close) ), &:not(.collapse-close):has(> input:is([type="checkbox"], [type="radio"]):checked) {
+      &:is([open], [tabindex]:focus:not(.collapse-close), [tabindex]:focus-within:not(.collapse-close) ), &:not(.collapse-close):has( > input:is([type="checkbox"], [type="radio"]):checked) {
         grid-template-rows: max-content 1fr;
       }
-      &:is( [open], [tabindex]:focus:not(.collapse-close), [tabindex]:focus-within:not(.collapse-close) ) > .collapse-content, &:not(.collapse-close) > :where(input:is([type="checkbox"], [type="radio"]):checked ~ .collapse-content) {
+      &:is([open], [tabindex]:focus:not(.collapse-close), [tabindex]:focus-within:not(.collapse-close) ) > .collapse-content, &:not(.collapse-close) > :where(input:is([type="checkbox"], [type="radio"]):checked ~ .collapse-content) {
+        --overflow-delay: 0.2s;
+        overflow: revert-layer;
         content-visibility: visible;
         min-height: fit-content;
         @supports not (content-visibility: visible) {
           visibility: visible;
         }
       }
-      &:focus-visible, &:has(> input:is([type="checkbox"], [type="radio"]):focus-visible), &:has(summary:focus-visible) {
+      &:focus-visible, &:has( > input:is([type="checkbox"], [type="radio"]):focus-visible), &:has(summary:focus-visible) {
         outline-color: var(--color-base-content);
         outline-style: solid;
         outline-width: 2px;
         outline-offset: 2px;
       }
       &:not(.collapse-close) {
-        > input[type="checkbox"], > input[type="radio"]:not(:checked), > .collapse-title {
+         > input[type="checkbox"],  > input[type="radio"]:not(:checked),  > .collapse-title {
           cursor: pointer;
         }
       }
       &[tabindex]:focus:not(.collapse-close, .collapse[open]), &[tabindex]:focus-within:not(.collapse-close, .collapse[open]) {
-        > .collapse-title {
+         > .collapse-title {
           cursor: unset;
         }
       }
-      &:is( [open], [tabindex]:focus:not(.collapse-close), [tabindex]:focus-within:not(.collapse-close) ) > :where(.collapse-content), &:not(.collapse-close) > :where(input:is([type="checkbox"], [type="radio"]):checked ~ .collapse-content) {
+      &:is([open], [tabindex]:focus:not(.collapse-close), [tabindex]:focus-within:not(.collapse-close) ) > :where(.collapse-content), &:not(.collapse-close) > :where(input:is([type="checkbox"], [type="radio"]):checked ~ .collapse-content) {
         padding-bottom: 1rem;
+      }
+      &:is(details) {
+        width: 100%;
+        &::details-content {
+          --overflow-delay: 0s;
+          overflow: clip;
+          height: 0;
+        }
+        @media (prefers-reduced-motion: no-preference) {
+          &::details-content {
+            transition: overflow 0.2s allow-discrete var(--overflow-delay), content-visibility 0.2s allow-discrete, visibility 0.2s allow-discrete, min-height 0.2s ease-out allow-discrete, padding 0.1s ease-out 20ms, background-color 0.2s ease-out, height 0.2s;
+            interpolate-size: allow-keywords;
+          }
+          &:where([open])::details-content {
+            --overflow-delay: 0.2s;
+            height: auto;
+            overflow: revert-layer;
+          }
+        }
+         > summary {
+          position: relative;
+          display: block;
+          outline: none;
+          &::-webkit-details-marker {
+            display: none;
+          }
+        }
       }
     }
     @layer daisyui.l1.l2 {
       &:is([open]) {
         &.collapse-arrow {
-          > .collapse-title:after {
+           > .collapse-title:after {
             @media (prefers-reduced-motion: no-preference) {
               transform: translateY(-50%) rotate(225deg);
             }
@@ -702,78 +785,48 @@
       }
       &.collapse-open {
         &.collapse-arrow {
-          > .collapse-title:after {
+           > .collapse-title:after {
             @media (prefers-reduced-motion: no-preference) {
               transform: translateY(-50%) rotate(225deg);
             }
           }
         }
         &.collapse-plus {
-          > .collapse-title:after {
+           > .collapse-title:after {
             --tw-content: "−";
             content: var(--tw-content);
           }
         }
       }
       &[tabindex].collapse-arrow:focus:not(.collapse-close), &.collapse-arrow[tabindex]:focus-within:not(.collapse-close) {
-        > .collapse-title:after {
+         > .collapse-title:after {
           transform: translateY(-50%) rotate(225deg);
         }
       }
       &.collapse-arrow:not(.collapse-close) {
-        > input:is([type="checkbox"], [type="radio"]):checked ~ .collapse-title:after {
+         > input:is([type="checkbox"], [type="radio"]):checked ~ .collapse-title:after {
           transform: translateY(-50%) rotate(225deg);
         }
       }
       &[open] {
         &.collapse-plus {
-          > .collapse-title:after {
+           > .collapse-title:after {
             --tw-content: "−";
             content: var(--tw-content);
           }
         }
       }
       &[tabindex].collapse-plus:focus:not(.collapse-close) {
-        > .collapse-title:after {
+         > .collapse-title:after {
           --tw-content: "−";
           content: var(--tw-content);
         }
       }
       &.collapse-plus:not(.collapse-close) {
-        > input:is([type="checkbox"], [type="radio"]):checked ~ .collapse-title:after {
+         > input:is([type="checkbox"], [type="radio"]):checked ~ .collapse-title:after {
           --tw-content: "−";
           content: var(--tw-content);
         }
-      }
-    }
-    &:is(details) {
-      @layer daisyui.l1.l2.l3 {
-        width: 100%;
-        @media (prefers-reduced-motion: no-preference) {
-          &::details-content {
-            transition: content-visibility 0.2s allow-discrete, visibility 0.2s allow-discrete, min-height 0.2s ease-out allow-discrete, padding 0.1s ease-out 20ms, background-color 0.2s ease-out, height 0.2s;
-            height: 0;
-            interpolate-size: allow-keywords;
-          }
-          &:where([open])::details-content {
-            height: auto;
-          }
-        }
-        & summary {
-          position: relative;
-          display: block;
-          &::-webkit-details-marker {
-            display: none;
-          }
-        }
-        & > .collapse-content {
-          content-visibility: visible;
-        }
-      }
-    }
-    &:is(details) summary {
-      @layer daisyui.l1.l2.l3 {
-        outline: none;
       }
     }
   }
@@ -806,7 +859,7 @@
             border-bottom: var(--border) solid;
             inset-inline: var(--radius-box);
             position: absolute;
-            bottom: calc(0.25rem * 0);
+            bottom: 0;
             border-color: var(--color-base-content);
             @supports (color: color-mix(in lab, red, red)) {
               border-color: color-mix(in oklab, var(--color-base-content) 5%, transparent);
@@ -836,7 +889,7 @@
           --list-grid-cols: minmax(0, auto) minmax(0, auto) minmax(0, auto) minmax(0, auto)
           minmax(0, auto) 1fr;
         }
-        > * {
+         > * {
           grid-row-start: 1;
         }
       }
@@ -844,8 +897,6 @@
   }
   .input {
     @layer daisyui.l1.l2.l3 {
-      cursor: text;
-      border: var(--border) solid #0000;
       position: relative;
       display: inline-flex;
       flex-shrink: 1;
@@ -856,34 +907,35 @@
       padding-inline: calc(0.25rem * 3);
       vertical-align: middle;
       white-space: nowrap;
+      --size: calc(var(--size-field, 0.25rem) * var(--in-size-mul));
+      --input-color: var(--color-base-content);
+      @supports (color: color-mix(in lab, red, red)) {
+        --input-color: color-mix(in oklab, var(--color-base-content) 20%, #0000);
+      }
+      cursor: text;
       width: clamp(3rem, 20rem, 100%);
       height: var(--size);
-      font-size: max(var(--font-size, 0.875rem), 0.875rem);
+      font-size: max(var(--font-size, 0rem), var(--font-size-min));
       touch-action: manipulation;
       border-start-start-radius: var(--join-ss, var(--radius-field));
       border-start-end-radius: var(--join-se, var(--radius-field));
       border-end-start-radius: var(--join-es, var(--radius-field));
       border-end-end-radius: var(--join-ee, var(--radius-field));
-      border-color: var(--input-color);
+      border: var(--border) solid var(--input-color, #0000);
       box-shadow: 0 1px var(--input-color) inset, 0 -1px oklch(100% 0 0 / calc(var(--depth) * 0.1)) inset;
       @supports (color: color-mix(in lab, red, red)) {
         box-shadow: 0 1px color-mix(in oklab, var(--input-color) calc(var(--depth) * 10%), #0000) inset, 0 -1px oklch(100% 0 0 / calc(var(--depth) * 0.1)) inset;
       }
-      --size: calc(var(--size-field, 0.25rem) * 10);
-      --input-color: var(--color-base-content);
-      @supports (color: color-mix(in lab, red, red)) {
-        --input-color: color-mix(in oklab, var(--color-base-content) 20%, #0000);
-      }
-      &:where(input) {
-        display: inline-flex;
-      }
-      :where(input) {
-        display: inline-flex;
+      input {
         height: 100%;
         width: 100%;
         appearance: none;
         background-color: transparent;
         border: none;
+        &::placeholder {
+          color: var(--color-base-content);
+          opacity: 50%;
+        }
         &:focus, &:focus-within {
           --tw-outline-style: none;
           outline-style: none;
@@ -892,12 +944,40 @@
             outline-offset: 2px;
           }
         }
+        &::-webkit-calendar-picker-indicator {
+          inset-inline-end: -0.15em;
+        }
       }
-      :where(input[type="url"]), :where(input[type="email"]) {
-        direction: ltr;
+      &::-webkit-inner-spin-button {
+        margin-inline-end: -10px;
       }
-      :where(input[type="date"]) {
+      &::-webkit-calendar-picker-indicator {
+        inset-inline-end: 0.75em;
+      }
+      input&, input {
+        position: relative;
         display: inline-flex;
+        &[type="url"], &[type="email"] {
+          direction: ltr;
+        }
+        &::-webkit-datetime-edit, &::-webkit-date-and-time-value {
+          display: grid;
+          min-height: 100%;
+          align-items: center;
+          text-align: inherit;
+        }
+        &::-webkit-inner-spin-button {
+          margin-block: calc(0.25rem * var(--spin-my));
+        }
+        &::-webkit-calendar-picker-indicator {
+          position: absolute;
+          width: 1em;
+          height: 1em;
+          cursor: pointer;
+        }
+        &::-webkit-color-swatch-wrapper {
+          padding-block: 0.25rem;
+        }
       }
       &:focus, &:focus-within {
         --input-color: var(--color-base-content);
@@ -916,51 +996,33 @@
           }
         }
       }
-      &:has(> input[disabled]), &:is(:disabled, [disabled]), fieldset:disabled & {
+      &:has( > input[disabled]), &:is(:disabled, [disabled]), fieldset:disabled & {
         cursor: not-allowed;
         border-color: var(--color-base-200);
         background-color: var(--color-base-200);
-        color: var(--color-base-content);
-        @supports (color: color-mix(in lab, red, red)) {
-          color: color-mix(in oklab, var(--color-base-content) 40%, transparent);
-        }
-        &::placeholder {
+        &:is(input), :is(input) {
           color: var(--color-base-content);
           @supports (color: color-mix(in lab, red, red)) {
-            color: color-mix(in oklab, var(--color-base-content) 20%, transparent);
+            color: color-mix(in oklab, var(--color-base-content) 40%, transparent);
           }
         }
         box-shadow: none;
+        &::placeholder, ::placeholder {
+          color: var(--color-base-content);
+          opacity: 20%;
+        }
       }
-      &:has(> input[disabled]) > input[disabled] {
+      &:has( > input[disabled]) > input[disabled] {
         cursor: not-allowed;
       }
-      &::-webkit-date-and-time-value {
-        text-align: inherit;
-      }
-      &[type="number"] {
-        &::-webkit-inner-spin-button {
-          margin-block: calc(0.25rem * -3);
-          margin-inline-end: calc(0.25rem * -3);
-        }
-      }
-      &::-webkit-calendar-picker-indicator {
-        position: absolute;
-        inset-inline-end: 0.75em;
-      }
-      &:has(> input[type="date"]) {
-        :where(input[type="date"]) {
-          display: inline-flex;
-          webkit-appearance: none;
-          appearance: none;
-        }
-        input[type="date"]::-webkit-calendar-picker-indicator {
-          position: absolute;
-          inset-inline-end: 0.75em;
-          width: 1em;
-          height: 1em;
-          cursor: pointer;
-        }
+    }
+    @layer daisyui.l1.l2 {
+      --in-size-mul: 10;
+      --font-size-min: 0.875rem;
+      --spin-my: -3;
+      .floating-label:has(&) {
+        --top-mul: 5;
+        --font-size: 0.875rem;
       }
     }
   }
@@ -970,8 +1032,8 @@
       position: relative;
       width: 100%;
       border-collapse: separate;
-      --tw-border-spacing-x: calc(0.25rem * 0);
-      --tw-border-spacing-y: calc(0.25rem * 0);
+      --tw-border-spacing-x: 0;
+      --tw-border-spacing-y: 0;
       border-spacing: var(--tw-border-spacing-x) var(--tw-border-spacing-y);
       border-radius: var(--radius-box);
       text-align: left;
@@ -1009,20 +1071,20 @@
       }
       :where(.table-pin-rows thead tr) {
         position: sticky;
-        top: calc(0.25rem * 0);
+        top: 0;
         z-index: 1;
         background-color: var(--color-base-100);
       }
       :where(.table-pin-rows tfoot tr) {
         position: sticky;
-        bottom: calc(0.25rem * 0);
+        bottom: 0;
         z-index: 1;
         background-color: var(--color-base-100);
       }
       :where(.table-pin-cols tr th) {
         position: sticky;
-        right: calc(0.25rem * 0);
-        left: calc(0.25rem * 0);
+        right: 0;
+        left: 0;
         background-color: var(--color-base-100);
       }
       :where(thead tr :is(td, th), tbody tr:not(:last-child) :is(td, th)) {
@@ -1053,7 +1115,7 @@
         --step-bg: var(--color-base-300);
         --step-fg: var(--color-base-content);
         &:before {
-          top: calc(0.25rem * 0);
+          top: 0;
           grid-column-start: 1;
           grid-row-start: 1;
           height: calc(0.25rem * 2);
@@ -1064,7 +1126,7 @@
           content: "";
           margin-inline-start: -100%;
         }
-        > .step-icon, &:not(:has(.step-icon)):after {
+         > .step-icon, &:not(:has(.step-icon)):after {
           --tw-content: counter(step);
           content: var(--tw-content);
           counter-increment: step;
@@ -1094,49 +1156,49 @@
     }
     @layer daisyui.l1.l2 {
       .step-neutral {
-        + .step-neutral:before, &:after, > .step-icon {
+         + .step-neutral:before, &:after,  > .step-icon {
           --step-bg: var(--color-neutral);
           --step-fg: var(--color-neutral-content);
         }
       }
       .step-primary {
-        + .step-primary:before, &:after, > .step-icon {
+         + .step-primary:before, &:after,  > .step-icon {
           --step-bg: var(--color-primary);
           --step-fg: var(--color-primary-content);
         }
       }
       .step-secondary {
-        + .step-secondary:before, &:after, > .step-icon {
+         + .step-secondary:before, &:after,  > .step-icon {
           --step-bg: var(--color-secondary);
           --step-fg: var(--color-secondary-content);
         }
       }
       .step-accent {
-        + .step-accent:before, &:after, > .step-icon {
+         + .step-accent:before, &:after,  > .step-icon {
           --step-bg: var(--color-accent);
           --step-fg: var(--color-accent-content);
         }
       }
       .step-info {
-        + .step-info:before, &:after, > .step-icon {
+         + .step-info:before, &:after,  > .step-icon {
           --step-bg: var(--color-info);
           --step-fg: var(--color-info-content);
         }
       }
       .step-success {
-        + .step-success:before, &:after, > .step-icon {
+         + .step-success:before, &:after,  > .step-icon {
           --step-bg: var(--color-success);
           --step-fg: var(--color-success-content);
         }
       }
       .step-warning {
-        + .step-warning:before, &:after, > .step-icon {
+         + .step-warning:before, &:after,  > .step-icon {
           --step-bg: var(--color-warning);
           --step-fg: var(--color-warning-content);
         }
       }
       .step-error {
-        + .step-error:before, &:after, > .step-icon {
+         + .step-error:before, &:after,  > .step-icon {
           --step-bg: var(--color-error);
           --step-fg: var(--color-error-content);
         }
@@ -1145,7 +1207,6 @@
   }
   .select {
     @layer daisyui.l1.l2.l3 {
-      border: var(--border) solid #0000;
       position: relative;
       display: inline-flex;
       flex-shrink: 1;
@@ -1156,9 +1217,14 @@
       padding-inline-start: calc(0.25rem * 3);
       padding-inline-end: calc(0.25rem * 7);
       vertical-align: middle;
+      --size: calc(var(--size-field, 0.25rem) * var(--sl-size-mul));
+      --input-color: var(--color-base-content);
+      @supports (color: color-mix(in lab, red, red)) {
+        --input-color: color-mix(in oklab, var(--color-base-content) 20%, #0000);
+      }
       width: clamp(3rem, 20rem, 100%);
       height: var(--size);
-      font-size: 0.875rem;
+      font-size: max(var(--font-size, 0rem), var(--font-size-min));
       touch-action: manipulation;
       border-start-start-radius: var(--join-ss, var(--radius-field));
       border-start-end-radius: var(--join-se, var(--radius-field));
@@ -1171,16 +1237,11 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      border: var(--border) solid var(--input-color, #0000);
       box-shadow: 0 1px var(--input-color) inset, 0 -1px oklch(100% 0 0 / calc(var(--depth) * 0.1)) inset;
       @supports (color: color-mix(in lab, red, red)) {
         box-shadow: 0 1px color-mix(in oklab, var(--input-color) calc(var(--depth) * 10%), #0000) inset, 0 -1px oklch(100% 0 0 / calc(var(--depth) * 0.1)) inset;
       }
-      border-color: var(--input-color);
-      --input-color: var(--color-base-content);
-      @supports (color: color-mix(in lab, red, red)) {
-        --input-color: color-mix(in oklab, var(--color-base-content) 20%, #0000);
-      }
-      --size: calc(var(--size-field, 0.25rem) * 10);
       [dir="rtl"] & {
         background-position: calc(0% + 12px) calc(1px + 50%), calc(0% + 16px) calc(1px + 50%);
         &::picker(select), select::picker(select) {
@@ -1206,6 +1267,10 @@
         background: inherit;
         border-radius: inherit;
         border-style: none;
+        &::placeholder {
+          color: var(--color-base-content);
+          opacity: 50%;
+        }
         &:focus, &:focus-within {
           --tw-outline-style: none;
           outline-style: none;
@@ -1219,7 +1284,7 @@
           background-image: none;
         }
       }
-      &:focus, &:focus-within {
+      &:focus, &:focus-within, &:open {
         --input-color: var(--color-base-content);
         box-shadow: 0 1px var(--input-color);
         @supports (color: color-mix(in lab, red, red)) {
@@ -1228,8 +1293,9 @@
         outline: 2px solid var(--input-color);
         outline-offset: 2px;
         isolation: isolate;
+        background-image: linear-gradient(135deg, #0000 50%, currentColor 50%), linear-gradient(45deg, currentColor 50%, #0000 50%);
       }
-      &:has(> select[disabled]), &:is(:disabled, [disabled]), fieldset:disabled & {
+      &:has( > select[disabled]), &:is(:disabled, [disabled]), fieldset:disabled & {
         cursor: not-allowed;
         border-color: var(--color-base-200);
         background-color: var(--color-base-200);
@@ -1237,22 +1303,17 @@
         @supports (color: color-mix(in lab, red, red)) {
           color: color-mix(in oklab, var(--color-base-content) 40%, transparent);
         }
-        &::placeholder {
+        &::placeholder, ::placeholder {
           color: var(--color-base-content);
-          @supports (color: color-mix(in lab, red, red)) {
-            color: color-mix(in oklab, var(--color-base-content) 20%, transparent);
-          }
+          opacity: 20%;
         }
       }
-      &:has(> select[disabled]) > select[disabled] {
+      &:has( > select[disabled]) > select[disabled] {
         cursor: not-allowed;
       }
       &, & select {
         @supports (appearance: base-select) {
-          appearance: base-select;
-        }
-        @supports (appearance: base-select) {
-          &::picker(select) {
+          &, &::picker(select) {
             appearance: base-select;
           }
         }
@@ -1272,6 +1333,12 @@
         &::picker-icon {
           display: none;
         }
+        selectedcontent {
+          width: 100%;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
         optgroup {
           padding-top: 0.5em;
           option {
@@ -1282,8 +1349,8 @@
         }
         option {
           border-radius: var(--radius-field);
-          padding-inline: calc(0.25rem * 3);
           padding-block: calc(0.25rem * 1.5);
+          padding-inline: calc(0.25rem * var(--option-px));
           transition-property: color, background-color;
           transition-duration: 0.2s;
           transition-timing-function: cubic-bezier(0, 0, 0.2, 1);
@@ -1311,6 +1378,15 @@
         }
       }
     }
+    @layer daisyui.l1.l2 {
+      --sl-size-mul: 10;
+      --font-size-min: 0.875rem;
+      --option-px: 3;
+      .floating-label:has(&) {
+        --top-mul: 5;
+        --font-size: 0.875rem;
+      }
+    }
   }
   .sr-only {
     position: absolute;
@@ -1335,7 +1411,7 @@
       cursor: pointer;
       appearance: none;
       border-radius: var(--radius-selector);
-      padding: calc(0.25rem * 1);
+      padding: 0.25rem;
       vertical-align: middle;
       color: var(--color-base-content);
       box-shadow: 0 1px oklch(0% 0 0 / calc(var(--depth) * 0.1)) inset, 0 0 #0000 inset, 0 0 #0000;
@@ -1390,9 +1466,9 @@
         }
       }
       &:indeterminate {
-        background-color: var( --input-color, var(--color-base-content) );
+        background-color: var(--input-color, var(--color-base-content) );
         @supports (color: color-mix(in lab, red, red)) {
-          background-color: var( --input-color, color-mix(in oklab, var(--color-base-content) 20%, #0000) );
+          background-color: var(--input-color, color-mix(in oklab, var(--color-base-content) 20%, #0000) );
         }
         &:before {
           rotate: 0deg;
@@ -1417,7 +1493,7 @@
       cursor: pointer;
       appearance: none;
       border-radius: calc(infinity * 1px);
-      padding: calc(0.25rem * 1);
+      padding: 0.25rem;
       vertical-align: middle;
       border: var(--border) solid var(--input-color, currentColor);
       @supports (color: color-mix(in lab, red, red)) {
@@ -1486,16 +1562,10 @@
     position: sticky;
   }
   .inset-0 {
-    inset: calc(var(--spacing) * 0);
+    inset: 0;
   }
   .inset-y-0 {
-    inset-block: calc(var(--spacing) * 0);
-  }
-  .start {
-    inset-inline-start: var(--spacing);
-  }
-  .end {
-    inset-inline-end: var(--spacing);
+    inset-block: 0;
   }
   .-top-3 {
     top: calc(var(--spacing) * -3);
@@ -1504,13 +1574,13 @@
     top: calc(var(--spacing) * -24);
   }
   .top-0 {
-    top: calc(var(--spacing) * 0);
+    top: 0;
   }
   .-right-24 {
     right: calc(var(--spacing) * -24);
   }
   .right-0 {
-    right: calc(var(--spacing) * 0);
+    right: 0;
   }
   .-bottom-24 {
     bottom: calc(var(--spacing) * -24);
@@ -1528,97 +1598,67 @@
     --join-se: 0;
     --join-es: 0;
     --join-ee: 0;
-    :where(.join-item) {
-      border-start-start-radius: var(--join-ss, 0);
-      border-start-end-radius: var(--join-se, 0);
-      border-end-start-radius: var(--join-es, 0);
-      border-end-end-radius: var(--join-ee, 0);
-      * {
-        --join-ss: var(--radius-field);
-        --join-se: var(--radius-field);
-        --join-es: var(--radius-field);
-        --join-ee: var(--radius-field);
+    --join-v: 0;
+    --join-h: 1;
+    @scope (&) {
+       > :where(:focus, :has(:focus)) {
+        z-index: 1;
       }
-    }
-    > .join-item:where(:first-child) {
-      --join-ss: var(--radius-field);
-      --join-se: 0;
-      --join-es: var(--radius-field);
-      --join-ee: 0;
-    }
-    :first-child:not(:last-child) {
-      :where(.join-item) {
+      @media (hover: hover) {
+         > :where(.btn:hover, :has(.btn:hover)) {
+          isolation: isolate;
+        }
+      }
+      :where(:scope > :first-child) {
         --join-ss: var(--radius-field);
-        --join-se: 0;
-        --join-es: var(--radius-field);
+        --join-se: calc(var(--radius-field) * var(--join-v));
+        --join-es: calc(var(--radius-field) * var(--join-h));
         --join-ee: 0;
       }
-    }
-    > .join-item:where(:last-child) {
-      --join-ss: 0;
-      --join-se: var(--radius-field);
-      --join-es: 0;
-      --join-ee: var(--radius-field);
-    }
-    :last-child:not(:first-child) {
-      :where(.join-item) {
+      :where(:scope > :last-child) {
         --join-ss: 0;
-        --join-se: var(--radius-field);
-        --join-es: 0;
+        --join-se: calc(var(--radius-field) * var(--join-h));
+        --join-es: calc(var(--radius-field) * var(--join-v));
         --join-ee: var(--radius-field);
       }
-    }
-    > .join-item:where(:only-child) {
-      --join-ss: var(--radius-field);
-      --join-se: var(--radius-field);
-      --join-es: var(--radius-field);
-      --join-ee: var(--radius-field);
-    }
-    :only-child {
-      :where(.join-item) {
+      :where(:scope > :only-child) {
         --join-ss: var(--radius-field);
         --join-se: var(--radius-field);
         --join-es: var(--radius-field);
         --join-ee: var(--radius-field);
-      }
-    }
-    > :where(:focus, :has(:focus)) {
-      z-index: 1;
-    }
-    @media (hover: hover) {
-      > :where(.btn:hover, :has(.btn:hover)) {
-        isolation: isolate;
       }
     }
   }
   .textarea {
     @layer daisyui.l1.l2.l3 {
-      border: var(--border) solid #0000;
       min-height: calc(0.25rem * 20);
       flex-shrink: 1;
       appearance: none;
       border-radius: var(--radius-field);
       background-color: var(--color-base-100);
+      padding-inline: calc(0.25rem * 3);
       padding-block: calc(0.25rem * 2);
       vertical-align: middle;
-      width: clamp(3rem, 20rem, 100%);
-      padding-inline-start: 0.75rem;
-      padding-inline-end: 0.75rem;
-      font-size: max(var(--font-size, 0.875rem), 0.875rem);
-      touch-action: manipulation;
-      border-color: var(--input-color);
-      box-shadow: 0 1px var(--input-color) inset, 0 -1px oklch(100% 0 0 / calc(var(--depth) * 0.1)) inset;
-      @supports (color: color-mix(in lab, red, red)) {
-        box-shadow: 0 1px color-mix(in oklab, var(--input-color) calc(var(--depth) * 10%), #0000) inset, 0 -1px oklch(100% 0 0 / calc(var(--depth) * 0.1)) inset;
-      }
       --input-color: var(--color-base-content);
       @supports (color: color-mix(in lab, red, red)) {
         --input-color: color-mix(in oklab, var(--color-base-content) 20%, #0000);
+      }
+      width: clamp(3rem, 20rem, 100%);
+      font-size: max(var(--font-size, 0rem), var(--font-size-min));
+      touch-action: manipulation;
+      border: var(--border) solid var(--input-color, #0000);
+      box-shadow: 0 1px var(--input-color) inset, 0 -1px oklch(100% 0 0 / calc(var(--depth) * 0.1)) inset;
+      @supports (color: color-mix(in lab, red, red)) {
+        box-shadow: 0 1px color-mix(in oklab, var(--input-color) calc(var(--depth) * 10%), #0000) inset, 0 -1px oklch(100% 0 0 / calc(var(--depth) * 0.1)) inset;
       }
       textarea {
         appearance: none;
         background-color: transparent;
         border: none;
+        &::placeholder {
+          color: var(--color-base-content);
+          opacity: 50%;
+        }
         &:focus, &:focus-within {
           --tw-outline-style: none;
           outline-style: none;
@@ -1645,7 +1685,7 @@
           }
         }
       }
-      &:has(> textarea[disabled]), &:is(:disabled, [disabled]) {
+      &:has( > textarea[disabled]), &:is(:disabled, [disabled]) {
         cursor: not-allowed;
         border-color: var(--color-base-200);
         background-color: var(--color-base-200);
@@ -1653,16 +1693,21 @@
         @supports (color: color-mix(in lab, red, red)) {
           color: color-mix(in oklab, var(--color-base-content) 40%, transparent);
         }
-        &::placeholder {
-          color: var(--color-base-content);
-          @supports (color: color-mix(in lab, red, red)) {
-            color: color-mix(in oklab, var(--color-base-content) 20%, transparent);
-          }
-        }
         box-shadow: none;
+        &::placeholder, ::placeholder {
+          color: var(--color-base-content);
+          opacity: 20%;
+        }
       }
-      &:has(> textarea[disabled]) > textarea[disabled] {
+      &:has( > textarea[disabled]) > textarea[disabled] {
         cursor: not-allowed;
+      }
+    }
+    @layer daisyui.l1.l2 {
+      --font-size-min: 0.875rem;
+      .floating-label:has(&) {
+        --top-mul: 5;
+        --font-size: 0.875rem;
       }
     }
   }
@@ -1701,7 +1746,7 @@
       grid-column-start: 1;
       grid-row-start: 1;
       max-height: 100vh;
-      width: calc(11/12 * 100%);
+      width: calc(11 / 12 * 100%);
       max-width: 32rem;
       background-color: var(--color-base-100);
       padding: calc(0.25rem * 6);
@@ -1766,12 +1811,17 @@
     }
   }
   .join-item {
-    &:where(*:not(:first-child, :disabled, [disabled], .btn-disabled)) {
-      margin-inline-start: calc(var(--border, 1px) * -1);
-      margin-block-start: 0;
+    border-style: solid;
+    border-width: var(--border, 1px);
+    border-radius: var(--join-ss) var(--join-se) var(--join-ee) var(--join-es);
+    &:not(:first-child, :disabled, [disabled], .btn-disabled) {
+      margin-inline-start: calc(var(--border, 1px) * -1 * var(--join-h));
+      margin-block-start: calc(var(--border, 1px) * -1 * var(--join-v));
     }
-    &:where(*:is(:disabled, [disabled], .btn-disabled)) {
-      border-width: var(--border, 1px) 0 var(--border, 1px) var(--border, 1px);
+    &:is(:disabled, [disabled], .btn-disabled) {
+      border-width: var(--border, 1px);
+      border-inline-end-width: calc(var(--border, 1px) * var(--join-v));
+      border-block-end-width: calc(var(--border, 1px) * var(--join-h));
     }
   }
   .modal-action {
@@ -1783,7 +1833,7 @@
     }
   }
   .mt-1 {
-    margin-top: calc(var(--spacing) * 1);
+    margin-top: var(--spacing);
   }
   .mt-2 {
     margin-top: calc(var(--spacing) * 2);
@@ -1807,7 +1857,7 @@
     margin-top: auto;
   }
   .mb-1 {
-    margin-bottom: calc(var(--spacing) * 1);
+    margin-bottom: var(--spacing);
   }
   .mb-2 {
     margin-bottom: calc(var(--spacing) * 2);
@@ -1822,7 +1872,7 @@
     margin-bottom: calc(var(--spacing) * 6);
   }
   .ml-1 {
-    margin-left: calc(var(--spacing) * 1);
+    margin-left: var(--spacing);
   }
   .status {
     @layer daisyui.l1.l2.l3 {
@@ -1892,7 +1942,7 @@
       text-align: start;
       font-size: 0.875rem;
       line-height: 1.25rem;
-      background-size: auto, calc(var(--noise) * 100%);
+      background-size: auto, calc(var(--noise) * 33%);
       background-image: none, var(--fx-noise);
       box-shadow: 0 3px 0 -2px oklch(100% 0 0 / calc(var(--depth) * 0.08)) inset, 0 1px #000, 0 4px 3px -2px oklch(0% 0 0 / calc(var(--depth) * 0.08));
       @supports (color: color-mix(in lab, red, red)) {
@@ -1941,7 +1991,7 @@
   }
   .btn-square {
     @layer daisyui.l1.l2 {
-      padding-inline: calc(0.25rem * 0);
+      padding-inline: 0;
       width: var(--size);
       height: var(--size);
     }
@@ -2102,7 +2152,7 @@
     justify-content: flex-end;
   }
   .gap-1 {
-    gap: calc(var(--spacing) * 1);
+    gap: var(--spacing);
   }
   .gap-2 {
     gap: calc(var(--spacing) * 2);
@@ -2128,8 +2178,8 @@
   .space-y-1 {
     :where(& > :not(:last-child)) {
       --tw-space-y-reverse: 0;
-      margin-block-start: calc(calc(var(--spacing) * 1) * var(--tw-space-y-reverse));
-      margin-block-end: calc(calc(var(--spacing) * 1) * calc(1 - var(--tw-space-y-reverse)));
+      margin-block-start: calc(var(--spacing) * var(--tw-space-y-reverse));
+      margin-block-end: calc(var(--spacing) * calc(1 - var(--tw-space-y-reverse)));
     }
   }
   .space-y-2 {
@@ -2380,6 +2430,27 @@
     --tw-gradient-position: to right in oklab;
     background-image: linear-gradient(var(--tw-gradient-stops));
   }
+  .btn-outline {
+    @layer daisyui.l1.l2.l3 {
+      --btn-bg: #0000;
+      color: var(--btn-rest-fg, var(--btn-color, var(--color-base-content)));
+      --btn-border: var(--btn-color, var(--color-base-content));
+      --btn-border-style: solid;
+      background-image: none;
+      --btn-inset: 0 0 0 0 oklch(0% 0 0/0);
+      --btn-shadow: 0 0 0 0 oklch(0% 0 0/0);
+    }
+  }
+  .btn-ghost {
+    @layer daisyui.l1.l2.l3 {
+      --btn-bg: #0000;
+      color: var(--btn-rest-fg, var(--btn-color, var(--color-base-content, currentColor)));
+      --btn-border: #0000;
+      background-image: none;
+      --btn-inset: 0 0 0 0 oklch(0% 0 0/0);
+      --btn-shadow: 0 0 0 0 oklch(0% 0 0/0);
+    }
+  }
   .from-indigo-400 {
     --tw-gradient-from: var(--color-indigo-400);
     --tw-gradient-stops: var(--tw-gradient-via-stops, var(--tw-gradient-position), var(--tw-gradient-from) var(--tw-gradient-from-position), var(--tw-gradient-to) var(--tw-gradient-to-position));
@@ -2431,6 +2502,9 @@
   .p-8 {
     padding: calc(var(--spacing) * 8);
   }
+  .px-2 {
+    padding-inline: calc(var(--spacing) * 2);
+  }
   .px-3 {
     padding-inline: calc(var(--spacing) * 3);
   }
@@ -2444,7 +2518,7 @@
     padding-inline: calc(var(--spacing) * 6);
   }
   .py-1 {
-    padding-block: calc(var(--spacing) * 1);
+    padding-block: var(--spacing);
   }
   .py-1\.5 {
     padding-block: calc(var(--spacing) * 1.5);
@@ -2745,30 +2819,6 @@
   .ring-primary {
     --tw-ring-color: var(--color-primary);
   }
-  .btn-ghost {
-    @layer daisyui.l1 {
-      &:not(.btn-active, :hover, :active:focus, :focus-visible, input:checked:not(.filter .btn)) {
-        --btn-shadow: "";
-        --btn-bg: #0000;
-        --btn-border: #0000;
-        --btn-noise: none;
-        &:not(:disabled, [disabled], .btn-disabled) {
-          outline-color: currentcolor;
-          --btn-fg: var(--btn-color, currentColor);
-        }
-      }
-      @media (hover: none) {
-        &:not(.btn-active, :active, :focus-visible, input:checked:not(.filter .btn)):hover {
-          outline-color: currentcolor;
-          --btn-shadow: "";
-          --btn-bg: #0000;
-          --btn-fg: var(--btn-color, currentColor);
-          --btn-border: #0000;
-          --btn-noise: none;
-        }
-      }
-    }
-  }
   .blur-3xl {
     --tw-blur: blur(var(--blur-3xl));
     filter: var(--tw-blur,) var(--tw-brightness,) var(--tw-contrast,) var(--tw-grayscale,) var(--tw-hue-rotate,) var(--tw-invert,) var(--tw-saturate,) var(--tw-sepia,) var(--tw-drop-shadow,);
@@ -2788,24 +2838,25 @@
     transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));
     transition-duration: var(--tw-duration, var(--default-transition-duration));
   }
-  .btn-outline {
-    @layer daisyui.l1 {
-      &:not( .btn-active, :hover, :active:focus, :focus-visible, input:checked:not(.filter .btn), :disabled, [disabled], .btn-disabled ) {
-        --btn-shadow: "";
-        --btn-bg: #0000;
-        --btn-fg: var(--btn-color);
-        --btn-border: var(--btn-color);
-        --btn-noise: none;
-      }
-      @media (hover: none) {
-        &:not(.btn-active, :active, :focus-visible, input:checked:not(.filter .btn)):hover {
-          --btn-shadow: "";
-          --btn-bg: #0000;
-          --btn-fg: var(--btn-color);
-          --btn-border: var(--btn-color);
-          --btn-noise: none;
-        }
-      }
+  .btn-error {
+    @layer daisyui.l1.l2 {
+      --btn-color: var(--color-error);
+      --btn-fg: var(--color-error-content);
+      --btn-soft-bg: initial;
+    }
+  }
+  .btn-primary {
+    @layer daisyui.l1.l2 {
+      --btn-color: var(--color-primary);
+      --btn-fg: var(--color-primary-content);
+      --btn-soft-bg: initial;
+    }
+  }
+  .btn-secondary {
+    @layer daisyui.l1.l2 {
+      --btn-color: var(--color-secondary);
+      --btn-fg: var(--color-secondary-content);
+      --btn-soft-bg: initial;
     }
   }
   .btn-sm {
@@ -2843,24 +2894,6 @@
     @layer daisyui.l1.l2 {
       --badge-color: var(--color-warning);
       --badge-fg: var(--color-warning-content);
-    }
-  }
-  .btn-error {
-    @layer daisyui.l1.l2.l3 {
-      --btn-color: var(--color-error);
-      --btn-fg: var(--color-error-content);
-    }
-  }
-  .btn-primary {
-    @layer daisyui.l1.l2.l3 {
-      --btn-color: var(--color-primary);
-      --btn-fg: var(--color-primary-content);
-    }
-  }
-  .btn-secondary {
-    @layer daisyui.l1.l2.l3 {
-      --btn-color: var(--color-secondary);
-      --btn-fg: var(--color-secondary-content);
     }
   }
   .hover\:bg-emerald-700 {
@@ -3065,7 +3098,7 @@
   }
   .lg\:gap-1 {
     @media (width >= 64rem) {
-      gap: calc(var(--spacing) * 1);
+      gap: var(--spacing);
     }
   }
   .lg\:gap-3 {
@@ -3091,8 +3124,15 @@
   }
 }
 @layer base {
-  :root {
-    --fx-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Cfilter id='a'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.34' numOctaves='4' stitchTiles='stitch'%3E%3C/feTurbulence%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23a)' opacity='0.2'%3E%3C/rect%3E%3C/svg%3E");
+  @property --radialprogress {
+    syntax: "<percentage>";
+    inherits: true;
+    initial-value: 0%;
+  }
+  @property --aura-angle {
+    syntax: "<angle>";
+    inherits: false;
+    initial-value: 0deg;
   }
 }
 @layer base {
@@ -3104,55 +3144,67 @@
   }
 }
 @layer base {
-  @property --radialprogress {
-    syntax: "<percentage>";
-    inherits: true;
-    initial-value: 0%;
+  :root {
+    --fx-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Cfilter id='a'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.34' numOctaves='4' stitchTiles='stitch'%3E%3C/feTurbulence%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23a)' opacity='0.2'%3E%3C/rect%3E%3C/svg%3E");
   }
 }
 @layer base {
+  :root {
+    --page-scroll-lock: initial;
+    --page-overflow: var(--page-scroll-lock) hidden;
+  }
   :root:not(span) {
     overflow: var(--page-overflow);
   }
 }
 @layer base {
   :root {
-    background: var(--page-scroll-bg, var(--root-bg));
-    --page-scroll-bg-on: linear-gradient(var(--root-bg, #0000), var(--root-bg, #0000))
+    --page-has-backdrop: var(--page-scroll-lock) 1;
+    --page-scroll-bg: var(--page-scroll-lock)
     var(--root-bg, #0000);
     @supports (color: color-mix(in lab, red, red)) {
-      --page-scroll-bg-on: linear-gradient(var(--root-bg, #0000), var(--root-bg, #0000))
+      --page-scroll-bg: var(--page-scroll-lock)
     color-mix(in srgb, var(--root-bg, #0000), oklch(0% 0 0) calc(var(--page-has-backdrop, 0) * 40%));
     }
-    --page-scroll-transition-on: background-color 0.3s ease-out;
-    transition: var(--page-scroll-transition);
-    scrollbar-gutter: var(--page-scroll-gutter, unset);
-    scrollbar-gutter: if(style(--page-has-scroll: 1): var(--page-scroll-gutter, unset) ; else: unset);
+    background-image: var(--page-scroll-lock) linear-gradient(var(--root-bg, #0000), var(--root-bg, #0000));
+    transition: var(--page-scroll-lock) background-color 0.3s ease-out;
+    animation: var(--page-scroll-lock) set-page-has-scroll forwards;
+    animation-timeline: var(--page-scroll-lock) scroll();
+    --page-has-scroll: initial;
+    scrollbar-gutter: var(--page-has-scroll) var(--page-scroll-lock) stable;
   }
   @keyframes set-page-has-scroll {
     0%, to {
-      --page-has-scroll: 1;
+      --page-has-scroll:  ;
     }
   }
 }
 @layer base {
   :root, [data-theme] {
-    background: var(--page-scroll-bg, var(--root-bg));
+    background-color: var(--root-bg);
     color: var(--color-base-content);
+  }
+  :root {
+    background-color: var(--page-scroll-bg, var(--root-bg));
   }
   :where(:root, [data-theme]) {
     --root-bg: var(--color-base-100);
   }
 }
-@keyframes rating {
-  0%, 40% {
-    scale: 1.1;
-    filter: brightness(1.05) contrast(1.05);
-  }
-}
 @keyframes dropdown {
   0% {
     opacity: 0;
+  }
+}
+@keyframes rotator {
+  89.9999%, 100% {
+    --first-item-position: 0 0%;
+  }
+  90%, 99.9999% {
+    --first-item-position: 0 calc(var(--items) * 100%);
+  }
+  100% {
+    translate: 0 -100%;
   }
 }
 @keyframes radio {
@@ -3173,17 +3225,6 @@
     opacity: 1;
   }
 }
-@keyframes rotator {
-  89.9999%, 100% {
-    --first-item-position: 0 0%;
-  }
-  90%, 99.9999% {
-    --first-item-position: 0 calc(var(--items) * 100%);
-  }
-  100% {
-    translate: 0 -100%;
-  }
-}
 @keyframes skeleton {
   0% {
     background-position: 150%;
@@ -3192,14 +3233,46 @@
     background-position: -50%;
   }
 }
-@keyframes menu {
-  0% {
-    opacity: 0;
-  }
-}
 @keyframes progress {
   50% {
     background-position-x: -115%;
+  }
+}
+@keyframes rating {
+  0%, 40% {
+    scale: 1.1;
+    filter: brightness(1.05) contrast(1.05);
+  }
+}
+@keyframes aura {
+  to {
+    --aura-angle: 360deg;
+    transform: translateZ(1px);
+  }
+}
+@keyframes aura-glow {
+  20%, 80% {
+    opacity: 0.7;
+    filter: blur(0.25rem);
+  }
+  50% {
+    opacity: 1;
+    filter: blur(0.75rem);
+  }
+}
+@keyframes aura-glow-after {
+  20%, 80% {
+    opacity: 0.3;
+    filter: blur(1rem);
+  }
+  50% {
+    opacity: 0.6;
+    filter: blur(1.5rem);
+  }
+}
+@keyframes menu {
+  0% {
+    opacity: 0;
   }
 }
 @layer base {

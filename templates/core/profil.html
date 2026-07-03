@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% comment %}
+Page profil (« Modifier mes informations »), accessible à tout utilisateur
+authentifié depuis le header (email cliquable / entrée « Mon profil »).
+
+Trois sections indépendantes, chacune avec son formulaire POST vers
+{% url 'profil' %} et un champ caché `action` :
+- infos : nom, prénom et coordonnées (PATCH /utilisateurs/me) ;
+- email : mot de passe actuel + nouvel email (l'email actuel est affiché en
+  lecture seule ; au succès, la session repart avec le nouveau token) ;
+- mot_de_passe : actuel + nouveau + confirmation.
+Les mots de passe ne sont jamais ré-affichés après une erreur.
+{% endcomment %}
+
+{% block title %}Mon profil — Factur-IA{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-6">
+
+    {% if messages %}
+        <div class="space-y-2">
+            {% for message in messages %}
+                <div role="alert" class="alert {% if message.tags == 'error' %}alert-error{% else %}alert-success{% endif %}">
+                    <span>{{ message }}</span>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="bg-base-100 rounded-t-lg shadow-sm p-4 border-b border-base-300">
+        <h2 class="text-xl font-bold">Mon profil</h2>
+    </div>
+
+    {# Section 1 — Mes informations (ProfilUpdate). #}
+    <div class="bg-base-100 rounded-lg shadow-md border border-base-200 p-6">
+        <h3 class="text-lg font-semibold mb-4">Mes informations</h3>
+
+        <form method="POST" action="{% url 'profil' %}" class="space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="infos">
+
+            {% if form_infos.non_field_errors %}
+                <div role="alert" class="alert alert-error">
+                    <span>{{ form_infos.non_field_errors.0 }}</span>
+                </div>
+            {% endif %}
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="nom" class="block text-sm font-medium mb-1">Nom</label>
+                    <input type="text" id="nom" name="nom" required value="{{ form_infos.nom.value|default:'' }}" class="input w-full">
+                    {% if form_infos.nom.errors %}<p class="mt-1 text-xs text-error">{{ form_infos.nom.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label for="prenom" class="block text-sm font-medium mb-1">Prénom</label>
+                    <input type="text" id="prenom" name="prenom" required value="{{ form_infos.prenom.value|default:'' }}" class="input w-full">
+                    {% if form_infos.prenom.errors %}<p class="mt-1 text-xs text-error">{{ form_infos.prenom.errors.0 }}</p>{% endif %}
+                </div>
+            </div>
+
+            <div>
+                <label for="adresse" class="block text-sm font-medium mb-1">Adresse <span class="text-base-content/50 font-normal">(optionnel)</span></label>
+                <input type="text" id="adresse" name="adresse" value="{{ form_infos.adresse.value|default:'' }}" class="input w-full">
+                {% if form_infos.adresse.errors %}<p class="mt-1 text-xs text-error">{{ form_infos.adresse.errors.0 }}</p>{% endif %}
+            </div>
+
+            <div>
+                <label for="adresse_complement" class="block text-sm font-medium mb-1">Complément d'adresse <span class="text-base-content/50 font-normal">(optionnel)</span></label>
+                <input type="text" id="adresse_complement" name="adresse_complement" value="{{ form_infos.adresse_complement.value|default:'' }}" class="input w-full">
+                {% if form_infos.adresse_complement.errors %}<p class="mt-1 text-xs text-error">{{ form_infos.adresse_complement.errors.0 }}</p>{% endif %}
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label for="code_postal" class="block text-sm font-medium mb-1">Code postal <span class="text-base-content/50 font-normal">(optionnel)</span></label>
+                    <input type="text" id="code_postal" name="code_postal" value="{{ form_infos.code_postal.value|default:'' }}" class="input w-full">
+                    {% if form_infos.code_postal.errors %}<p class="mt-1 text-xs text-error">{{ form_infos.code_postal.errors.0 }}</p>{% endif %}
+                </div>
+                <div class="md:col-span-2">
+                    <label for="ville" class="block text-sm font-medium mb-1">Ville <span class="text-base-content/50 font-normal">(optionnel)</span></label>
+                    <input type="text" id="ville" name="ville" value="{{ form_infos.ville.value|default:'' }}" class="input w-full">
+                    {% if form_infos.ville.errors %}<p class="mt-1 text-xs text-error">{{ form_infos.ville.errors.0 }}</p>{% endif %}
+                </div>
+            </div>
+
+            <div>
+                <label for="telephone" class="block text-sm font-medium mb-1">Téléphone <span class="text-base-content/50 font-normal">(optionnel)</span></label>
+                <input type="text" id="telephone" name="telephone" value="{{ form_infos.telephone.value|default:'' }}" class="input w-full">
+                {% if form_infos.telephone.errors %}<p class="mt-1 text-xs text-error">{{ form_infos.telephone.errors.0 }}</p>{% endif %}
+            </div>
+
+            <div class="flex justify-end border-t border-base-300 pt-4">
+                <button type="submit" class="btn btn-primary">Enregistrer mes informations</button>
+            </div>
+        </form>
+    </div>
+
+    {# Section 2 — Changer mon email (mot de passe actuel exigé, token renouvelé au succès). #}
+    <div class="bg-base-100 rounded-lg shadow-md border border-base-200 p-6">
+        <h3 class="text-lg font-semibold mb-1">Changer mon email</h3>
+        <p class="text-sm text-base-content/60 mb-4">
+            Email actuel : <span class="font-medium">{{ current_email }}</span>
+        </p>
+
+        <form method="POST" action="{% url 'profil' %}" class="space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="email">
+
+            {% if form_email.non_field_errors %}
+                <div role="alert" class="alert alert-error">
+                    <span>{{ form_email.non_field_errors.0 }}</span>
+                </div>
+            {% endif %}
+
+            <div>
+                <label for="nouvel_email" class="block text-sm font-medium mb-1">Nouvel email</label>
+                <input type="email" id="nouvel_email" name="nouvel_email" required value="{{ form_email.nouvel_email.value|default:'' }}" class="input w-full">
+                {% if form_email.nouvel_email.errors %}<p class="mt-1 text-xs text-error">{{ form_email.nouvel_email.errors.0 }}</p>{% endif %}
+            </div>
+
+            <div>
+                <label for="email_mot_de_passe_actuel" class="block text-sm font-medium mb-1">Mot de passe actuel</label>
+                <input type="password" id="email_mot_de_passe_actuel" name="mot_de_passe_actuel" required class="input w-full">
+                {% if form_email.mot_de_passe_actuel.errors %}<p class="mt-1 text-xs text-error">{{ form_email.mot_de_passe_actuel.errors.0 }}</p>{% endif %}
+            </div>
+
+            <div class="flex justify-end border-t border-base-300 pt-4">
+                <button type="submit" class="btn btn-primary">Changer l'email</button>
+            </div>
+        </form>
+    </div>
+
+    {# Section 3 — Changer mon mot de passe. #}
+    <div class="bg-base-100 rounded-lg shadow-md border border-base-200 p-6">
+        <h3 class="text-lg font-semibold mb-4">Changer mon mot de passe</h3>
+
+        <form method="POST" action="{% url 'profil' %}" class="space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="mot_de_passe">
+
+            {% if form_mdp.non_field_errors %}
+                <div role="alert" class="alert alert-error">
+                    <span>{{ form_mdp.non_field_errors.0 }}</span>
+                </div>
+            {% endif %}
+
+            <div>
+                <label for="mdp_mot_de_passe_actuel" class="block text-sm font-medium mb-1">Mot de passe actuel</label>
+                <input type="password" id="mdp_mot_de_passe_actuel" name="mot_de_passe_actuel" required class="input w-full">
+                {% if form_mdp.mot_de_passe_actuel.errors %}<p class="mt-1 text-xs text-error">{{ form_mdp.mot_de_passe_actuel.errors.0 }}</p>{% endif %}
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="nouveau_mot_de_passe" class="block text-sm font-medium mb-1">Nouveau mot de passe</label>
+                    <input type="password" id="nouveau_mot_de_passe" name="nouveau_mot_de_passe" required minlength="8" class="input w-full">
+                    {% if form_mdp.nouveau_mot_de_passe.errors %}<p class="mt-1 text-xs text-error">{{ form_mdp.nouveau_mot_de_passe.errors.0 }}</p>{% endif %}
+                </div>
+                <div>
+                    <label for="confirm_password" class="block text-sm font-medium mb-1">Confirmer le nouveau mot de passe</label>
+                    <input type="password" id="confirm_password" name="confirm_password" required class="input w-full">
+                    {% if form_mdp.confirm_password.errors %}<p class="mt-1 text-xs text-error">{{ form_mdp.confirm_password.errors.0 }}</p>{% endif %}
+                </div>
+            </div>
+
+            <div class="flex justify-end border-t border-base-300 pt-4">
+                <button type="submit" class="btn btn-primary">Changer le mot de passe</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock content %}

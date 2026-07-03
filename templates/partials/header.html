@@ -37,7 +37,7 @@
       {# Actions à droite — desktop #}
       <div class="hidden lg:flex lg:items-center lg:gap-3">
         {% if request.session.is_authenticated %}
-          <span class="max-w-[16rem] truncate text-sm text-gray-400">{{ request.session.user_email }}</span>
+          <a href="{% url 'profil' %}" title="Mon profil" class="max-w-[16rem] truncate rounded-md px-2 py-2 text-sm text-gray-400 hover:bg-white/5 hover:text-white">{{ request.session.user_email }}</a>
           <a href="{% url 'logout' %}" class="rounded-md px-3 py-2 text-sm font-semibold text-gray-300 hover:text-white">Se déconnecter</a>
         {% else %}
           <a href="{% url 'login' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:text-white">Connexion</a>
@@ -84,6 +84,7 @@
         <a href="#" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Tableau de bord</a>
         <div class="my-2 border-t border-white/10"></div>
         <p class="truncate px-3 py-1 text-sm text-gray-400">{{ request.session.user_email }}</p>
+        <a href="{% url 'profil' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Mon profil</a>
         <a href="{% url 'logout' %}" class="block rounded-md px-3 py-2 text-base font-semibold text-gray-300 hover:bg-white/5 hover:text-white">Se déconnecter</a>
       {% else %}
         <a href="#fonctionnalites" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Fonctionnalités</a>

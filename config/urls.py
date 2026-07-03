@@ -55,6 +55,7 @@ from core.views.clients import (
 from core.views.documents import upload_document_view
 from core.views.equipe import equipe_view
 from core.views.home import home_view
+from core.views.profil import profil_view
 
 
 urlpatterns = [
@@ -70,6 +71,7 @@ urlpatterns = [
     ),
     path("profile-lock/", profile_lock_view, name="profile_lock"),
     path("onboarding/", onboarding_view, name="onboarding"),
+    path("profil/", profil_view, name="profil"),
     path("equipe/", equipe_view, name="equipe"),
     path("admins/", admins_plateforme_view, name="admins_plateforme"),
     path("abonnements/", abonnements_view, name="abonnements"),
