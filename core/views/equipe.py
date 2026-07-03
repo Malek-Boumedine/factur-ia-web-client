@@ -6,10 +6,17 @@ from clients.exceptions import (
     APIUnavailableError,
     APIValidationError,
     ResourceConflictError,
+    ResourceNotFoundError,
     TokenExpiredError,
 )
 from clients.utilisateurs_client import UtilisateursClient
 from core.forms import CollaborateurForm
+from core.views.auth import _MSG_INDISPONIBLE
+
+# Message affiché sur le 403 du DELETE : le contrat n'expose pas le flag
+# `compte_protege` dans UtilisateurRead, l'UI ne peut donc pas masquer le
+# bouton préventivement — l'API reste juge et on traduit son refus.
+_MSG_COMPTE_PROTEGE = "Ce compte est protégé et ne peut pas être supprimé."
 
 
 def _charger_roles(client):
@@ -38,14 +45,51 @@ def equipe_view(request):
             except TokenExpiredError:
                 return redirect("login")
             except APIUnavailableError:
-                messages.error(
-                    request,
-                    "Service momentanément indisponible. Veuillez réessayer.",
-                )
+                messages.error(request, _MSG_INDISPONIBLE)
             except APIClientError as e:
+                if e.status_code == 403:
+                    messages.error(request, _MSG_COMPTE_PROTEGE)
+                else:
+                    messages.error(
+                        request,
+                        f"Erreur lors de la suppression ({e.status_code}).",
+                    )
+            return redirect("equipe")
+
+        # Désactivation / réactivation : PATCH sur `est_actif` uniquement.
+        # La réactivation peut être refusée en 409 si la limite d'utilisateurs
+        # du plan actif est atteinte : le message actionnable de l'API est
+        # affiché tel quel.
+        if action in ("deactivate", "reactivate"):
+            est_actif = action == "reactivate"
+            try:
+                client.update_utilisateur(user_id, {"est_actif": est_actif})
+                messages.success(
+                    request,
+                    "Le collaborateur a été réactivé."
+                    if est_actif
+                    else "Le collaborateur a été désactivé.",
+                )
+            except TokenExpiredError:
+                return redirect("login")
+            except ResourceConflictError as e:
                 messages.error(
                     request,
-                    f"Erreur lors de la suppression ({e.status_code}).",
+                    str(
+                        e.detail
+                        or "La limite d'utilisateurs de votre plan est atteinte."
+                    ),
+                )
+            except ResourceNotFoundError:
+                messages.error(request, "Collaborateur introuvable.")
+            except APIUnavailableError:
+                messages.error(request, _MSG_INDISPONIBLE)
+            except APIClientError:
+                messages.error(
+                    request,
+                    "Erreur lors de la réactivation."
+                    if est_actif
+                    else "Erreur lors de la désactivation.",
                 )
             return redirect("equipe")
 
@@ -92,10 +136,7 @@ def equipe_view(request):
             except APIValidationError as e:
                 messages.error(request, str(e.detail or "Erreur de validation."))
             except APIUnavailableError:
-                messages.error(
-                    request,
-                    "Service momentanément indisponible. Veuillez réessayer.",
-                )
+                messages.error(request, _MSG_INDISPONIBLE)
             except APIClientError:
                 messages.error(request, "Erreur lors de l'enregistrement.")
 
@@ -125,7 +166,11 @@ def equipe_view(request):
 
 
 def _contexte_liste(request, client):
-    """Charge la liste des membres (avec id_role résolu) et les rôles."""
+    """Charge la liste des membres (avec id_role résolu) et les rôles.
+
+    Fournit aussi `current_user_email` (session) : le template masque les
+    actions incohérentes sur sa propre ligne (se désactiver, se supprimer).
+    """
     membres = []
     roles = []
     role_map = {}
@@ -150,4 +195,8 @@ def _contexte_liste(request, client):
     except APIClientError:
         messages.error(request, "Impossible de charger la liste des membres.")
 
-    return {"membres": membres, "roles": roles}
+    return {
+        "membres": membres,
+        "roles": roles,
+        "current_user_email": request.session.get("user_email", ""),
+    }
