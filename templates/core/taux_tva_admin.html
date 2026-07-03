@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% comment %}
+Administration des taux de TVA (données de référence globales), réservée aux
+administrateurs de plateforme (garde-fou en vue via le flag de session
+`is_platform_admin`).
+
+Liste filtrable (actifs/inactifs) avec les actions de création, d'édition et de
+(dés)activation. La désactivation est un soft delete (DELETE côté API,
+`est_actif=False`) ; la réactivation repasse `est_actif=True` (PATCH).
+{% endcomment %}
+
+{% block title %}Taux de TVA — Factur-IA{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-6">
+
+    {% if messages %}
+        <div class="space-y-2">
+            {% for message in messages %}
+                <div role="alert" class="alert {% if message.tags == 'error' %}alert-error{% else %}alert-success{% endif %}">
+                    <span>{{ message }}</span>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="flex justify-between items-center bg-base-100 rounded-t-lg shadow-sm p-4 border-b border-base-300">
+        <div class="flex items-center gap-3">
+            <h2 class="text-xl font-bold">Taux de TVA</h2>
+            <span class="text-sm text-base-content/60">{{ taux_list|length }} taux</span>
+        </div>
+        <a href="{% url 'taux_tva_create' %}" class="btn btn-primary">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            Nouveau taux
+        </a>
+    </div>
+
+    {# Filtre de statut — un seul formulaire GET. #}
+    <form method="get" class="bg-base-100 rounded-lg shadow-sm border border-base-200 p-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+        <div class="sm:w-44">
+            <label for="est_actif" class="block text-sm font-medium mb-1">Statut</label>
+            <select id="est_actif" name="est_actif" class="select w-full"
+                    x-on:change="$el.form.requestSubmit()">
+                <option value="" {% if est_actif == "" %}selected{% endif %}>Tous</option>
+                <option value="true" {% if est_actif == "true" %}selected{% endif %}>Actifs</option>
+                <option value="false" {% if est_actif == "false" %}selected{% endif %}>Inactifs</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Filtrer</button>
+    </form>
+
+    <div class="bg-base-100 rounded-lg shadow-md border border-base-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th class="text-right">Taux</th>
+                        <th>Libellé</th>
+                        <th>Code comptable</th>
+                        <th>Statut</th>
+                        <th class="text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for taux in taux_list %}
+                    <tr class="hover">
+                        <td class="text-right font-medium whitespace-nowrap">{{ taux.taux_affiche }} %</td>
+                        <td>{{ taux.libelle }}</td>
+                        <td class="text-base-content/70">{{ taux.code_comptable|default:"—" }}</td>
+                        <td>
+                            {% if taux.est_actif %}
+                                <span class="badge badge-success badge-soft">Actif</span>
+                            {% else %}
+                                <span class="badge badge-error badge-soft">Inactif</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-right">
+                            <div class="flex justify-end items-center gap-1">
+                                <a href="{% url 'taux_tva_update' taux_tva_id=taux.id %}" class="btn btn-ghost btn-sm btn-square text-info" title="Modifier">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                                </a>
+                                {% if taux.est_actif %}
+                                <form method="post" action="{% url 'taux_tva_deactivate' taux_tva_id=taux.id %}" class="inline-block"
+                                      onsubmit="return confirm('Désactiver le taux {{ taux.libelle|escapejs }} ?');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-ghost btn-sm btn-square text-error" title="Désactiver">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
+                                    </button>
+                                </form>
+                                {% else %}
+                                <form method="post" action="{% url 'taux_tva_reactivate' taux_tva_id=taux.id %}" class="inline-block"
+                                      onsubmit="return confirm('Réactiver le taux {{ taux.libelle|escapejs }} ?');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="btn btn-ghost btn-sm btn-square text-success" title="Réactiver">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center text-base-content/60 py-8">Aucun taux de TVA.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock content %}

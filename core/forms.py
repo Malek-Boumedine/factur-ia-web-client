@@ -388,6 +388,44 @@ class AbonnementForm(forms.Form):
         return payload
 
 
+class TauxTvaForm(forms.Form):
+    """Validation serveur de la création/édition d'un taux de TVA (admin plateforme).
+
+    Champs et contraintes alignés sur TauxTvaCreate/TauxTvaUpdate du contrat
+    OpenAPI (mêmes noms — le mapping des erreurs 422 retombe dans les bons
+    champs). Requis : `taux` (0 à 100) et `libelle`. Le `code_comptable` est
+    optionnel. Le taux est envoyé en chaîne (le schéma l'accepte) pour éviter
+    les arrondis flottants. La (dés)activation n'est PAS gérée ici : elle passe
+    par les actions dédiées de la liste (DELETE / PATCH `est_actif`).
+    """
+
+    taux = forms.DecimalField(
+        min_value=0, max_value=100, max_digits=5, decimal_places=2
+    )
+    libelle = forms.CharField(max_length=100)
+    code_comptable = forms.CharField(max_length=50, required=False)
+
+    def __init__(self, *args, is_edit=False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.is_edit = is_edit
+
+    def to_api_payload(self):
+        """Construit le corps TauxTvaCreate/TauxTvaUpdate depuis les données.
+
+        En création, le code comptable vide est omis (l'API applique ses
+        défauts) ; en édition, il est envoyé à `None` pour permettre
+        l'effacement (schéma nullable). `est_actif` n'est jamais envoyé d'ici.
+        """
+        cd = self.cleaned_data
+        payload = {"taux": str(cd["taux"]), "libelle": cd["libelle"]}
+        code_comptable = (cd.get("code_comptable") or "").strip()
+        if code_comptable:
+            payload["code_comptable"] = code_comptable
+        elif self.is_edit:
+            payload["code_comptable"] = None
+        return payload
+
+
 class CatalogueForm(forms.Form):
     """Validation serveur de la création/édition d'un produit du catalogue.
 

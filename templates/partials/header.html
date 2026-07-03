@@ -27,6 +27,7 @@
           {% endif %}
           {% if request.session.is_platform_admin %}
             <a href="{% url 'plans_admin' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Gestion des plans</a>
+            <a href="{% url 'taux_tva_admin' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Taux de TVA</a>
             <a href="{% url 'admins_plateforme' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Admins plateforme</a>
           {% endif %}
         {% else %}
@@ -86,6 +87,7 @@
         {% endif %}
         {% if request.session.is_platform_admin %}
           <a href="{% url 'plans_admin' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Gestion des plans</a>
+          <a href="{% url 'taux_tva_admin' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Taux de TVA</a>
           <a href="{% url 'admins_plateforme' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Admins plateforme</a>
         {% endif %}
         <div class="my-2 border-t border-white/10"></div>

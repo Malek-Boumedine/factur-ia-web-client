@@ -55,6 +55,13 @@ from core.views.documents import upload_document_view
 from core.views.equipe import equipe_view
 from core.views.home import home_view
 from core.views.profil import profil_view
+from core.views.taux_tva import (
+    taux_tva_admin_view,
+    taux_tva_create_view,
+    taux_tva_deactivate_view,
+    taux_tva_reactivate_view,
+    taux_tva_update_view,
+)
 
 
 urlpatterns = [
@@ -94,6 +101,23 @@ urlpatterns = [
         "plans/<int:abonnement_id>/supprimer/",
         plan_delete_view,
         name="plan_delete",
+    ),
+    path("taux-tva/", taux_tva_admin_view, name="taux_tva_admin"),
+    path("taux-tva/nouveau/", taux_tva_create_view, name="taux_tva_create"),
+    path(
+        "taux-tva/<int:taux_tva_id>/modifier/",
+        taux_tva_update_view,
+        name="taux_tva_update",
+    ),
+    path(
+        "taux-tva/<int:taux_tva_id>/desactiver/",
+        taux_tva_deactivate_view,
+        name="taux_tva_deactivate",
+    ),
+    path(
+        "taux-tva/<int:taux_tva_id>/reactiver/",
+        taux_tva_reactivate_view,
+        name="taux_tva_reactivate",
     ),
     path("clients/", clients_list_view, name="clients"),
     path("clients/nouveau/", client_create_view, name="client_create"),
