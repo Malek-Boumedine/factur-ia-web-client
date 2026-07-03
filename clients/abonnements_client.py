@@ -1,14 +1,19 @@
 """Client HTTP pour les abonnements (offres/plans).
 
-Couvre le domaine `abonnements` de l'API. Aucune de ces routes n'exige le
-header `x-entreprise-id` (les offres sont globales, non liées à un tenant) :
+Couvre le domaine `abonnements` de l'API :
 
 - GET /abonnements/ : liste des abonnements disponibles.
 - GET /abonnements/me : abonnement de l'entreprise courante.
+- POST /abonnements/me/changer : changement de plan de l'entreprise active.
 - POST /abonnements/ : création d'un abonnement (schéma AbonnementCreate).
 - PATCH /abonnements/{abonnement_id} : mise à jour partielle
   (schéma AbonnementUpdate).
 - DELETE /abonnements/{abonnement_id} : suppression d'un abonnement.
+
+Les routes des offres sont globales (le header `x-entreprise-id` reste
+transmis s'il est en session, sans effet). Exception : POST
+/abonnements/me/changer EXIGE ce header — il désigne l'entreprise dont le
+plan est changé.
 """
 
 from typing import Any
@@ -19,10 +24,10 @@ from .base_client import BaseAPIClient
 class AbonnementsClient(BaseAPIClient):
     """Client HTTP pour les abonnements (offres/plans).
 
-    Hérite de `BaseAPIClient` et réutilise ses méthodes HTTP ; le JWT est
-    injecté automatiquement depuis la session. Ces routes n'exigent pas le
-    header `x-entreprise-id` (offres globales) ; il reste transmis s'il est
-    présent en session, sans effet.
+    Hérite de `BaseAPIClient` et réutilise ses méthodes HTTP ; le JWT et le
+    header `x-entreprise-id` sont injectés automatiquement depuis la session.
+    Les routes des offres sont globales (header tenant sans effet), sauf le
+    changement de plan (`change_plan`) qui l'exige pour cibler l'entreprise.
     """
 
     def list_subscriptions(self) -> Any:
@@ -58,6 +63,36 @@ class AbonnementsClient(BaseAPIClient):
                 (APIUnavailableError).
         """
         return self.get("/abonnements/me")
+
+    def change_plan(self, abonnement_id: int) -> Any:
+        """Change le plan d'abonnement de l'entreprise active.
+
+        Appelle POST /abonnements/me/changer (schéma ChangementPlanRequest).
+        L'entreprise ciblée est TOUJOURS celle du header `x-entreprise-id`
+        (injecté depuis la session) ; l'action est réservée côté API aux
+        administrateurs de cette entreprise.
+
+        Args:
+            abonnement_id (int): Identifiant du plan d'abonnement cible.
+                Obligatoire.
+
+        Returns:
+            dict: La nouvelle souscription active (EntrepriseAbonnementRead)
+            renvoyée par l'API (200).
+
+        Raises:
+            TokenExpiredError: En cas de réponse 401.
+            ResourceNotFoundError: Plan cible introuvable (404).
+            ResourceConflictError: Entreprise déjà sur ce plan, ou trop
+                d'utilisateurs actifs pour le plan cible (409, message
+                métier dans `detail`).
+            APIClientError: Toute autre erreur API mappée (403 non membre ou
+                non admin de l'entreprise, 422 validation, 5xx serveur) ou
+                API injoignable (APIUnavailableError).
+        """
+        return self.post(
+            "/abonnements/me/changer", data={"id_abonnement": abonnement_id}
+        )
 
     def create_subscription(self, payload: dict[str, Any]) -> Any:
         """Crée un abonnement.

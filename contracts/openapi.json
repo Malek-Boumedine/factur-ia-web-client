@@ -661,6 +661,78 @@
         ]
       }
     },
+    "/abonnements/me/changer": {
+      "post": {
+        "tags": [
+          "Gestion des Abonnements"
+        ],
+        "summary": "Change My Plan",
+        "description": "Change le plan d'abonnement de l'entreprise active (header `x-entreprise-id`).\n\nRéservé aux administrateurs de l'entreprise. L'entreprise ciblée est toujours\ncelle du header — jamais une valeur du corps de la requête. La souscription\nactive est clôturée et une nouvelle est créée (historique préservé).",
+        "operationId": "change_my_plan_abonnements_me_changer_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-entreprise-id",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "ID de l'entreprise",
+              "description": "Identifiant de l'entreprise (tenant)                 actif transmis dans les en-têtes."
+            },
+            "description": "Identifiant de l'entreprise (tenant)                 actif transmis dans les en-têtes."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangementPlanRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntrepriseAbonnementRead"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentification requise."
+          },
+          "403": {
+            "description": "Non membre de l'entreprise du header, ou membre non-admin."
+          },
+          "404": {
+            "description": "Plan cible introuvable."
+          },
+          "409": {
+            "description": "Déjà sur ce plan, ou trop d'utilisateurs actifs pour le plan cible."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/abonnements/{abonnement_id}": {
       "patch": {
         "tags": [
@@ -767,8 +839,33 @@
           "Gestion des Utilisateurs"
         ],
         "summary": "Get My Profile",
-        "description": "Récupère le profil de l'utilisateur actuellement connecté.",
+        "description": "Récupère le profil de l'utilisateur actuellement connecté.\n\nLe header `x-entreprise-id` est optionnel : absent (ex. utilisateur sans\nentreprise ou juste après login), le profil brut est renvoyé et `est_admin`\nreste nul. Présent, le profil est enrichi de `est_admin`/`role` dans le\ncontexte de cette entreprise — uniquement si l'utilisateur en est membre\n(aucune usurpation possible sinon).",
         "operationId": "get_my_profile_utilisateurs_me_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-entreprise-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "ID de l'entreprise",
+              "description": "Identifiant de l'entreprise (tenant) active. Optionnel : s'il est fourni et que l'utilisateur y appartient, `est_admin` et `role` sont renseignés pour cette entreprise ; sinon ils restent nuls."
+            },
+            "description": "Identifiant de l'entreprise (tenant) active. Optionnel : s'il est fourni et que l'utilisateur y appartient, `est_admin` et `role` sont renseignés pour cette entreprise ; sinon ils restent nuls."
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -779,13 +876,18 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ]
+        }
       },
       "patch": {
         "tags": [
@@ -794,15 +896,20 @@
         "summary": "Update My Profile",
         "description": "Permet à l'utilisateur de modifier ses propres informations personnelles.",
         "operationId": "update_my_profile_utilisateurs_me_patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UtilisateurUpdate"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -825,12 +932,7 @@
               }
             }
           }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ]
+        }
       }
     },
     "/utilisateurs/": {
@@ -2845,6 +2947,21 @@
         "type": "object",
         "title": "CatalogueUpdate",
         "description": "Schéma pour la mise à jour partielle d'un produit (PATCH).\nTous les champs sont optionnels pour permettre\nde ne modifier qu'une ou plusieurs valeurs."
+      },
+      "ChangementPlanRequest": {
+        "properties": {
+          "id_abonnement": {
+            "type": "integer",
+            "title": "Id Abonnement",
+            "description": "Identifiant du plan d'abonnement cible."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id_abonnement"
+        ],
+        "title": "ChangementPlanRequest",
+        "description": "Requête de changement de plan pour l'entreprise active (via header)."
       },
       "ClientCreate": {
         "properties": {

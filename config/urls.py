@@ -27,6 +27,7 @@ from core.views.auth import (
     signup_view,
 )
 from core.views.abonnements import (
+    abonnement_changer_view,
     abonnements_view,
     plan_create_view,
     plan_delete_view,
@@ -71,6 +72,11 @@ urlpatterns = [
     path("equipe/", equipe_view, name="equipe"),
     path("admins/", admins_plateforme_view, name="admins_plateforme"),
     path("abonnements/", abonnements_view, name="abonnements"),
+    path(
+        "abonnements/<int:abonnement_id>/choisir/",
+        abonnement_changer_view,
+        name="abonnement_changer",
+    ),
     path("plans/", plans_admin_view, name="plans_admin"),
     path("plans/nouveau/", plan_create_view, name="plan_create"),
     path(

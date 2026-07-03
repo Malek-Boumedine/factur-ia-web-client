@@ -8,6 +8,11 @@ mensuel et limites (utilisateurs, factures/mois). Le plan actuellement souscrit
 par l'entreprise active (GET /abonnements/me, statut actif) est mis en
 évidence. Sans souscription active, un bandeau signale la dernière souscription
 connue et son statut (expiré, suspendu, annulé).
+
+Changement de plan : chaque plan différent du plan actuel porte un bouton
+« Choisir ce plan » (POST avec confirmation vers `abonnement_changer`), visible
+uniquement pour les administrateurs de l'entreprise (`is_entreprise_admin`),
+l'API restant juge de vérité.
 {% endcomment %}
 
 {% block title %}Abonnements — Factur-IA{% endblock %}
@@ -73,10 +78,18 @@ connue et son statut (expiré, suspendu, annulé).
                     </li>
                 </ul>
 
-                {% if plan.id == current_plan_id and souscription_active.date_debut %}
-                    <p class="text-xs text-base-content/50 border-t border-base-300 pt-3">
-                        Souscrit depuis le {{ souscription_active.date_debut }}
-                    </p>
+                {% if plan.id == current_plan_id %}
+                    {% if souscription_active.date_debut %}
+                        <p class="text-xs text-base-content/50 border-t border-base-300 pt-3">
+                            Souscrit depuis le {{ souscription_active.date_debut }}
+                        </p>
+                    {% endif %}
+                {% elif is_entreprise_admin %}
+                    <form method="POST" action="{% url 'abonnement_changer' plan.id %}"
+                          onsubmit="return confirm('Passer au plan {{ plan.libelle|escapejs }} ? Le changement est immédiat.');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-primary btn-block">Choisir ce plan</button>
+                    </form>
                 {% endif %}
             </div>
         {% empty %}

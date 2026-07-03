@@ -68,6 +68,24 @@ def _appliquer_erreur_conflit(form, detail, field_keywords):
     form.add_error(None, msg)
 
 
+def _charger_flags_admin(request):
+    """Renseigne en session les statuts admin (plateforme et entreprise).
+
+    Appelle GET /utilisateurs/me : le header `x-entreprise-id` est injecté
+    automatiquement par la couche clients si une entreprise active est déjà
+    en session, auquel cas l'API renseigne `est_admin` pour cette entreprise
+    (sinon il reste nul). Cet enrichissement ne doit JAMAIS bloquer la
+    connexion : en cas d'échec, les deux flags retombent à `False` (les
+    liens et actions réservés seront simplement masqués).
+    """
+    try:
+        profile = UtilisateursClient(request).get_my_profile()
+    except APIClientError:
+        profile = {}
+    request.session["is_platform_admin"] = bool(profile.get("admin_plateforme"))
+    request.session["is_entreprise_admin"] = bool(profile.get("est_admin"))
+
+
 def login_view(request):
     if request.method == "POST":
         email = request.POST.get("email")
@@ -91,16 +109,6 @@ def login_view(request):
         request.session["jwt_token"] = result["access_token"]
         request.session["user_email"] = email
 
-        # 2 bis. Statut admin plateforme, pour le gating de navigation. Cet appel
-        #    ne doit JAMAIS bloquer la connexion : en cas d'échec (API
-        #    injoignable ou autre), on connecte quand même l'utilisateur avec le
-        #    flag à False (le lien de nav sera simplement masqué).
-        try:
-            profile = UtilisateursClient(request).get_my_profile()
-            request.session["is_platform_admin"] = bool(profile.get("admin_plateforme"))
-        except APIClientError:
-            request.session["is_platform_admin"] = False
-
         # 3. Résolution des entreprises rattachées via /abonnements/me (la route
         #    /auth/token est globale et ne porte pas d'entreprise). Tout passe
         #    par clients/ : résilience réseau + mapping d'exceptions.
@@ -116,12 +124,18 @@ def login_view(request):
             return render(request, "core/auth/sign-in.html")
 
         # 4. Aucune entreprise rattachée : on oriente vers l'onboarding plutôt
-        #    que de bloquer (la session porte déjà le JWT nécessaire).
+        #    que de bloquer (la session porte déjà le JWT nécessaire). Les flags
+        #    admin sont posés sans contexte entreprise (`est_admin` restera à
+        #    False, seul le statut plateforme est exploitable).
         if not abonnements:
+            _charger_flags_admin(request)
             return redirect("onboarding")
 
-        # 5. MVP : on sélectionne la première entreprise rattachée.
+        # 5. MVP : on sélectionne la première entreprise rattachée. Les flags
+        #    admin sont posés APRÈS cette résolution : `est_admin` dépend de
+        #    l'entreprise active, transmise via le header `x-entreprise-id`.
         request.session["entreprise_id"] = abonnements[0].get("id_entreprise")
+        _charger_flags_admin(request)
         return redirect("home")
 
     # Affichage de la page de connexion (GET)
@@ -265,6 +279,10 @@ def onboarding_view(request):
                     form.to_api_payload()
                 )
                 request.session["entreprise_id"] = entreprise["id"]
+                # Le créateur est propriétaire de l'entreprise : l'API le
+                # rattache avec `est_admin=True`, on reflète ce statut en
+                # session sans appel supplémentaire.
+                request.session["is_entreprise_admin"] = True
                 messages.success(
                     request, "Votre espace de travail a été créé avec succès."
                 )

@@ -1,15 +1,19 @@
 """Vues du domaine abonnements (plans de la plateforme).
 
-Deux volets :
+Trois volets :
 
 - affichage (`/abonnements/`, tout utilisateur authentifié) : liste des plans
   disponibles avec mise en évidence de l'abonnement actif de l'entreprise
   courante (croisement GET /abonnements/ et GET /abonnements/me) ;
+- changement de plan (`/abonnements/<id>/choisir/`, admin de l'entreprise
+  active) : POST /abonnements/me/changer, gardé par le flag de session
+  `is_entreprise_admin` (posé au login) ;
 - gestion (`/plans/...`, admin plateforme uniquement) : CRUD des plans via
   POST/PATCH/DELETE /abonnements/{id}. L'accès est gardé par le flag de session
-  `is_platform_admin` (posé au login), l'API restant juge de vérité (un 403 est
-  traité comme un accès refusé). Tout appel réseau passe par la couche
-  `clients/`.
+  `is_platform_admin` (posé au login).
+
+Dans les deux cas gardés, l'API reste juge de vérité (un 403 est traité comme
+un accès refusé). Tout appel réseau passe par la couche `clients/`.
 """
 
 from decimal import Decimal, InvalidOperation
@@ -43,6 +47,12 @@ _CONFLICT_FIELD_KEYWORDS = {
     "libellé": "libelle",
     "libelle": "libelle",
 }
+
+# Message affiché quand un non-admin de l'entreprise tente un changement de
+# plan (garde-fou de session, ou 403 renvoyé par l'API si le flag est obsolète).
+_MSG_RESERVE_ADMIN_ENTREPRISE = (
+    "Le changement d'abonnement est réservé aux administrateurs de l'entreprise."
+)
 
 # Libellés affichés pour les statuts de souscription (enum StatutSouscription).
 _STATUT_LABELS = {
@@ -158,6 +168,7 @@ def abonnements_view(request: HttpRequest) -> HttpResponse:
 
     context = {
         "plans": plans,
+        "is_entreprise_admin": bool(request.session.get("is_entreprise_admin")),
         "current_plan_id": current_plan_id,
         "souscription_active": souscription_active,
         "souscription_inactive": souscription_inactive,
@@ -169,6 +180,54 @@ def abonnements_view(request: HttpRequest) -> HttpResponse:
         ),
     }
     return render(request, "core/abonnements.html", context)
+
+
+@require_POST
+def abonnement_changer_view(request: HttpRequest, abonnement_id: int) -> HttpResponse:
+    """Change le plan de l'entreprise active (POST /abonnements/me/changer).
+
+    Action réservée aux administrateurs de l'entreprise : le flag de session
+    `is_entreprise_admin` (posé au login) sert de garde-fou UI, l'API restant
+    juge de vérité (un 403 est traité comme un accès refusé). L'entreprise
+    ciblée est toujours celle du header `x-entreprise-id`, injecté par la
+    couche clients. Le 409 porte un message métier actionnable (déjà sur ce
+    plan, ou trop d'utilisateurs actifs pour le plan cible) : il est affiché
+    tel quel plutôt que remplacé par un générique.
+    """
+    if not request.session.get("is_authenticated"):
+        return redirect("login")
+    if not request.session.get("is_entreprise_admin"):
+        messages.error(request, _MSG_RESERVE_ADMIN_ENTREPRISE)
+        return redirect("abonnements")
+
+    try:
+        AbonnementsClient(request).change_plan(abonnement_id)
+    except TokenExpiredError:
+        return redirect("login")
+    except ResourceConflictError as e:
+        messages.error(
+            request,
+            str(
+                e.detail
+                or "Changement d'abonnement impossible : conflit avec "
+                "votre souscription actuelle."
+            ),
+        )
+    except ResourceNotFoundError:
+        messages.error(request, "Plan introuvable.")
+    except APIValidationError as e:
+        messages.error(request, str(e.detail or "Changement d'abonnement refusé."))
+    except APIUnavailableError:
+        messages.error(request, _MSG_INDISPONIBLE)
+    except APIClientError as e:
+        if e.status_code == 403:
+            messages.error(request, _MSG_RESERVE_ADMIN_ENTREPRISE)
+        else:
+            messages.error(request, "Erreur lors du changement d'abonnement.")
+    else:
+        messages.success(request, "Votre abonnement a été mis à jour avec succès.")
+
+    return redirect("abonnements")
 
 
 def plans_admin_view(request: HttpRequest) -> HttpResponse:
