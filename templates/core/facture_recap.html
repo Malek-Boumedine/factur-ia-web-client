@@ -1,29 +1,221 @@
 {% extends "base.html" %}
 
 {% comment %}
-Placeholder du récapitulatif human-in-the-loop (facture_recap_view). Cible de
-la redirection de l'écran d'attente une fois le document traité. L'écran de
-vérification des données extraites arrive dans la tâche suivante.
-Thème facturia (daisyUI).
+Récapitulatif human-in-the-loop d'un brouillon de facture (facture_recap_view).
+Formulaire pré-rempli avec les données extraites par l'OCR, pour relecture et
+correction avant validation. Convention de nommage pour la tâche suivante :
+en-tête à plat (clés du contrat FactureReadWithLignes), lignes préfixées
+`ligne-N-champ` + hidden `ligne-N-id` et `lignes_count`. Les montants calculés
+par l'API (lignes et totaux) sont en lecture seule. Le POST est un no-op tant
+que le traitement des corrections n'est pas branché. Thème facturia (daisyUI).
 {% endcomment %}
 
-{% block title %}Récapitulatif de la facture — Factur-IA{% endblock %}
+{% block title %}Vérifier la facture — Factur-IA{% endblock %}
 
 {% block content %}
-<div class="mx-auto max-w-lg">
-  <div class="rounded-2xl border border-gray-200 bg-white p-6 text-center shadow-sm sm:p-8">
-    <span class="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
-      Brouillon n° {{ facture_id }}
-    </span>
-    <h1 class="mt-4 text-2xl font-bold text-gray-900">Récapitulatif de la facture</h1>
-    <p class="mt-2 text-sm text-gray-500">
-      Le document a été analysé et un brouillon de facture a été créé.
-      L'écran de vérification des données extraites arrive bientôt.
-    </p>
-    <div class="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
-      <a href="{% url 'upload_document' %}" class="btn btn-primary">Déposer un autre document</a>
-      <a href="{% url 'home' %}" class="btn btn-ghost">Retour à l'accueil</a>
+<div class="max-w-4xl mx-auto space-y-6">
+
+    {% if messages %}
+        <div class="space-y-2">
+            {% for message in messages %}
+                <div role="alert" class="alert {% if message.tags == 'error' %}alert-error{% elif message.tags == 'info' %}alert-info{% else %}alert-success{% endif %}">
+                    <span>{{ message }}</span>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="flex flex-wrap items-center justify-between gap-3 bg-base-100 rounded-t-lg shadow-sm p-4 border-b border-base-300">
+        <div>
+            <h2 class="text-xl font-bold">Vérification de la facture</h2>
+            <p class="text-sm text-base-content/60">Relisez et corrigez les données extraites avant validation.</p>
+        </div>
+        <span class="badge {% if facture.type_facture == 'avoir' %}badge-secondary{% else %}badge-primary{% endif %} badge-outline">
+            {{ facture.type_facture|default:"facture"|capfirst }}
+        </span>
     </div>
-  </div>
+
+    <form method="post" action="" class="space-y-6">
+        {% csrf_token %}
+        <input type="hidden" name="lignes_count" value="{{ lignes|length }}">
+
+        {# --- En-tête : numéro, dates, devise. --- #}
+        <div class="bg-base-100 rounded-lg shadow-md border border-base-200 p-6 space-y-4">
+            <h3 class="font-semibold text-base-content/80">En-tête</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="numero_facture" class="block text-sm font-medium mb-1">Numéro de facture</label>
+                    <input type="text" id="numero_facture" name="numero_facture" required
+                           value="{{ facture.numero_facture|default:'' }}" class="input w-full">
+                </div>
+                <div>
+                    <label for="devise" class="block text-sm font-medium mb-1">Devise</label>
+                    <input type="text" id="devise" name="devise" maxlength="3"
+                           value="{{ facture.devise|default:'EUR' }}" class="input w-full">
+                </div>
+                <div>
+                    <label for="date_emission" class="block text-sm font-medium mb-1">Date d'émission</label>
+                    <input type="date" id="date_emission" name="date_emission"
+                           value="{{ facture.date_emission|default:'' }}" class="input w-full">
+                </div>
+                <div>
+                    <label for="date_echeance" class="block text-sm font-medium mb-1">Date d'échéance</label>
+                    <input type="date" id="date_echeance" name="date_echeance"
+                           value="{{ facture.date_echeance|default:'' }}" class="input w-full">
+                </div>
+            </div>
+        </div>
+
+        {# --- Émetteur / destinataire. --- #}
+        <div class="bg-base-100 rounded-lg shadow-md border border-base-200 p-6 space-y-4">
+            <h3 class="font-semibold text-base-content/80">Émetteur et destinataire</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="siret_emetteur" class="block text-sm font-medium mb-1">SIRET émetteur</label>
+                    <input type="text" id="siret_emetteur" name="siret_emetteur" maxlength="14" inputmode="numeric"
+                           value="{{ facture.siret_emetteur|default:'' }}" class="input w-full">
+                </div>
+                <div>
+                    <label for="siret_destinataire" class="block text-sm font-medium mb-1">SIRET destinataire</label>
+                    <input type="text" id="siret_destinataire" name="siret_destinataire" maxlength="14" inputmode="numeric"
+                           value="{{ facture.siret_destinataire|default:'' }}" class="input w-full">
+                </div>
+            </div>
+
+            {% if snapshot_items %}
+                {# Snapshot du client au moment de l'extraction : lecture seule. #}
+                <div class="rounded-lg bg-base-200 p-4">
+                    <p class="text-sm font-medium mb-2">Client identifié</p>
+                    <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
+                        {% for label, value in snapshot_items %}
+                            <div class="flex gap-2">
+                                <dt class="text-base-content/60 shrink-0">{{ label }} :</dt>
+                                <dd class="font-medium">{{ value }}</dd>
+                            </div>
+                        {% endfor %}
+                    </dl>
+                </div>
+            {% endif %}
+        </div>
+
+        {# --- Lignes extraites, dans l'ordre. Montants calculés : lecture seule. --- #}
+        <div class="bg-base-100 rounded-lg shadow-md border border-base-200 p-6 space-y-4">
+            <h3 class="font-semibold text-base-content/80">Lignes de la facture</h3>
+
+            {% if lignes %}
+                <div class="overflow-x-auto">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th class="min-w-48">Désignation</th>
+                                <th class="min-w-20">Quantité</th>
+                                <th class="min-w-20">Unité</th>
+                                <th class="min-w-24">PU HT</th>
+                                <th class="min-w-40">TVA</th>
+                                <th class="text-right">HT</th>
+                                <th class="text-right">TVA</th>
+                                <th class="text-right">TTC</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ligne in lignes %}
+                                <tr>
+                                    <td>
+                                        <input type="hidden" name="ligne-{{ forloop.counter0 }}-id" value="{{ ligne.id }}">
+                                        <input type="text" name="ligne-{{ forloop.counter0 }}-designation" required maxlength="255"
+                                               value="{{ ligne.designation|default:'' }}" class="input input-sm w-full">
+                                    </td>
+                                    <td>
+                                        <input type="text" name="ligne-{{ forloop.counter0 }}-quantite" inputmode="decimal"
+                                               value="{{ ligne.quantite|default:'' }}" class="input input-sm w-full">
+                                    </td>
+                                    <td>
+                                        <input type="text" name="ligne-{{ forloop.counter0 }}-unite" maxlength="50"
+                                               value="{{ ligne.unite|default:'' }}" class="input input-sm w-full">
+                                    </td>
+                                    <td>
+                                        <input type="text" name="ligne-{{ forloop.counter0 }}-prix_unitaire_ht" inputmode="decimal"
+                                               value="{{ ligne.prix_unitaire_ht|default:'' }}" class="input input-sm w-full">
+                                    </td>
+                                    <td>
+                                        {% if taux_tva %}
+                                            <select name="ligne-{{ forloop.counter0 }}-id_taux_tva" class="select select-sm w-full">
+                                                {% for taux in taux_tva %}
+                                                    <option value="{{ taux.id }}" {% if taux.id == ligne.id_taux_tva %}selected{% endif %}>
+                                                        {{ taux.taux }} % — {{ taux.libelle }}{% if not taux.est_actif %} (inactif){% endif %}
+                                                    </option>
+                                                {% endfor %}
+                                            </select>
+                                        {% else %}
+                                            {# Référentiel TVA indisponible : id conservé, champ non éditable. #}
+                                            <input type="hidden" name="ligne-{{ forloop.counter0 }}-id_taux_tva" value="{{ ligne.id_taux_tva }}">
+                                            <input type="text" value="Taux n° {{ ligne.id_taux_tva }}" disabled class="input input-sm w-full">
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-right whitespace-nowrap">{{ ligne.montant_ht }}</td>
+                                    <td class="text-right whitespace-nowrap">{{ ligne.montant_tva }}</td>
+                                    <td class="text-right whitespace-nowrap font-medium">{{ ligne.montant_ttc }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <p class="text-xs text-base-content/50">Les montants par ligne et les totaux sont recalculés automatiquement lors de la validation.</p>
+            {% else %}
+                <div role="alert" class="alert alert-warning">
+                    <span>Aucune ligne n'a été extraite de ce document.</span>
+                </div>
+            {% endif %}
+
+            {# --- Totaux (lecture seule). --- #}
+            <div class="flex justify-end">
+                <dl class="w-full max-w-xs space-y-1 text-sm">
+                    <div class="flex justify-between">
+                        <dt class="text-base-content/60">Total HT</dt>
+                        <dd class="font-medium">{{ facture.total_ht }} {{ facture.devise|default:"EUR" }}</dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="text-base-content/60">Total TVA</dt>
+                        <dd class="font-medium">{{ facture.total_tva }} {{ facture.devise|default:"EUR" }}</dd>
+                    </div>
+                    <div class="flex justify-between border-t border-base-300 pt-1 text-base">
+                        <dt class="font-semibold">Total TTC</dt>
+                        <dd class="font-bold">{{ facture.total_ttc }} {{ facture.devise|default:"EUR" }}</dd>
+                    </div>
+                </dl>
+            </div>
+        </div>
+
+        {# --- Paiement et notes. --- #}
+        <div class="bg-base-100 rounded-lg shadow-md border border-base-200 p-6 space-y-4">
+            <h3 class="font-semibold text-base-content/80">Paiement et notes</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="mode_paiement" class="block text-sm font-medium mb-1">Mode de paiement <span class="text-base-content/50 font-normal">(optionnel)</span></label>
+                    <input type="text" id="mode_paiement" name="mode_paiement" maxlength="50"
+                           value="{{ facture.mode_paiement|default:'' }}" class="input w-full">
+                </div>
+                <div>
+                    <label for="reference_commande" class="block text-sm font-medium mb-1">Référence de commande <span class="text-base-content/50 font-normal">(optionnel)</span></label>
+                    <input type="text" id="reference_commande" name="reference_commande" maxlength="100"
+                           value="{{ facture.reference_commande|default:'' }}" class="input w-full">
+                </div>
+            </div>
+            <div>
+                <label for="iban" class="block text-sm font-medium mb-1">IBAN <span class="text-base-content/50 font-normal">(optionnel)</span></label>
+                <input type="text" id="iban" name="iban" maxlength="34"
+                       value="{{ facture.iban|default:'' }}" class="input w-full font-mono">
+            </div>
+            <div>
+                <label for="notes" class="block text-sm font-medium mb-1">Notes <span class="text-base-content/50 font-normal">(optionnel)</span></label>
+                <textarea id="notes" name="notes" rows="3" class="textarea w-full">{{ facture.notes|default:'' }}</textarea>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap justify-end gap-2">
+            <a href="{% url 'upload_document' %}" class="btn btn-ghost">Déposer un autre document</a>
+            <button type="submit" class="btn btn-primary">Valider la facture</button>
+        </div>
+    </form>
 </div>
 {% endblock content %}

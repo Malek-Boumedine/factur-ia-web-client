@@ -1,11 +1,14 @@
 """Client HTTP pour les factures.
 
-Couvre le domaine `factures` de l'API. Le contrat n'expose que trois routes
-d'écriture (ni liste ni détail ne sont disponibles) :
+Couvre le domaine `factures` de l'API :
 
 - POST /factures/ : création d'une facture en brouillon (schéma FactureCreate).
+- GET /factures/{facture_id} : détail d'une facture avec ses lignes
+  (schéma FactureReadWithLignes), utilisé par le récap human-in-the-loop.
 - POST /factures/{facture_id}/valider : validation d'un brouillon.
 - POST /factures/{facture_id}/avoir : génération d'un avoir.
+
+La liste des factures n'est pas encore exposée par le contrat.
 """
 
 from typing import Any
@@ -18,9 +21,31 @@ class FacturesClient(BaseAPIClient):
 
     Hérite de `BaseAPIClient` et réutilise ses méthodes HTTP ; le JWT et le
     header `x-entreprise-id` sont injectés automatiquement depuis la session.
-    Le contrat n'expose que la création de brouillon, la validation et la
-    génération d'avoir : ni liste ni détail ne sont disponibles.
+    Couvre la création de brouillon, le détail avec lignes, la validation et
+    la génération d'avoir (la liste des factures n'est pas encore exposée).
     """
+
+    def get_facture(self, facture_id: int) -> Any:
+        """Récupère le détail d'une facture avec ses lignes.
+
+        Appelle GET /factures/{facture_id} (schéma FactureReadWithLignes).
+        L'API garantit l'isolation tenant : une facture d'une autre entreprise
+        renvoie un 404.
+
+        Args:
+            facture_id (int): Identifiant de la facture à lire. Obligatoire.
+
+        Returns:
+            dict: La facture et ses lignes (`lignes`), telles que renvoyées
+            par l'API (200).
+
+        Raises:
+            TokenExpiredError: En cas de réponse 401.
+            ResourceNotFoundError: Facture inexistante ou hors du tenant (404).
+            APIClientError: Toute autre erreur API mappée (422 validation,
+                5xx serveur) ou API injoignable (APIUnavailableError).
+        """
+        return self.get(f"/factures/{facture_id}")
 
     def create_invoice(self, payload: dict[str, Any]) -> Any:
         """Crée une facture en brouillon.
