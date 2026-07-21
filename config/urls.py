@@ -51,8 +51,13 @@ from core.views.clients import (
     client_update_view,
     clients_list_view,
 )
-from core.views.documents import upload_document_view
+from core.views.documents import (
+    document_status_view,
+    document_wait_view,
+    upload_document_view,
+)
 from core.views.equipe import equipe_view
+from core.views.factures import facture_recap_view
 from core.views.home import home_view
 from core.views.profil import profil_view
 from core.views.taux_tva import (
@@ -160,5 +165,20 @@ urlpatterns = [
         name="catalogue_reactivate",
     ),
     path("documents/upload/", upload_document_view, name="upload_document"),
+    path(
+        "documents/<int:document_id>/attente/",
+        document_wait_view,
+        name="document_attente",
+    ),
+    path(
+        "documents/<int:document_id>/statut/",
+        document_status_view,
+        name="document_statut",
+    ),
+    path(
+        "factures/<int:facture_id>/recap/",
+        facture_recap_view,
+        name="facture_recap",
+    ),
     path("", home_view, name="home"),
 ]

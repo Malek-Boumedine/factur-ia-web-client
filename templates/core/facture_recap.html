@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% comment %}
+Placeholder du récapitulatif human-in-the-loop (facture_recap_view). Cible de
+la redirection de l'écran d'attente une fois le document traité. L'écran de
+vérification des données extraites arrive dans la tâche suivante.
+Thème facturia (daisyUI).
+{% endcomment %}
+
+{% block title %}Récapitulatif de la facture — Factur-IA{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-lg">
+  <div class="rounded-2xl border border-gray-200 bg-white p-6 text-center shadow-sm sm:p-8">
+    <span class="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
+      Brouillon n° {{ facture_id }}
+    </span>
+    <h1 class="mt-4 text-2xl font-bold text-gray-900">Récapitulatif de la facture</h1>
+    <p class="mt-2 text-sm text-gray-500">
+      Le document a été analysé et un brouillon de facture a été créé.
+      L'écran de vérification des données extraites arrive bientôt.
+    </p>
+    <div class="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+      <a href="{% url 'upload_document' %}" class="btn btn-primary">Déposer un autre document</a>
+      <a href="{% url 'home' %}" class="btn btn-ghost">Retour à l'accueil</a>
+    </div>
+  </div>
+</div>
+{% endblock content %}
