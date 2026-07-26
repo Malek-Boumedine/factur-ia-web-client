@@ -57,7 +57,11 @@ from core.views.documents import (
     upload_document_view,
 )
 from core.views.equipe import equipe_view
-from core.views.factures import facture_recap_view, factures_list_view
+from core.views.factures import (
+    facture_delete_view,
+    facture_recap_view,
+    factures_list_view,
+)
 from core.views.home import home_view
 from core.views.profil import profil_view
 from core.views.taux_tva import (
@@ -180,6 +184,11 @@ urlpatterns = [
         "factures/<int:facture_id>/recap/",
         facture_recap_view,
         name="facture_recap",
+    ),
+    path(
+        "factures/<int:facture_id>/supprimer/",
+        facture_delete_view,
+        name="facture_delete",
     ),
     path("", home_view, name="home"),
 ]

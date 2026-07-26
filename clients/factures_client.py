@@ -9,6 +9,7 @@ Couvre le domaine `factures` de l'API :
   (schéma FactureReadWithLignes), utilisé par le récap human-in-the-loop.
 - PATCH /factures/{facture_id} : modification d'un brouillon (schéma
   FactureUpdate), en-tête et remplacement complet des lignes.
+- DELETE /factures/{facture_id} : suppression définitive d'un brouillon.
 - POST /factures/{facture_id}/valider : validation d'un brouillon.
 - POST /factures/{facture_id}/avoir : génération d'un avoir.
 """
@@ -24,7 +25,8 @@ class FacturesClient(BaseAPIClient):
     Hérite de `BaseAPIClient` et réutilise ses méthodes HTTP ; le JWT et le
     header `x-entreprise-id` sont injectés automatiquement depuis la session.
     Couvre la liste paginée, la création de brouillon, le détail avec lignes,
-    la modification d'un brouillon, la validation et la génération d'avoir.
+    la modification et la suppression d'un brouillon, la validation et la
+    génération d'avoir.
     """
 
     def list_invoices(
@@ -161,6 +163,31 @@ class FacturesClient(BaseAPIClient):
                 5xx serveur) ou API injoignable (APIUnavailableError).
         """
         return self.patch(f"/factures/{facture_id}", data=payload)
+
+    def delete_invoice(self, facture_id: int) -> Any:
+        """Supprime définitivement un brouillon de facture.
+
+        Appelle DELETE /factures/{facture_id} : le brouillon et ses lignes
+        sont supprimés, mais le document source et son extraction OCR sont
+        conservés côté API (trace). Seuls les brouillons sont supprimables :
+        une facture validée est immuable (inaltérabilité légale) et l'API
+        refuse sa suppression.
+
+        Args:
+            facture_id (int): Identifiant du brouillon à supprimer.
+                Obligatoire.
+
+        Returns:
+            bool: `True` sur 204 (suppression effectuée).
+
+        Raises:
+            TokenExpiredError: En cas de réponse 401.
+            ResourceNotFoundError: Facture inexistante ou hors du tenant (404).
+            ResourceConflictError: Facture qui n'est plus un brouillon (409).
+            APIClientError: Toute autre erreur API mappée (5xx serveur) ou
+                API injoignable (APIUnavailableError).
+        """
+        return self.delete(f"/factures/{facture_id}")
 
     def validate_invoice(self, facture_id: int) -> Any:
         """Valide une facture en brouillon.

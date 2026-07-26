@@ -13,7 +13,10 @@ debounce sur la saisie et soumission automatique des filtres au changement.
 
 Un brouillon pointe vers son récap éditable ; une facture validée n'est pas
 cliquable tant que l'aperçu mis en forme n'existe pas (tâche suivante).
-Thème facturia (daisyUI).
+L'onglet Brouillons ajoute une colonne Actions avec la suppression (form POST
+par ligne vers `facture_delete`, confirmation navigateur, hidden `retour`
+pour revenir sur la liste dans le même état) — jamais sur les validées,
+immuables. Thème facturia (daisyUI).
 {% endcomment %}
 
 {% block title %}Factures — Factur-IA{% endblock %}
@@ -86,6 +89,7 @@ Thème facturia (daisyUI).
                         <th>Échéance</th>
                         <th class="text-right">Total TTC</th>
                         <th>Type</th>
+                        {% if onglet == 'brouillons' %}<th class="text-right">Actions</th>{% endif %}
                     </tr>
                 </thead>
                 <tbody>
@@ -110,10 +114,23 @@ Thème facturia (daisyUI).
                                 {{ facture.type_facture|default:"facture"|capfirst }}
                             </span>
                         </td>
+                        {% if onglet == 'brouillons' %}
+                        <td class="text-right">
+                            {# Suppression définitive : uniquement les brouillons (une validée est immuable). #}
+                            <form method="post" action="{% url 'facture_delete' facture_id=facture.id %}" class="inline-block"
+                                  onsubmit="return confirm('Supprimer définitivement ce brouillon ({{ facture.nom_destinataire|default:'sans destinataire'|escapejs }}) ? Cette action est irréversible.');">
+                                {% csrf_token %}
+                                <input type="hidden" name="retour" value="{{ current_query }}">
+                                <button type="submit" class="btn btn-ghost btn-sm btn-square text-error" title="Supprimer">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                </button>
+                            </form>
+                        </td>
+                        {% endif %}
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="6" class="text-center text-base-content/60 py-8">
+                        <td colspan="{% if onglet == 'brouillons' %}7{% else %}6{% endif %}" class="text-center text-base-content/60 py-8">
                             {% if onglet == 'brouillons' %}
                                 <p>Aucun brouillon en attente.</p>
                                 <a href="{% url 'upload_document' %}" class="link link-primary text-sm">Déposer un document pour créer une facture</a>

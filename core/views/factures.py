@@ -1,7 +1,8 @@
 """Vues du domaine factures.
 
 Liste des factures en deux onglets (brouillons / validées) avec recherche,
-filtres sur la date d'émission et pagination, et récapitulatif
+filtres sur la date d'émission et pagination, suppression d'un brouillon
+depuis la liste (POST relayant le DELETE, confirmation en amont), et récapitulatif
 human-in-the-loop d'un brouillon : affiche les données extraites par l'OCR
 dans un formulaire éditable, pour relecture et correction avant validation.
 La soumission enregistre les corrections via PATCH /factures/{facture_id}
@@ -76,6 +77,11 @@ _TABS = {
     "validees": "Validée",
 }
 _DEFAULT_TAB = "brouillons"
+
+# Paramètres d'état de la liste des factures (onglet, recherche, filtres,
+# page) : seule cette liste blanche est réencodée dans les redirections de
+# retour vers la liste — jamais une query string arbitraire.
+_LIST_STATE_PARAMS = ("onglet", "q", "date_min", "date_max", "page")
 
 
 def _snapshot_items(snapshot: object) -> list[tuple[str, str]]:
@@ -437,9 +443,90 @@ def factures_list_view(request: HttpRequest) -> HttpResponse:
         "date_max": date_max,
         "base_query": base_querystring(request),
         "tab_query": tab_params.urlencode(),
+        # Query string complète, embarquée par les forms de suppression pour
+        # revenir sur la liste dans le même état.
+        "current_query": request.GET.urlencode(),
         **pagination,
     }
     return render(request, "core/factures.html", context)
+
+
+def _safe_list_query(raw: Any) -> str:
+    """Réencode une query string de retour vers la liste des factures.
+
+    Ne conserve que les paramètres d'état connus (`_LIST_STATE_PARAMS`) : la
+    valeur soumise par le formulaire n'est jamais réutilisée telle quelle
+    dans la redirection.
+
+    Args:
+        raw (Any): Query string soumise (champ hidden `retour`), possiblement
+            absente ou d'une autre forme. Obligatoire.
+
+    Returns:
+        str: Query string urlencodée ne contenant que les paramètres connus,
+        ou chaîne vide.
+    """
+    parsed = QueryDict(raw if isinstance(raw, str) else "")
+    params = QueryDict(mutable=True)
+    for key in _LIST_STATE_PARAMS:
+        value = parsed.get(key)
+        if value:
+            params[key] = value
+    return params.urlencode()
+
+
+def facture_delete_view(request: HttpRequest, facture_id: int) -> HttpResponse:
+    """Supprime un brouillon de facture depuis la liste (POST uniquement).
+
+    Relaie DELETE /factures/{facture_id} via la couche `clients/` (pattern
+    BFF : le navigateur ne touche jamais l'API). La suppression est
+    définitive côté API ; la confirmation est demandée en amont par le
+    formulaire de la liste. Dans tous les cas, redirige vers la liste des
+    factures dans l'état transmis par le champ `retour` (onglet, recherche,
+    filtres, page — réencodé en liste blanche). Un GET ne déclenche rien.
+
+    Args:
+        request (HttpRequest): Requête Django courante. Obligatoire.
+        facture_id (int): Identifiant du brouillon à supprimer. Obligatoire.
+
+    Returns:
+        HttpResponse: Redirection vers la liste des factures (avec message
+        de succès ou d'erreur), ou vers le login si session expirée.
+    """
+    refus = _guard_entreprise(request)
+    if refus:
+        return refus
+
+    query = _safe_list_query(request.POST.get("retour"))
+    list_url = reverse("factures") + (f"?{query}" if query else "")
+
+    if request.method != "POST":
+        return redirect(list_url)
+
+    try:
+        FacturesClient(request).delete_invoice(facture_id)
+    except TokenExpiredError:
+        return redirect("login")
+    except ResourceNotFoundError:
+        messages.error(
+            request, "Brouillon introuvable — il a peut-être déjà été supprimé."
+        )
+    except ResourceConflictError as e:
+        messages.error(
+            request,
+            str(
+                e.detail
+                or "Cette facture a été validée entre-temps : elle ne peut "
+                "plus être supprimée."
+            ),
+        )
+    except APIUnavailableError:
+        messages.error(request, _MSG_INDISPONIBLE)
+    except APIClientError as e:
+        messages.error(request, str(e.message))
+    else:
+        messages.success(request, "Brouillon supprimé.")
+    return redirect(list_url)
 
 
 def facture_recap_view(request: HttpRequest, facture_id: int) -> HttpResponse:
