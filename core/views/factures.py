@@ -34,6 +34,7 @@ from clients.exceptions import (
     TokenExpiredError,
 )
 from clients.factures_client import FacturesClient
+from clients.produits_client import ProduitsClient
 from clients.taux_tva_client import TauxTvaClient
 from core.pagination import (
     PAGE_SIZE,
@@ -265,15 +266,19 @@ def _merge_posted_lines(
     Chaque ligne reprend les champs édités du POST par-dessus la ligne API
     correspondante (les montants calculés restent ceux de l'API), et reçoit
     ses erreurs 422 éventuelles sous la clé `erreurs` pour affichage inline.
+    La ligne API de base est retrouvée par le `ligne-N-id` posté — pas par
+    l'index : après un ajout ou une suppression, les positions ne
+    correspondent plus. Une ligne sans id (nouvelle) part d'une base vide.
     """
     count = _to_int(post.get("lignes_count")) or 0
+    lines_by_id = {
+        ligne.get("id"): ligne
+        for ligne in lignes
+        if isinstance(ligne, dict) and ligne.get("id") is not None
+    }
     merged_lines = []
     for index in range(count):
-        base = (
-            lignes[index]
-            if index < len(lignes) and isinstance(lignes[index], dict)
-            else {}
-        )
+        base = lines_by_id.get(_to_int(post.get(f"ligne-{index}-id"))) or {}
         line = dict(base)
         for field in _LINE_FIELDS:
             line[field] = post.get(f"ligne-{index}-{field}", "")
@@ -715,7 +720,11 @@ def facture_recap_view(request: HttpRequest, facture_id: int) -> HttpResponse:
     (couche `clients/`, isolation tenant, 404 hors tenant) et pré-remplit le
     formulaire de relecture. Le référentiel des taux de TVA alimente un
     select par ligne ; s'il est injoignable, la page dégrade en affichant
-    l'id du taux sans planter.
+    l'id du taux sans planter. Le tableau des lignes (rendu Alpine côté
+    navigateur) permet d'ajouter, pré-remplir depuis le catalogue de
+    produits actifs (chargé ici, sélecteur masqué si indisponible) et
+    supprimer des lignes ; la dernière ligne n'est pas supprimable
+    (`lignes` du contrat impose au moins un élément).
 
     Le rendu porte aussi l'encart « Client destinataire » (le rattachement
     est requis pour valider) : client déjà rattaché (informatif), client du
@@ -832,6 +841,50 @@ def facture_recap_view(request: HttpRequest, facture_id: int) -> HttpResponse:
         return redirect("login")
     except APIClientError:
         taux_tva = []
+    taux_list = taux_tva if isinstance(taux_tva, list) else []
+
+    # Taux pré-sélectionné pour une nouvelle ligne : le premier taux actif du
+    # référentiel, à défaut le premier. Sans référentiel, l'ajout de lignes
+    # est désactivé côté template (impossible de choisir un taux).
+    default_taux_id = next(
+        (t.get("id") for t in taux_list if isinstance(t, dict) and t.get("est_actif")),
+        next((t.get("id") for t in taux_list if isinstance(t, dict)), None),
+    )
+
+    # Catalogue des produits actifs, pour l'ajout de lignes pré-remplies.
+    # Dégradation propre si indisponible : sélecteur masqué, page
+    # fonctionnelle. Seuls les champs utiles au pré-remplissage sont
+    # sérialisés vers le template.
+    produits: list[dict[str, Any]] = []
+    produits_partiel = False
+    try:
+        result_produits = ProduitsClient(request).list_products(
+            est_actif=True, limit=100
+        )
+    except TokenExpiredError:
+        return redirect("login")
+    except APIClientError:
+        pass
+    else:
+        items_produits = (
+            result_produits.get("items") if isinstance(result_produits, dict) else []
+        )
+        produits = [
+            {
+                "id": item.get("id"),
+                "designation": str(item.get("designation") or ""),
+                "reference": str(item.get("reference") or ""),
+                "prix_unitaire_ht": str(item.get("prix_unitaire_ht") or ""),
+                "unite": str(item.get("unite") or ""),
+                "id_taux_tva": item.get("id_taux_tva"),
+            }
+            for item in items_produits or []
+            if isinstance(item, dict) and item.get("id") is not None
+        ]
+        total_produits = (
+            result_produits.get("total") if isinstance(result_produits, dict) else 0
+        )
+        produits_partiel = (_to_int(total_produits) or 0) > len(produits)
 
     lignes = sorted(
         facture.get("lignes") or [], key=lambda ligne: ligne.get("ordre") or 0
@@ -900,7 +953,10 @@ def facture_recap_view(request: HttpRequest, facture_id: int) -> HttpResponse:
     contexte = {
         "facture": facture,
         "lignes": lignes,
-        "taux_tva": taux_tva if isinstance(taux_tva, list) else [],
+        "taux_tva": taux_list,
+        "default_taux_id": default_taux_id,
+        "produits": produits,
+        "produits_partiel": produits_partiel,
         "snapshot_items": _snapshot_items(facture.get("snapshot_client")),
         "erreurs": header_errors,
         "erreurs_globales": global_errors,

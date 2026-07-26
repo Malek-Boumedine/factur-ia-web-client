@@ -5,8 +5,14 @@ Récapitulatif human-in-the-loop d'un brouillon de facture (facture_recap_view).
 Formulaire pré-rempli avec les données extraites par l'OCR, pour relecture et
 correction avant validation. Convention de nommage : en-tête à plat (clés du
 contrat FactureReadWithLignes), lignes préfixées `ligne-N-champ` + hidden
-`ligne-N-id` et `lignes_count`. Les montants calculés par l'API (lignes et
-totaux) et le numéro (généré à la validation) sont en lecture seule.
+`ligne-N-id` et `lignes_count`. Le tableau des lignes est rendu par Alpine
+(composant `lignesFacture`, données sérialisées en json_script) : les `name`
+sont liés à l'index de boucle, si bien qu'ajouter une ligne (vide ou
+pré-remplie depuis le catalogue de produits) ou en supprimer une ré-indexe la
+convention sans trou. La dernière ligne n'est pas supprimable (le contrat
+impose au moins une ligne). Les montants calculés par l'API (lignes et
+totaux, « — » pour une ligne pas encore enregistrée) et le numéro (généré à
+la validation) sont en lecture seule.
 Actions du formulaire récap : « save » (PATCH seul), « validate » (PATCH +
 vérification SIRENE + validation), « attach_client » (PATCH + rattachement du
 client existant) et « sirene_lookup » (PATCH + recherche SIRENE, qui ouvre la
@@ -62,9 +68,9 @@ affichées inline (`erreurs` pour l'en-tête, `ligne.erreurs` par ligne,
         </div>
     {% endif %}
 
-    <form method="post" action="" class="space-y-6">
+    <form method="post" action="" class="space-y-6" x-data="lignesFacture()">
         {% csrf_token %}
-        <input type="hidden" name="lignes_count" value="{{ lignes|length }}">
+        <input type="hidden" name="lignes_count" value="{{ lignes|length }}" :value="lignes.length">
 
         {# --- En-tête : numéro, dates, devise. --- #}
         <div class="bg-base-100 rounded-lg shadow-md border border-base-200 p-6 space-y-4">
@@ -165,79 +171,117 @@ affichées inline (`erreurs` pour l'en-tête, `ligne.erreurs` par ligne,
             </div>
         </div>
 
-        {# --- Lignes extraites, dans l'ordre. Montants calculés : lecture seule. --- #}
+        {# --- Lignes, dans l'ordre du tableau (rendu Alpine, voir le --- #}
+        {# --- commentaire d'en-tête). Montants calculés : lecture seule. --- #}
         <div class="bg-base-100 rounded-lg shadow-md border border-base-200 p-6 space-y-4">
             <h3 class="font-semibold text-base-content/80">Lignes de la facture</h3>
 
-            {% if lignes %}
-                <div class="overflow-x-auto">
-                    <table class="table">
-                        <thead>
+            {# États initiaux rendus côté serveur (pas de flash avant l'init #}
+            {# Alpine), puis pilotés par x-show quand des lignes sont #}
+            {# ajoutées ou supprimées. #}
+            <div role="alert" class="alert alert-warning" x-show="!lignes.length"{% if lignes %} style="display: none"{% endif %}>
+                <span>Aucune ligne n'a été extraite de ce document. Ajoutez-en une avant de valider.</span>
+            </div>
+
+            <div class="overflow-x-auto" x-show="lignes.length"{% if not lignes %} style="display: none"{% endif %}>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th class="min-w-48">Désignation</th>
+                            <th class="min-w-20">Quantité</th>
+                            <th class="min-w-20">Unité</th>
+                            <th class="min-w-24">PU HT</th>
+                            <th class="min-w-40">TVA</th>
+                            <th class="text-right">HT</th>
+                            <th class="text-right">TVA</th>
+                            <th class="text-right">TTC</th>
+                            <th><span class="sr-only">Actions</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template x-for="(ligne, index) in lignes" :key="ligne._uid">
                             <tr>
-                                <th class="min-w-48">Désignation</th>
-                                <th class="min-w-20">Quantité</th>
-                                <th class="min-w-20">Unité</th>
-                                <th class="min-w-24">PU HT</th>
-                                <th class="min-w-40">TVA</th>
-                                <th class="text-right">HT</th>
-                                <th class="text-right">TVA</th>
-                                <th class="text-right">TTC</th>
+                                <td>
+                                    <input type="hidden" :name="'ligne-' + index + '-id'" :value="ligne.id">
+                                    <input type="text" :name="'ligne-' + index + '-designation'" required maxlength="255"
+                                           x-model="ligne.designation" class="input input-sm w-full" :class="{ 'input-error': ligne.erreurs.designation }">
+                                    <p class="text-error text-xs mt-1" x-show="ligne.erreurs.designation" x-text="ligne.erreurs.designation"></p>
+                                </td>
+                                <td>
+                                    <input type="text" :name="'ligne-' + index + '-quantite'" inputmode="decimal"
+                                           x-model="ligne.quantite" class="input input-sm w-full" :class="{ 'input-error': ligne.erreurs.quantite }">
+                                    <p class="text-error text-xs mt-1" x-show="ligne.erreurs.quantite" x-text="ligne.erreurs.quantite"></p>
+                                </td>
+                                <td>
+                                    <input type="text" :name="'ligne-' + index + '-unite'" maxlength="50"
+                                           x-model="ligne.unite" class="input input-sm w-full" :class="{ 'input-error': ligne.erreurs.unite }">
+                                    <p class="text-error text-xs mt-1" x-show="ligne.erreurs.unite" x-text="ligne.erreurs.unite"></p>
+                                </td>
+                                <td>
+                                    <input type="text" :name="'ligne-' + index + '-prix_unitaire_ht'" inputmode="decimal"
+                                           x-model="ligne.prix_unitaire_ht" class="input input-sm w-full" :class="{ 'input-error': ligne.erreurs.prix_unitaire_ht }">
+                                    <p class="text-error text-xs mt-1" x-show="ligne.erreurs.prix_unitaire_ht" x-text="ligne.erreurs.prix_unitaire_ht"></p>
+                                </td>
+                                <td>
+                                    {% if taux_tva %}
+                                        <select :name="'ligne-' + index + '-id_taux_tva'" x-model="ligne.id_taux_tva"
+                                                class="select select-sm w-full" :class="{ 'select-error': ligne.erreurs.id_taux_tva }">
+                                            {% for taux in taux_tva %}
+                                                <option value="{{ taux.id }}">
+                                                    {{ taux.taux }} % — {{ taux.libelle }}{% if not taux.est_actif %} (inactif){% endif %}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                        <p class="text-error text-xs mt-1" x-show="ligne.erreurs.id_taux_tva" x-text="ligne.erreurs.id_taux_tva"></p>
+                                    {% else %}
+                                        {# Référentiel TVA indisponible : id conservé, champ non éditable. #}
+                                        <input type="hidden" :name="'ligne-' + index + '-id_taux_tva'" :value="ligne.id_taux_tva">
+                                        <input type="text" :value="'Taux n° ' + ligne.id_taux_tva" disabled class="input input-sm w-full">
+                                    {% endif %}
+                                </td>
+                                <td class="text-right whitespace-nowrap" x-text="ligne.montant_ht ?? '—'"></td>
+                                <td class="text-right whitespace-nowrap" x-text="ligne.montant_tva ?? '—'"></td>
+                                <td class="text-right whitespace-nowrap font-medium" x-text="ligne.montant_ttc ?? '—'"></td>
+                                <td class="text-right">
+                                    <button type="button" class="btn btn-ghost btn-xs text-error" @click="removeLigne(index)"
+                                            :disabled="lignes.length <= 1" aria-label="Supprimer la ligne"
+                                            :title="lignes.length <= 1 ? 'Une facture doit contenir au moins une ligne' : 'Supprimer la ligne'">✕</button>
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            {% for ligne in lignes %}
-                                <tr>
-                                    <td>
-                                        <input type="hidden" name="ligne-{{ forloop.counter0 }}-id" value="{{ ligne.id }}">
-                                        <input type="text" name="ligne-{{ forloop.counter0 }}-designation" required maxlength="255"
-                                               value="{{ ligne.designation|default:'' }}" class="input input-sm w-full{% if ligne.erreurs.designation %} input-error{% endif %}">
-                                        {% if ligne.erreurs.designation %}<p class="text-error text-xs mt-1">{{ ligne.erreurs.designation }}</p>{% endif %}
-                                    </td>
-                                    <td>
-                                        <input type="text" name="ligne-{{ forloop.counter0 }}-quantite" inputmode="decimal"
-                                               value="{{ ligne.quantite|default:'' }}" class="input input-sm w-full{% if ligne.erreurs.quantite %} input-error{% endif %}">
-                                        {% if ligne.erreurs.quantite %}<p class="text-error text-xs mt-1">{{ ligne.erreurs.quantite }}</p>{% endif %}
-                                    </td>
-                                    <td>
-                                        <input type="text" name="ligne-{{ forloop.counter0 }}-unite" maxlength="50"
-                                               value="{{ ligne.unite|default:'' }}" class="input input-sm w-full{% if ligne.erreurs.unite %} input-error{% endif %}">
-                                        {% if ligne.erreurs.unite %}<p class="text-error text-xs mt-1">{{ ligne.erreurs.unite }}</p>{% endif %}
-                                    </td>
-                                    <td>
-                                        <input type="text" name="ligne-{{ forloop.counter0 }}-prix_unitaire_ht" inputmode="decimal"
-                                               value="{{ ligne.prix_unitaire_ht|default:'' }}" class="input input-sm w-full{% if ligne.erreurs.prix_unitaire_ht %} input-error{% endif %}">
-                                        {% if ligne.erreurs.prix_unitaire_ht %}<p class="text-error text-xs mt-1">{{ ligne.erreurs.prix_unitaire_ht }}</p>{% endif %}
-                                    </td>
-                                    <td>
-                                        {% if taux_tva %}
-                                            <select name="ligne-{{ forloop.counter0 }}-id_taux_tva" class="select select-sm w-full{% if ligne.erreurs.id_taux_tva %} select-error{% endif %}">
-                                                {% for taux in taux_tva %}
-                                                    <option value="{{ taux.id }}" {% if taux.id == ligne.id_taux_tva %}selected{% endif %}>
-                                                        {{ taux.taux }} % — {{ taux.libelle }}{% if not taux.est_actif %} (inactif){% endif %}
-                                                    </option>
-                                                {% endfor %}
-                                            </select>
-                                            {% if ligne.erreurs.id_taux_tva %}<p class="text-error text-xs mt-1">{{ ligne.erreurs.id_taux_tva }}</p>{% endif %}
-                                        {% else %}
-                                            {# Référentiel TVA indisponible : id conservé, champ non éditable. #}
-                                            <input type="hidden" name="ligne-{{ forloop.counter0 }}-id_taux_tva" value="{{ ligne.id_taux_tva }}">
-                                            <input type="text" value="Taux n° {{ ligne.id_taux_tva }}" disabled class="input input-sm w-full">
-                                        {% endif %}
-                                    </td>
-                                    <td class="text-right whitespace-nowrap">{{ ligne.montant_ht }}</td>
-                                    <td class="text-right whitespace-nowrap">{{ ligne.montant_tva }}</td>
-                                    <td class="text-right whitespace-nowrap font-medium">{{ ligne.montant_ttc }}</td>
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+
+            {# Ajout de lignes : impossible sans référentiel TVA (aucun taux à #}
+            {# affecter à la nouvelle ligne). Sélecteur catalogue masqué si le #}
+            {# catalogue est vide ou indisponible. #}
+            {% if taux_tva %}
+                <div class="flex flex-wrap items-center gap-2">
+                    <button type="button" class="btn btn-outline btn-primary btn-sm" @click="addLigne()">+ Ajouter une ligne</button>
+                    {% if produits %}
+                        <div class="join">
+                            <select x-model="selectedProduit" class="select select-sm join-item" aria-label="Produit du catalogue">
+                                <option value="">Choisir un produit du catalogue…</option>
+                                {% for produit in produits %}
+                                    <option value="{{ produit.id }}">{{ produit.designation }} — {{ produit.prix_unitaire_ht }} € HT{% if produit.reference %} ({{ produit.reference }}){% endif %}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="button" class="btn btn-outline btn-primary btn-sm join-item" :disabled="!selectedProduit"
+                                    @click="addFromCatalogue()">Ajouter du catalogue</button>
+                        </div>
+                    {% endif %}
                 </div>
-                <p class="text-xs text-base-content/50">Les montants par ligne et les totaux sont recalculés automatiquement lors de la validation.</p>
+                {% if produits_partiel %}
+                    <p class="text-xs text-base-content/50">Liste partielle : seuls les 100 premiers produits actifs du catalogue sont proposés.</p>
+                {% endif %}
             {% else %}
-                <div role="alert" class="alert alert-warning">
-                    <span>Aucune ligne n'a été extraite de ce document.</span>
-                </div>
+                <p class="text-xs text-base-content/50">L'ajout de lignes est indisponible : le référentiel des taux de TVA est injoignable.</p>
             {% endif %}
+
+            <p class="text-xs text-base-content/50" x-show="lignes.length"{% if not lignes %} style="display: none"{% endif %}>
+                Les montants par ligne et les totaux sont recalculés automatiquement lors de l'enregistrement.
+            </p>
 
             {# --- Totaux (lecture seule). --- #}
             <div class="flex justify-end">
@@ -359,5 +403,73 @@ affichées inline (`erreurs` pour l'en-tête, `ligne.erreurs` par ligne,
             <a href="{% url 'facture_recap' facture_id=facture.id %}" class="modal-backdrop" aria-label="Fermer"></a>
         </dialog>
     {% endif %}
+
+    {# Données du composant lignesFacture, sérialisées côté serveur. #}
+    {{ lignes|json_script:"lignes-data" }}
+    {{ produits|json_script:"produits-data" }}
+    {{ default_taux_id|json_script:"default-taux-data" }}
 </div>
+
+<script>
+// Composant Alpine du formulaire récap : tableau des lignes rendu côté
+// navigateur (x-for) depuis les données sérialisées par la vue. Les `name`
+// des champs sont liés à l'index de boucle : ajouter ou supprimer une ligne
+// ré-indexe d'elle-même la convention `ligne-N-champ` sans trou, et le
+// hidden `lignes_count` suit la longueur du tableau.
+function lignesFacture() {
+    const read = (id) => JSON.parse(document.getElementById(id).textContent);
+    // Une ligne ne garde que les champs utilisés par le formulaire, avec des
+    // chaînes vides à la place des null (iso-rendu avec |default:'').
+    const normalize = (ligne) => ({
+        id: ligne.id ?? "",
+        designation: ligne.designation ?? "",
+        quantite: ligne.quantite ?? "",
+        unite: ligne.unite ?? "",
+        prix_unitaire_ht: ligne.prix_unitaire_ht ?? "",
+        id_taux_tva: ligne.id_taux_tva ?? "",
+        montant_ht: ligne.montant_ht ?? null,
+        montant_tva: ligne.montant_tva ?? null,
+        montant_ttc: ligne.montant_ttc ?? null,
+        erreurs: ligne.erreurs || {},
+    });
+
+    return {
+        lignes: [],
+        produits: read("produits-data"),
+        defaultTauxId: read("default-taux-data"),
+        selectedProduit: "",
+        // Clé x-for stable par ligne : sans elle, une suppression au milieu
+        // ferait réutiliser les <tr> existants (valeurs mélangées).
+        uid: 0,
+
+        init() {
+            this.lignes = read("lignes-data").map((ligne) => this.withUid(normalize(ligne)));
+        },
+
+        withUid(ligne) {
+            return { ...ligne, _uid: this.uid++ };
+        },
+
+        addLigne(produit = null) {
+            this.lignes.push(this.withUid(normalize({
+                quantite: "1",
+                designation: produit ? produit.designation : "",
+                unite: produit ? produit.unite : "",
+                prix_unitaire_ht: produit ? produit.prix_unitaire_ht : "",
+                id_taux_tva: produit ? produit.id_taux_tva : this.defaultTauxId,
+            })));
+        },
+
+        addFromCatalogue() {
+            const produit = this.produits.find((p) => String(p.id) === String(this.selectedProduit));
+            if (produit) this.addLigne(produit);
+            this.selectedProduit = "";
+        },
+
+        removeLigne(index) {
+            if (this.lignes.length > 1) this.lignes.splice(index, 1);
+        },
+    };
+}
+</script>
 {% endblock content %}
