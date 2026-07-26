@@ -13,12 +13,14 @@ convention sans trou. La dernière ligne n'est pas supprimable (le contrat
 impose au moins une ligne). Les montants calculés par l'API (lignes et
 totaux, « — » pour une ligne pas encore enregistrée) et le numéro (généré à
 la validation) sont en lecture seule.
-Actions du formulaire récap : « save » (PATCH seul), « validate » (PATCH +
-vérification SIRENE + validation), « attach_client » (PATCH + rattachement du
-client existant) et « sirene_lookup » (PATCH + recherche SIRENE, qui ouvre la
-fenêtre de création du client — formulaire séparé, action « create_attach »),
-plus un lien « Annuler » (pure navigation vers la liste des brouillons, rien
-n'est enregistré). Les erreurs 422 sont
+Actions du formulaire récap : « save » (PATCH puis redirection vers la liste,
+onglet brouillons), « validate » (PATCH + vérification SIRENE + validation),
+« attach_client » (PATCH + rattachement du client existant) et
+« sirene_lookup » (PATCH + recherche SIRENE, qui ouvre la fenêtre de création
+du client — formulaire séparé, action « create_attach »), plus un lien
+« Revenir à la liste » (pure navigation, rien n'est enregistré — le brouillon
+reste dans l'onglet Brouillons) et un bouton « Supprimer le brouillon »
+(formulaire séparé vers facture_delete, avec confirmation). Les erreurs 422 sont
 affichées inline (`erreurs` pour l'en-tête, `ligne.erreurs` par ligne,
 `erreurs_globales` sinon). Thème facturia (daisyUI).
 {% endcomment %}
@@ -332,14 +334,29 @@ affichées inline (`erreurs` pour l'en-tête, `ligne.erreurs` par ligne,
             </div>
         </div>
 
-        {# Deux actions : « save » enregistre le brouillon (bouton par défaut à #}
-        {# la touche Entrée), « validate » enregistre puis valide avec #}
-        {# vérification SIRENE non bloquante du SIRET destinataire. #}
+        {# Deux actions : « save » enregistre le brouillon puis redirige vers #}
+        {# la liste (onglet brouillons, bouton par défaut à la touche Entrée), #}
+        {# « validate » enregistre puis valide avec vérification SIRENE non #}
+        {# bloquante du SIRET destinataire. Le bouton « Supprimer le #}
+        {# brouillon » (destructif, isolé à gauche) est rattaché via #}
+        {# l'attribut `form` au formulaire séparé déclaré plus bas — un form #}
+        {# ne peut pas être imbriqué dans le form du récap. #}
         <div class="flex flex-wrap justify-end gap-2">
-            <a href="{% url 'factures' %}?onglet=brouillons" class="btn btn-ghost">Annuler</a>
+            <button type="submit" form="delete-brouillon-form" class="btn btn-outline btn-error mr-auto">Supprimer le brouillon</button>
+            <a href="{% url 'factures' %}?onglet=brouillons" class="btn btn-ghost">Revenir à la liste</a>
             <button type="submit" name="action" value="save" class="btn btn-outline btn-primary">Enregistrer le brouillon</button>
             <button type="submit" name="action" value="validate" class="btn btn-primary">Valider la facture</button>
         </div>
+    </form>
+
+    {# --- Suppression du brouillon : formulaire séparé (POST vers #}
+    {# facture_delete, confirmation navigateur, retour vers l'onglet #}
+    {# brouillons). Déclaré hors du form du récap, son bouton vit dans la #}
+    {# barre d'actions via l'attribut `form`. --- #}
+    <form id="delete-brouillon-form" method="post" action="{% url 'facture_delete' facture_id=facture.id %}"
+          onsubmit="return confirm('Supprimer définitivement ce brouillon ? Cette action est irréversible.');">
+        {% csrf_token %}
+        <input type="hidden" name="retour" value="onglet=brouillons">
     </form>
 
     {# --- Fenêtre SIRENE : création du client destinataire. Formulaire séparé #}

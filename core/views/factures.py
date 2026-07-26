@@ -734,7 +734,8 @@ def facture_recap_view(request: HttpRequest, facture_id: int) -> HttpResponse:
     POST : reconstruit le payload FactureUpdate depuis la convention de
     nommage (en-tête à plat, lignes en `ligne-N-champ` + `lignes_count`) et
     enregistre les corrections via PATCH. Selon l'action soumise :
-    « save » reste sur le récap (message de succès), « validate » enchaîne
+    « save » redirige vers la liste des factures, onglet brouillons (le
+    message de succès s'affiche sur la liste), « validate » enchaîne
     vérification SIRENE non bloquante puis validation du brouillon,
     « attach_client » ajoute `id_client` au même PATCH (rattachement et
     corrections d'un coup), « sirene_lookup » enchaîne la recherche SIRENE
@@ -816,7 +817,7 @@ def facture_recap_view(request: HttpRequest, facture_id: int) -> HttpResponse:
             if action == "sirene_lookup":
                 return _handle_sirene_lookup_action(request, facture_id)
             messages.success(request, "Brouillon enregistré.")
-            return redirect("facture_recap", facture_id=facture_id)
+            return redirect(reverse("factures") + "?onglet=brouillons")
 
     try:
         facture = FacturesClient(request).get_facture(facture_id)
