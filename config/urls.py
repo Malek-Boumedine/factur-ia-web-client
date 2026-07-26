@@ -57,7 +57,7 @@ from core.views.documents import (
     upload_document_view,
 )
 from core.views.equipe import equipe_view
-from core.views.factures import facture_recap_view
+from core.views.factures import facture_recap_view, factures_list_view
 from core.views.home import home_view
 from core.views.profil import profil_view
 from core.views.taux_tva import (
@@ -175,6 +175,7 @@ urlpatterns = [
         document_status_view,
         name="document_statut",
     ),
+    path("factures/", factures_list_view, name="factures"),
     path(
         "factures/<int:facture_id>/recap/",
         facture_recap_view,

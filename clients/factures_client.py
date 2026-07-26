@@ -2,6 +2,8 @@
 
 Couvre le domaine `factures` de l'API :
 
+- GET /factures/ : liste paginée avec recherche et filtres (enveloppe
+  Page[FactureListItem]).
 - POST /factures/ : création d'une facture en brouillon (schéma FactureCreate).
 - GET /factures/{facture_id} : détail d'une facture avec ses lignes
   (schéma FactureReadWithLignes), utilisé par le récap human-in-the-loop.
@@ -9,8 +11,6 @@ Couvre le domaine `factures` de l'API :
   FactureUpdate), en-tête et remplacement complet des lignes.
 - POST /factures/{facture_id}/valider : validation d'un brouillon.
 - POST /factures/{facture_id}/avoir : génération d'un avoir.
-
-La liste des factures n'est pas encore exposée par le contrat.
 """
 
 from typing import Any
@@ -23,9 +23,72 @@ class FacturesClient(BaseAPIClient):
 
     Hérite de `BaseAPIClient` et réutilise ses méthodes HTTP ; le JWT et le
     header `x-entreprise-id` sont injectés automatiquement depuis la session.
-    Couvre la création de brouillon, le détail avec lignes, la validation et
-    la génération d'avoir (la liste des factures n'est pas encore exposée).
+    Couvre la liste paginée, la création de brouillon, le détail avec lignes,
+    la modification d'un brouillon, la validation et la génération d'avoir.
     """
+
+    def list_invoices(
+        self,
+        search: str | None = None,
+        statut: str | None = None,
+        type_facture: str | None = None,
+        id_client: int | None = None,
+        date_emission_min: str | None = None,
+        date_emission_max: str | None = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> Any:
+        """Liste paginée des factures de l'entreprise active.
+
+        Appelle GET /factures/ (enveloppe `Page[FactureListItem]` de la forme
+        ``{"items": [...], "total": N, "skip": ..., "limit": ...}``), les plus
+        récentes d'abord. Chaque item expose `nom_destinataire`, déjà résolu
+        par l'API (snapshot figé pour une facture validée, raison sociale du
+        client lié pour un brouillon). Les paramètres optionnels ne sont
+        transmis en query string que lorsqu'ils sont fournis.
+
+        Args:
+            search (str | None): Recherche sur le numéro de facture, la
+                référence de commande ou la raison sociale du client.
+                Optionnel.
+            statut (str | None): Filtre sur le libellé du statut
+                (ex. « Brouillon », « Validée »). Optionnel.
+            type_facture (str | None): Filtre sur le type de document
+                (« facture » ou « avoir »). Optionnel.
+            id_client (int | None): Filtre sur le client destinataire.
+                Optionnel.
+            date_emission_min (str | None): Borne basse (incluse) sur la date
+                d'émission, au format ISO `AAAA-MM-JJ`. Optionnel.
+            date_emission_max (str | None): Borne haute (incluse) sur la date
+                d'émission, au format ISO `AAAA-MM-JJ`. Optionnel.
+            skip (int): Décalage de pagination (offset). Défaut 0.
+            limit (int): Nombre maximum d'éléments à renvoyer (max 100 côté
+                API). Défaut 100.
+
+        Returns:
+            dict: L'enveloppe paginée `Page[FactureListItem]` renvoyée par
+            l'API, avec les clés `items` (liste) et `total` (nombre total,
+            tous filtres appliqués).
+
+        Raises:
+            TokenExpiredError: En cas de réponse 401.
+            APIClientError: Toute autre erreur API mappée (422 validation,
+                5xx serveur) ou API injoignable (APIUnavailableError).
+        """
+        params: dict[str, Any] = {"skip": skip, "limit": limit}
+        if search:
+            params["search"] = search
+        if statut:
+            params["statut"] = statut
+        if type_facture:
+            params["type_facture"] = type_facture
+        if id_client is not None:
+            params["id_client"] = id_client
+        if date_emission_min:
+            params["date_emission_min"] = date_emission_min
+        if date_emission_max:
+            params["date_emission_max"] = date_emission_max
+        return self.get("/factures/", params=params)
 
     def get_facture(self, facture_id: int) -> Any:
         """Récupère le détail d'une facture avec ses lignes.

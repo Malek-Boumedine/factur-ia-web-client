@@ -1,11 +1,13 @@
 """Vues du domaine factures.
 
-Récapitulatif human-in-the-loop d'un brouillon de facture : affiche les
-données extraites par l'OCR dans un formulaire éditable, pour relecture et
-correction avant validation. La soumission enregistre les corrections via
-PATCH /factures/{facture_id} (en-tête + remplacement complet des lignes),
-puis, selon l'action choisie, valide le brouillon avec une vérification
-SIRENE non bloquante du SIRET destinataire.
+Liste des factures en deux onglets (brouillons / validées) avec recherche,
+filtres sur la date d'émission et pagination, et récapitulatif
+human-in-the-loop d'un brouillon : affiche les données extraites par l'OCR
+dans un formulaire éditable, pour relecture et correction avant validation.
+La soumission enregistre les corrections via PATCH /factures/{facture_id}
+(en-tête + remplacement complet des lignes), puis, selon l'action choisie,
+valide le brouillon avec une vérification SIRENE non bloquante du SIRET
+destinataire.
 """
 
 from typing import Any
@@ -13,6 +15,7 @@ from typing import Any
 from django.contrib import messages
 from django.http import HttpRequest, HttpResponse, QueryDict
 from django.shortcuts import redirect, render
+from django.urls import reverse
 
 from clients.clients_client import ClientsClient
 from clients.exceptions import (
@@ -25,6 +28,12 @@ from clients.exceptions import (
 )
 from clients.factures_client import FacturesClient
 from clients.taux_tva_client import TauxTvaClient
+from core.pagination import (
+    PAGE_SIZE,
+    base_querystring,
+    build_pagination,
+    parse_page,
+)
 from core.views.auth import _MSG_INDISPONIBLE, _guard_entreprise
 
 # Champs usuels d'un snapshot client (objet libre du contrat) et leurs
@@ -59,6 +68,14 @@ _EDITABLE_HEADER_FIELDS = (
 # Champs éditables d'une ligne (préfixés `ligne-N-` dans le formulaire),
 # alignés sur le schéma FactureLigneCreate.
 _LINE_FIELDS = ("designation", "quantite", "unite", "prix_unitaire_ht", "id_taux_tva")
+
+# Onglets de la liste des factures : valeur du query param `onglet` -> libellé
+# de statut attendu par l'API (query param `statut` de GET /factures/).
+_TABS = {
+    "brouillons": "Brouillon",
+    "validees": "Validée",
+}
+_DEFAULT_TAB = "brouillons"
 
 
 def _snapshot_items(snapshot: object) -> list[tuple[str, str]]:
@@ -305,8 +322,9 @@ def _handle_validate_action(request: HttpRequest, facture_id: int) -> HttpRespon
         facture_id (int): Identifiant du brouillon à valider. Obligatoire.
 
     Returns:
-        HttpResponse: Redirection vers le dépôt en cas de succès, vers le
-        récap si la validation échoue, vers le login si session expirée.
+        HttpResponse: Redirection vers la liste des factures (onglet
+        validées) en cas de succès, vers le récap si la validation échoue,
+        vers le login si session expirée.
     """
     saved_note = "Vos corrections ont bien été enregistrées sur le brouillon."
     try:
@@ -340,8 +358,88 @@ def _handle_validate_action(request: HttpRequest, facture_id: int) -> HttpRespon
     else:
         messages.success(request, "Facture validée.")
     # TODO: rediriger vers l'aperçu de la facture mise en forme quand la vue
-    # existera (tâche suivante) ; le dépôt sert de destination provisoire.
-    return redirect("upload_document")
+    # existera (tâche suivante).
+    return redirect(reverse("factures") + "?onglet=validees")
+
+
+def factures_list_view(request: HttpRequest) -> HttpResponse:
+    """Affiche la liste paginée des factures, en deux onglets.
+
+    L'onglet actif (query param `onglet` : « brouillons » par défaut, ou
+    « validees ») pilote le filtre `statut` envoyé à GET /factures/. La
+    recherche `q` (numéro, référence de commande ou raison sociale, déléguée
+    à l'API) et les bornes `date_min`/`date_max` sur la date d'émission
+    s'appliquent à l'onglet actif ; l'état complet est porté par l'URL, la
+    page est donc partageable et rechargeable. La pagination réutilise
+    `core.pagination` (les liens de page conservent onglet, recherche et
+    filtres via `base_query`) ; les liens d'onglets conservent recherche et
+    filtres mais repartent en première page (`tab_query`).
+
+    Args:
+        request (HttpRequest): Requête Django courante. Obligatoire.
+
+    Returns:
+        HttpResponse: Rendu de la liste (vide avec message d'erreur si l'API
+        est indisponible), ou redirection vers le login si session expirée.
+    """
+    refus = _guard_entreprise(request)
+    if refus:
+        return refus
+
+    tab = request.GET.get("onglet", _DEFAULT_TAB)
+    if tab not in _TABS:
+        tab = _DEFAULT_TAB
+    search = request.GET.get("q", "").strip()
+    date_min = request.GET.get("date_min", "").strip()
+    date_max = request.GET.get("date_max", "").strip()
+    page = parse_page(request.GET.get("page"))
+    skip = (page - 1) * PAGE_SIZE
+
+    items: list = []
+    total = 0
+    try:
+        result = FacturesClient(request).list_invoices(
+            search=search or None,
+            statut=_TABS[tab],
+            date_emission_min=date_min or None,
+            date_emission_max=date_max or None,
+            skip=skip,
+            limit=PAGE_SIZE,
+        )
+        if isinstance(result, dict):
+            items = result.get("items", [])
+            total = result.get("total", 0)
+    except TokenExpiredError:
+        return redirect("login")
+    except APIUnavailableError:
+        messages.error(request, _MSG_INDISPONIBLE)
+    except APIClientError as e:
+        messages.error(
+            request, f"Erreur lors du chargement des factures ({e.status_code})."
+        )
+
+    pagination = build_pagination(page, total)
+
+    # Query string des liens d'onglets : recherche et filtres conservés,
+    # onglet et page retirés (chaque lien fixe son onglet et repart en
+    # première page).
+    tab_params = request.GET.copy()
+    tab_params.pop("onglet", None)
+    tab_params.pop("page", None)
+
+    context = {
+        "items": items,
+        "total": total,
+        "onglet": tab,
+        # Valeurs courantes des filtres, pour ré-afficher l'état du formulaire.
+        "search": search,
+        "date_min": date_min,
+        "date_max": date_max,
+        "base_query": base_querystring(request),
+        "tab_query": tab_params.urlencode(),
+        **pagination,
+    }
+    return render(request, "core/factures.html", context)
 
 
 def facture_recap_view(request: HttpRequest, facture_id: int) -> HttpResponse:

@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% comment %}
+Liste des factures en deux onglets : « Brouillons » et « Factures validées ».
+
+L'état est porté par les query params de l'URL (onglet `onglet`, recherche
+`q`, bornes `date_min`/`date_max` sur la date d'émission, page `page`) — la
+page est donc partageable et rechargeable. Les liens d'onglets conservent
+recherche et filtres (`tab_query`) mais repartent en première page ; les
+liens de pagination conservent tout (`base_query`). Le formulaire fonctionne
+sans JavaScript (soumission GET classique) ; Alpine n'ajoute qu'un confort :
+debounce sur la saisie et soumission automatique des filtres au changement.
+
+Un brouillon pointe vers son récap éditable ; une facture validée n'est pas
+cliquable tant que l'aperçu mis en forme n'existe pas (tâche suivante).
+Thème facturia (daisyUI).
+{% endcomment %}
+
+{% block title %}Factures — Factur-IA{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-6">
+
+    {% if messages %}
+        <div class="space-y-2">
+            {% for message in messages %}
+                <div role="alert" class="alert {% if message.tags == 'error' %}alert-error{% elif message.tags == 'info' %}alert-info{% elif message.tags == 'warning' %}alert-warning{% else %}alert-success{% endif %}">
+                    <span>{{ message }}</span>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="flex justify-between items-center bg-base-100 rounded-t-lg shadow-sm p-4 border-b border-base-300">
+        <div class="flex items-center gap-3">
+            <h2 class="text-xl font-bold">Factures</h2>
+            <span class="text-sm text-base-content/60">{{ total }} facture{{ total|pluralize }}</span>
+        </div>
+        <a href="{% url 'upload_document' %}" class="btn btn-primary">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            Déposer un document
+        </a>
+    </div>
+
+    {# Onglets : recherche et filtres conservés, pagination réinitialisée. #}
+    <div role="tablist" class="tabs tabs-border">
+        <a role="tab" href="{% url 'factures' %}?onglet=brouillons{% if tab_query %}&{{ tab_query }}{% endif %}"
+           class="tab{% if onglet == 'brouillons' %} tab-active{% endif %}">Brouillons</a>
+        <a role="tab" href="{% url 'factures' %}?onglet=validees{% if tab_query %}&{{ tab_query }}{% endif %}"
+           class="tab{% if onglet == 'validees' %} tab-active{% endif %}">Factures validées</a>
+    </div>
+
+    {# Barre de recherche et filtres — un seul formulaire GET, onglet préservé. #}
+    <form method="get" class="bg-base-100 rounded-lg shadow-sm border border-base-200 p-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+        <input type="hidden" name="onglet" value="{{ onglet }}">
+        <div class="flex-1">
+            <label for="q" class="block text-sm font-medium mb-1">Recherche</label>
+            <input type="search" id="q" name="q" value="{{ search }}"
+                   placeholder="Numéro, référence de commande ou client…"
+                   class="input w-full"
+                   x-on:input.debounce.400ms="$el.form.requestSubmit()">
+        </div>
+        <div class="sm:w-44">
+            <label for="date_min" class="block text-sm font-medium mb-1">Émise à partir du</label>
+            <input type="date" id="date_min" name="date_min" value="{{ date_min }}"
+                   class="input w-full"
+                   x-on:change="$el.form.requestSubmit()">
+        </div>
+        <div class="sm:w-44">
+            <label for="date_max" class="block text-sm font-medium mb-1">Émise jusqu'au</label>
+            <input type="date" id="date_max" name="date_max" value="{{ date_max }}"
+                   class="input w-full"
+                   x-on:change="$el.form.requestSubmit()">
+        </div>
+        <button type="submit" class="btn btn-primary">Rechercher</button>
+    </form>
+
+    <div class="bg-base-100 rounded-lg shadow-md border border-base-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Numéro</th>
+                        <th>Destinataire</th>
+                        <th>Émission</th>
+                        <th>Échéance</th>
+                        <th class="text-right">Total TTC</th>
+                        <th>Type</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for facture in items %}
+                    <tr class="hover">
+                        <td class="font-medium">
+                            {% if onglet == 'brouillons' %}
+                                <a href="{% url 'facture_recap' facture_id=facture.id %}" class="link link-hover">
+                                    {% if facture.numero_facture %}{{ facture.numero_facture }}{% else %}<span class="badge badge-ghost">Brouillon</span>{% endif %}
+                                </a>
+                            {% else %}
+                                {# TODO: pointer vers l'aperçu mis en forme quand la vue existera (tâche suivante). #}
+                                {% if facture.numero_facture %}{{ facture.numero_facture }}{% else %}<span class="badge badge-ghost">Brouillon</span>{% endif %}
+                            {% endif %}
+                        </td>
+                        <td class="text-base-content/70">{{ facture.nom_destinataire|default:"—" }}</td>
+                        <td class="text-base-content/70">{{ facture.date_emission|default:"—" }}</td>
+                        <td class="text-base-content/70">{{ facture.date_echeance|default:"—" }}</td>
+                        <td class="text-right whitespace-nowrap font-medium">{{ facture.total_ttc }} {{ facture.devise|default:"EUR" }}</td>
+                        <td>
+                            <span class="badge {% if facture.type_facture == 'avoir' %}badge-secondary{% else %}badge-primary{% endif %} badge-outline">
+                                {{ facture.type_facture|default:"facture"|capfirst }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-base-content/60 py-8">
+                            {% if onglet == 'brouillons' %}
+                                <p>Aucun brouillon en attente.</p>
+                                <a href="{% url 'upload_document' %}" class="link link-primary text-sm">Déposer un document pour créer une facture</a>
+                            {% else %}
+                                <p>Aucune facture validée.</p>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% include "core/partials/pagination.html" %}
+</div>
+{% endblock content %}
