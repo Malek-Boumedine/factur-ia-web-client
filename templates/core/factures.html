@@ -11,8 +11,8 @@ liens de pagination conservent tout (`base_query`). Le formulaire fonctionne
 sans JavaScript (soumission GET classique) ; Alpine n'ajoute qu'un confort :
 debounce sur la saisie et soumission automatique des filtres au changement.
 
-Un brouillon pointe vers son récap éditable ; une facture validée n'est pas
-cliquable tant que l'aperçu mis en forme n'existe pas (tâche suivante).
+Un brouillon pointe vers son récap éditable ; une facture validée pointe
+vers son aperçu mis en forme (facture_apercu, lecture seule).
 L'onglet Brouillons ajoute une colonne Actions avec la suppression (form POST
 par ligne vers `facture_delete`, confirmation navigateur, hidden `retour`
 pour revenir sur la liste dans le même état) — jamais sur les validées,
@@ -101,8 +101,9 @@ immuables. Thème facturia (daisyUI).
                                     {% if facture.numero_facture %}{{ facture.numero_facture }}{% else %}<span class="badge badge-ghost">Brouillon</span>{% endif %}
                                 </a>
                             {% else %}
-                                {# TODO: pointer vers l'aperçu mis en forme quand la vue existera (tâche suivante). #}
-                                {% if facture.numero_facture %}{{ facture.numero_facture }}{% else %}<span class="badge badge-ghost">Brouillon</span>{% endif %}
+                                <a href="{% url 'facture_apercu' facture_id=facture.id %}" class="link link-hover">
+                                    {% if facture.numero_facture %}{{ facture.numero_facture }}{% else %}<span class="badge badge-ghost">Brouillon</span>{% endif %}
+                                </a>
                             {% endif %}
                         </td>
                         <td class="text-base-content/70">{{ facture.nom_destinataire|default:"—" }}</td>

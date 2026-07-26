@@ -15,6 +15,11 @@ valider) : si le brouillon n'a pas d'`id_client`, un encart propose de
 rattacher un client existant trouvé par SIRET dans le référentiel, ou de
 créer la fiche via une recherche SIRENE (fenêtre de création pré-remplie,
 POST /clients/ puis PATCH `id_client`).
+
+S'y ajoute l'aperçu mis en forme d'une facture validée : page en lecture
+seule stricte présentée comme une vraie facture (en-tête émetteur /
+destinataire depuis le snapshot figé, tableau des prestations, totaux,
+pied de page paiement), socle du futur export PDF/Factur-X.
 """
 
 from typing import Any
@@ -25,6 +30,7 @@ from django.shortcuts import redirect, render
 from django.urls import reverse
 
 from clients.clients_client import ClientsClient
+from clients.entreprises_client import EntreprisesClient
 from clients.exceptions import (
     APIClientError,
     APIUnavailableError,
@@ -118,6 +124,20 @@ def _snapshot_items(snapshot: object) -> list[tuple[str, str]]:
         if value not in (None, ""):
             items.append((label, str(value)))
     return items
+
+
+def _format_rate(value: Any) -> str | None:
+    """Formate un taux de TVA pour affichage (« 20 », « 5.5 »), `None` si absent.
+
+    Les taux du référentiel sont des chaînes décimales (« 20.00 ») : les
+    zéros de fin et le point superflu sont retirés pour l'affichage.
+    """
+    text = str(value or "").strip()
+    if not text:
+        return None
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return text or "0"
 
 
 def _to_int(value: Any) -> int | None:
@@ -389,9 +409,9 @@ def _handle_validate_action(request: HttpRequest, facture_id: int) -> HttpRespon
         messages.success(request, f"Facture {numero} validée.")
     else:
         messages.success(request, "Facture validée.")
-    # TODO: rediriger vers l'aperçu de la facture mise en forme quand la vue
-    # existera (tâche suivante).
-    return redirect(reverse("factures") + "?onglet=validees")
+    # Conclusion du flux human-in-the-loop : l'utilisateur voit immédiatement
+    # sa facture définitive mise en forme.
+    return redirect("facture_apercu", facture_id=facture_id)
 
 
 def _sirene_session_key(facture_id: int) -> str:
@@ -969,3 +989,101 @@ def facture_recap_view(request: HttpRequest, facture_id: int) -> HttpResponse:
         "sirene_result": sirene_result,
     }
     return render(request, "core/facture_recap.html", contexte)
+
+
+def facture_apercu_view(request: HttpRequest, facture_id: int) -> HttpResponse:
+    """Affiche l'aperçu mis en forme d'une facture (lecture seule stricte).
+
+    Charge la facture et ses lignes via GET /factures/{facture_id} (couche
+    `clients/`, isolation tenant garantie par l'API : hors périmètre = 404)
+    et la présente comme une vraie facture : en-tête émetteur / « Facturé à »
+    (snapshot client figé à la validation — jamais la fiche client actuelle,
+    inaltérabilité oblige), tableau des prestations, totaux, pied de page
+    paiement. Aucun champ éditable, aucune action de modification. Le contrat
+    ne fournissant pas le libellé du statut, la page ne restreint pas aux
+    factures validées : la lecture seule est le garde-fou, et la liste n'y
+    pointe que depuis l'onglet validées.
+
+    Deux appels complémentaires en best-effort (la page se dégrade sans
+    planter) : l'entreprise active pour la raison sociale de l'émetteur (le
+    SIRET affiché reste `siret_emetteur`, figé sur la facture) et le
+    référentiel des taux de TVA pour afficher le taux de chaque ligne (le
+    contrat ne porte que `id_taux_tva`).
+
+    Cette page est le socle du futur export PDF/Factur-X : structure balisée
+    comme un document, impression via un style dédié — mais aucun PDF n'est
+    généré ici.
+
+    Args:
+        request (HttpRequest): Requête Django courante. Obligatoire.
+        facture_id (int): Identifiant de la facture à afficher. Obligatoire.
+
+    Returns:
+        HttpResponse: Rendu de l'aperçu, ou redirection (liste des factures
+        validées si introuvable/API indisponible, login si session expirée).
+    """
+    refus = _guard_entreprise(request)
+    if refus:
+        return refus
+
+    list_url = reverse("factures") + "?onglet=validees"
+    try:
+        facture = FacturesClient(request).get_facture(facture_id)
+    except TokenExpiredError:
+        return redirect("login")
+    except ResourceNotFoundError:
+        messages.error(request, "Facture introuvable.")
+        return redirect(list_url)
+    except APIUnavailableError:
+        messages.error(request, _MSG_INDISPONIBLE)
+        return redirect(list_url)
+    except APIClientError as e:
+        messages.error(request, str(e.message))
+        return redirect(list_url)
+
+    # Raison sociale de l'émetteur, en best-effort : sans elle, l'en-tête
+    # affiche uniquement le SIRET émetteur figé sur la facture.
+    emetteur: dict = {}
+    try:
+        result = EntreprisesClient(request).get_my_entreprise()
+    except TokenExpiredError:
+        return redirect("login")
+    except APIClientError:
+        pass
+    else:
+        if isinstance(result, dict):
+            emetteur = result
+
+    # Référentiel TVA (tous les taux, y compris inactifs : une facture
+    # ancienne peut pointer un taux désactivé depuis). Best-effort : taux
+    # introuvable affiché « — ».
+    try:
+        taux_tva = TauxTvaClient(request).list_taux()
+    except TokenExpiredError:
+        return redirect("login")
+    except APIClientError:
+        taux_tva = []
+    rates_by_id = {
+        taux.get("id"): _format_rate(taux.get("taux"))
+        for taux in (taux_tva if isinstance(taux_tva, list) else [])
+        if isinstance(taux, dict)
+    }
+
+    # Lignes triées par ordre, enrichies du taux résolu (le template ne peut
+    # pas indexer un dict par une clé variable).
+    lignes = []
+    for ligne in sorted(
+        facture.get("lignes") or [], key=lambda ligne: ligne.get("ordre") or 0
+    ):
+        if isinstance(ligne, dict):
+            ligne = dict(ligne)
+            ligne["taux_tva"] = rates_by_id.get(ligne.get("id_taux_tva"))
+            lignes.append(ligne)
+
+    contexte = {
+        "facture": facture,
+        "lignes": lignes,
+        "snapshot_items": _snapshot_items(facture.get("snapshot_client")),
+        "emetteur": emetteur,
+    }
+    return render(request, "core/facture_apercu.html", contexte)

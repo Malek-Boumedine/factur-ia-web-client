@@ -58,6 +58,7 @@ from core.views.documents import (
 )
 from core.views.equipe import equipe_view
 from core.views.factures import (
+    facture_apercu_view,
     facture_delete_view,
     facture_recap_view,
     factures_list_view,
@@ -184,6 +185,11 @@ urlpatterns = [
         "factures/<int:facture_id>/recap/",
         facture_recap_view,
         name="facture_recap",
+    ),
+    path(
+        "factures/<int:facture_id>/apercu/",
+        facture_apercu_view,
+        name="facture_apercu",
     ),
     path(
         "factures/<int:facture_id>/supprimer/",
