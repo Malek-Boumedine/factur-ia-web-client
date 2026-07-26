@@ -127,6 +127,11 @@ def _clean_optional(value: Any) -> str | None:
     return text or None
 
 
+def _normalize_siret(value: Any) -> str:
+    """Normalise un SIRET pour comparaison : espaces retirés, chaîne vide si absent."""
+    return str(value or "").strip().replace(" ", "")
+
+
 def _normalize_decimal(value: Any) -> str:
     """Normalise un montant saisi en chaîne décimale (virgule → point, espaces retirés)."""
     text = str(value or "").strip()
@@ -291,7 +296,7 @@ def _verify_recipient_sirene(request: HttpRequest, siret: Any) -> None:
     Raises:
         TokenExpiredError: Session expirée (seule exception propagée).
     """
-    cleaned = str(siret or "").strip().replace(" ", "")
+    cleaned = _normalize_siret(siret)
     if not cleaned:
         messages.warning(
             request,
@@ -641,6 +646,17 @@ def facture_recap_view(request: HttpRequest, facture_id: int) -> HttpResponse:
         facture = _merge_posted_header(facture, posted)
         lignes = _merge_posted_lines(lignes, posted, line_errors)
 
+    # Alerte de divergence : le SIRET émetteur extrait par l'OCR diffère de
+    # celui de l'entreprise active (posé en session au login/onboarding). Pas
+    # d'alerte si l'un des deux est absent : un émetteur vide sera de toute
+    # façon remplacé par celui de l'entreprise à la validation, et sans SIRET
+    # entreprise en session la comparaison n'a pas de référence fiable.
+    siret_emetteur = _normalize_siret(facture.get("siret_emetteur"))
+    siret_entreprise = _normalize_siret(request.session.get("entreprise_siret"))
+    siret_mismatch = bool(
+        siret_emetteur and siret_entreprise and siret_emetteur != siret_entreprise
+    )
+
     contexte = {
         "facture": facture,
         "lignes": lignes,
@@ -648,5 +664,6 @@ def facture_recap_view(request: HttpRequest, facture_id: int) -> HttpResponse:
         "snapshot_items": _snapshot_items(facture.get("snapshot_client")),
         "erreurs": header_errors,
         "erreurs_globales": global_errors,
+        "siret_mismatch": siret_mismatch,
     }
     return render(request, "core/facture_recap.html", contexte)

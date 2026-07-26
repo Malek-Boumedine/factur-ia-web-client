@@ -53,6 +53,13 @@ affichées inline (`erreurs` pour l'en-tête, `ligne.erreurs` par ligne,
         </span>
     </div>
 
+    {# --- Alerte de divergence : SIRET émetteur extrait ≠ SIRET de l'entreprise. --- #}
+    {% if siret_mismatch %}
+        <div role="alert" class="alert alert-warning">
+            <span>Le SIRET émetteur extrait diffère de celui de votre entreprise. À la validation, le SIRET de votre entreprise sera utilisé.</span>
+        </div>
+    {% endif %}
+
     <form method="post" action="" class="space-y-6">
         {% csrf_token %}
         <input type="hidden" name="lignes_count" value="{{ lignes|length }}">
