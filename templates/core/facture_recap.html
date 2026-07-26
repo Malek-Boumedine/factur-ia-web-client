@@ -3,11 +3,14 @@
 {% comment %}
 Récapitulatif human-in-the-loop d'un brouillon de facture (facture_recap_view).
 Formulaire pré-rempli avec les données extraites par l'OCR, pour relecture et
-correction avant validation. Convention de nommage pour la tâche suivante :
-en-tête à plat (clés du contrat FactureReadWithLignes), lignes préfixées
-`ligne-N-champ` + hidden `ligne-N-id` et `lignes_count`. Les montants calculés
-par l'API (lignes et totaux) sont en lecture seule. Le POST est un no-op tant
-que le traitement des corrections n'est pas branché. Thème facturia (daisyUI).
+correction avant validation. Convention de nommage : en-tête à plat (clés du
+contrat FactureReadWithLignes), lignes préfixées `ligne-N-champ` + hidden
+`ligne-N-id` et `lignes_count`. Les montants calculés par l'API (lignes et
+totaux), le numéro (généré à la validation) et les SIRET (hors schéma
+FactureUpdate) sont en lecture seule. Deux actions : « save » (PATCH seul) et
+« validate » (PATCH + vérification SIRENE + validation). Les erreurs 422 sont
+affichées inline (`erreurs` pour l'en-tête, `ligne.erreurs` par ligne,
+`erreurs_globales` sinon). Thème facturia (daisyUI).
 {% endcomment %}
 
 {% block title %}Vérifier la facture — Factur-IA{% endblock %}
@@ -22,6 +25,19 @@ que le traitement des corrections n'est pas branché. Thème facturia (daisyUI).
                     <span>{{ message }}</span>
                 </div>
             {% endfor %}
+        </div>
+    {% endif %}
+
+    {% if erreurs_globales %}
+        <div role="alert" class="alert alert-error">
+            <div>
+                <p class="font-medium">Les corrections n'ont pas pu être enregistrées :</p>
+                <ul class="list-disc list-inside text-sm">
+                    {% for erreur in erreurs_globales %}
+                        <li>{{ erreur }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
         </div>
     {% endif %}
 
@@ -45,23 +61,27 @@ que le traitement des corrections n'est pas branché. Thème facturia (daisyUI).
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label for="numero_facture" class="block text-sm font-medium mb-1">Numéro de facture</label>
-                    <input type="text" id="numero_facture" name="numero_facture" required
-                           value="{{ facture.numero_facture|default:'' }}" class="input w-full">
+                    <input type="text" id="numero_facture" name="numero_facture" readonly
+                           value="{{ facture.numero_facture|default:'' }}" class="input w-full bg-base-200 text-base-content/70">
+                    <p class="text-xs text-base-content/50 mt-1">Numéro définitif généré automatiquement à la validation.</p>
                 </div>
                 <div>
                     <label for="devise" class="block text-sm font-medium mb-1">Devise</label>
                     <input type="text" id="devise" name="devise" maxlength="3"
-                           value="{{ facture.devise|default:'EUR' }}" class="input w-full">
+                           value="{{ facture.devise|default:'EUR' }}" class="input w-full{% if erreurs.devise %} input-error{% endif %}">
+                    {% if erreurs.devise %}<p class="text-error text-xs mt-1">{{ erreurs.devise }}</p>{% endif %}
                 </div>
                 <div>
                     <label for="date_emission" class="block text-sm font-medium mb-1">Date d'émission</label>
                     <input type="date" id="date_emission" name="date_emission"
-                           value="{{ facture.date_emission|default:'' }}" class="input w-full">
+                           value="{{ facture.date_emission|default:'' }}" class="input w-full{% if erreurs.date_emission %} input-error{% endif %}">
+                    {% if erreurs.date_emission %}<p class="text-error text-xs mt-1">{{ erreurs.date_emission }}</p>{% endif %}
                 </div>
                 <div>
                     <label for="date_echeance" class="block text-sm font-medium mb-1">Date d'échéance</label>
                     <input type="date" id="date_echeance" name="date_echeance"
-                           value="{{ facture.date_echeance|default:'' }}" class="input w-full">
+                           value="{{ facture.date_echeance|default:'' }}" class="input w-full{% if erreurs.date_echeance %} input-error{% endif %}">
+                    {% if erreurs.date_echeance %}<p class="text-error text-xs mt-1">{{ erreurs.date_echeance }}</p>{% endif %}
                 </div>
             </div>
         </div>
@@ -72,15 +92,19 @@ que le traitement des corrections n'est pas branché. Thème facturia (daisyUI).
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label for="siret_emetteur" class="block text-sm font-medium mb-1">SIRET émetteur</label>
-                    <input type="text" id="siret_emetteur" name="siret_emetteur" maxlength="14" inputmode="numeric"
-                           value="{{ facture.siret_emetteur|default:'' }}" class="input w-full">
+                    <input type="text" id="siret_emetteur" name="siret_emetteur" readonly
+                           value="{{ facture.siret_emetteur|default:'' }}" class="input w-full bg-base-200 text-base-content/70">
                 </div>
                 <div>
                     <label for="siret_destinataire" class="block text-sm font-medium mb-1">SIRET destinataire</label>
-                    <input type="text" id="siret_destinataire" name="siret_destinataire" maxlength="14" inputmode="numeric"
-                           value="{{ facture.siret_destinataire|default:'' }}" class="input w-full">
+                    <input type="text" id="siret_destinataire" name="siret_destinataire" readonly
+                           value="{{ facture.siret_destinataire|default:'' }}" class="input w-full bg-base-200 text-base-content/70">
                 </div>
             </div>
+            <p class="text-xs text-base-content/50">
+                Les SIRET proviennent du document extrait et ne sont pas modifiables ici.
+                Le SIRET destinataire est vérifié dans la base SIRENE au moment de la validation.
+            </p>
 
             {% if snapshot_items %}
                 {# Snapshot du client au moment de l'extraction : lecture seule. #}
@@ -123,29 +147,34 @@ que le traitement des corrections n'est pas branché. Thème facturia (daisyUI).
                                     <td>
                                         <input type="hidden" name="ligne-{{ forloop.counter0 }}-id" value="{{ ligne.id }}">
                                         <input type="text" name="ligne-{{ forloop.counter0 }}-designation" required maxlength="255"
-                                               value="{{ ligne.designation|default:'' }}" class="input input-sm w-full">
+                                               value="{{ ligne.designation|default:'' }}" class="input input-sm w-full{% if ligne.erreurs.designation %} input-error{% endif %}">
+                                        {% if ligne.erreurs.designation %}<p class="text-error text-xs mt-1">{{ ligne.erreurs.designation }}</p>{% endif %}
                                     </td>
                                     <td>
                                         <input type="text" name="ligne-{{ forloop.counter0 }}-quantite" inputmode="decimal"
-                                               value="{{ ligne.quantite|default:'' }}" class="input input-sm w-full">
+                                               value="{{ ligne.quantite|default:'' }}" class="input input-sm w-full{% if ligne.erreurs.quantite %} input-error{% endif %}">
+                                        {% if ligne.erreurs.quantite %}<p class="text-error text-xs mt-1">{{ ligne.erreurs.quantite }}</p>{% endif %}
                                     </td>
                                     <td>
                                         <input type="text" name="ligne-{{ forloop.counter0 }}-unite" maxlength="50"
-                                               value="{{ ligne.unite|default:'' }}" class="input input-sm w-full">
+                                               value="{{ ligne.unite|default:'' }}" class="input input-sm w-full{% if ligne.erreurs.unite %} input-error{% endif %}">
+                                        {% if ligne.erreurs.unite %}<p class="text-error text-xs mt-1">{{ ligne.erreurs.unite }}</p>{% endif %}
                                     </td>
                                     <td>
                                         <input type="text" name="ligne-{{ forloop.counter0 }}-prix_unitaire_ht" inputmode="decimal"
-                                               value="{{ ligne.prix_unitaire_ht|default:'' }}" class="input input-sm w-full">
+                                               value="{{ ligne.prix_unitaire_ht|default:'' }}" class="input input-sm w-full{% if ligne.erreurs.prix_unitaire_ht %} input-error{% endif %}">
+                                        {% if ligne.erreurs.prix_unitaire_ht %}<p class="text-error text-xs mt-1">{{ ligne.erreurs.prix_unitaire_ht }}</p>{% endif %}
                                     </td>
                                     <td>
                                         {% if taux_tva %}
-                                            <select name="ligne-{{ forloop.counter0 }}-id_taux_tva" class="select select-sm w-full">
+                                            <select name="ligne-{{ forloop.counter0 }}-id_taux_tva" class="select select-sm w-full{% if ligne.erreurs.id_taux_tva %} select-error{% endif %}">
                                                 {% for taux in taux_tva %}
                                                     <option value="{{ taux.id }}" {% if taux.id == ligne.id_taux_tva %}selected{% endif %}>
                                                         {{ taux.taux }} % — {{ taux.libelle }}{% if not taux.est_actif %} (inactif){% endif %}
                                                     </option>
                                                 {% endfor %}
                                             </select>
+                                            {% if ligne.erreurs.id_taux_tva %}<p class="text-error text-xs mt-1">{{ ligne.erreurs.id_taux_tva }}</p>{% endif %}
                                         {% else %}
                                             {# Référentiel TVA indisponible : id conservé, champ non éditable. #}
                                             <input type="hidden" name="ligne-{{ forloop.counter0 }}-id_taux_tva" value="{{ ligne.id_taux_tva }}">
@@ -193,28 +222,36 @@ que le traitement des corrections n'est pas branché. Thème facturia (daisyUI).
                 <div>
                     <label for="mode_paiement" class="block text-sm font-medium mb-1">Mode de paiement <span class="text-base-content/50 font-normal">(optionnel)</span></label>
                     <input type="text" id="mode_paiement" name="mode_paiement" maxlength="50"
-                           value="{{ facture.mode_paiement|default:'' }}" class="input w-full">
+                           value="{{ facture.mode_paiement|default:'' }}" class="input w-full{% if erreurs.mode_paiement %} input-error{% endif %}">
+                    {% if erreurs.mode_paiement %}<p class="text-error text-xs mt-1">{{ erreurs.mode_paiement }}</p>{% endif %}
                 </div>
                 <div>
                     <label for="reference_commande" class="block text-sm font-medium mb-1">Référence de commande <span class="text-base-content/50 font-normal">(optionnel)</span></label>
                     <input type="text" id="reference_commande" name="reference_commande" maxlength="100"
-                           value="{{ facture.reference_commande|default:'' }}" class="input w-full">
+                           value="{{ facture.reference_commande|default:'' }}" class="input w-full{% if erreurs.reference_commande %} input-error{% endif %}">
+                    {% if erreurs.reference_commande %}<p class="text-error text-xs mt-1">{{ erreurs.reference_commande }}</p>{% endif %}
                 </div>
             </div>
             <div>
                 <label for="iban" class="block text-sm font-medium mb-1">IBAN <span class="text-base-content/50 font-normal">(optionnel)</span></label>
                 <input type="text" id="iban" name="iban" maxlength="34"
-                       value="{{ facture.iban|default:'' }}" class="input w-full font-mono">
+                       value="{{ facture.iban|default:'' }}" class="input w-full font-mono{% if erreurs.iban %} input-error{% endif %}">
+                {% if erreurs.iban %}<p class="text-error text-xs mt-1">{{ erreurs.iban }}</p>{% endif %}
             </div>
             <div>
                 <label for="notes" class="block text-sm font-medium mb-1">Notes <span class="text-base-content/50 font-normal">(optionnel)</span></label>
-                <textarea id="notes" name="notes" rows="3" class="textarea w-full">{{ facture.notes|default:'' }}</textarea>
+                <textarea id="notes" name="notes" rows="3" class="textarea w-full{% if erreurs.notes %} textarea-error{% endif %}">{{ facture.notes|default:'' }}</textarea>
+                {% if erreurs.notes %}<p class="text-error text-xs mt-1">{{ erreurs.notes }}</p>{% endif %}
             </div>
         </div>
 
+        {# Deux actions : « save » enregistre le brouillon (bouton par défaut à #}
+        {# la touche Entrée), « validate » enregistre puis valide avec #}
+        {# vérification SIRENE non bloquante du SIRET destinataire. #}
         <div class="flex flex-wrap justify-end gap-2">
             <a href="{% url 'upload_document' %}" class="btn btn-ghost">Déposer un autre document</a>
-            <button type="submit" class="btn btn-primary">Valider la facture</button>
+            <button type="submit" name="action" value="save" class="btn btn-outline btn-primary">Enregistrer le brouillon</button>
+            <button type="submit" name="action" value="validate" class="btn btn-primary">Valider la facture</button>
         </div>
     </form>
 </div>
