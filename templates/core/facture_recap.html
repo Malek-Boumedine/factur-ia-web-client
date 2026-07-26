@@ -8,7 +8,9 @@ contrat FactureReadWithLignes), lignes préfixées `ligne-N-champ` + hidden
 `ligne-N-id` et `lignes_count`. Les montants calculés par l'API (lignes et
 totaux), le numéro (généré à la validation) et les SIRET (hors schéma
 FactureUpdate) sont en lecture seule. Deux actions : « save » (PATCH seul) et
-« validate » (PATCH + vérification SIRENE + validation). Les erreurs 422 sont
+« validate » (PATCH + vérification SIRENE + validation), plus un lien
+« Annuler » (pure navigation vers la liste des brouillons, rien n'est
+enregistré). Les erreurs 422 sont
 affichées inline (`erreurs` pour l'en-tête, `ligne.erreurs` par ligne,
 `erreurs_globales` sinon). Thème facturia (daisyUI).
 {% endcomment %}
@@ -249,7 +251,7 @@ affichées inline (`erreurs` pour l'en-tête, `ligne.erreurs` par ligne,
         {# la touche Entrée), « validate » enregistre puis valide avec #}
         {# vérification SIRENE non bloquante du SIRET destinataire. #}
         <div class="flex flex-wrap justify-end gap-2">
-            <a href="{% url 'upload_document' %}" class="btn btn-ghost">Déposer un autre document</a>
+            <a href="{% url 'factures' %}?onglet=brouillons" class="btn btn-ghost">Annuler</a>
             <button type="submit" name="action" value="save" class="btn btn-outline btn-primary">Enregistrer le brouillon</button>
             <button type="submit" name="action" value="validate" class="btn btn-primary">Valider la facture</button>
         </div>
