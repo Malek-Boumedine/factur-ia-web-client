@@ -11,6 +11,12 @@ indisponible), totaux avec le TTC mis en évidence, pied de page paiement
 (mode, IBAN) et notes. Chaque champ optionnel n'est affiché que s'il est
 présent.
 
+La barre d'actions (hors document, `no-print`) porte la navigation,
+l'impression et la génération d'un avoir : form POST vers `facture_avoir`
+avec confirmation navigateur (acte comptable), affiché uniquement si la
+facture n'est pas déjà un avoir — on ne génère pas d'avoir d'un avoir. La
+feuille, elle, reste en lecture seule stricte.
+
 Socle du futur export PDF/Factur-X : la feuille est balisée comme un document
 (article/header/footer) et un style d'impression masque le layout applicatif
 (header/footer du site et barre d'actions, marqués `no-print`) pour ne
@@ -66,6 +72,17 @@ aucun PDF n'est généré ici. Thème facturia (daisyUI).
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
                 Revenir à la liste
             </a>
+            {% if facture.type_facture != "avoir" %}
+                {# Génération d'un avoir : acte comptable, confirmation demandée. Jamais sur un avoir. #}
+                <form method="post" action="{% url 'facture_avoir' facture_id=facture.id %}" class="inline-block"
+                      onsubmit="return confirm('Générer un avoir pour la facture {{ facture.numero_facture|escapejs }} ? Cette opération crée un document comptable d\'annulation, en brouillon.');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline btn-secondary btn-sm">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 15v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m9 14V5a2 2 0 00-2-2H6a2 2 0 00-2 2v16l4-2 4 2 4-2 4 2z"></path></svg>
+                        Générer un avoir
+                    </button>
+                </form>
+            {% endif %}
             <button type="button" class="btn btn-primary btn-sm" onclick="window.print()">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
                 Imprimer

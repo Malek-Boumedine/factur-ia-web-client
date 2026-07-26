@@ -20,6 +20,11 @@ S'y ajoute l'aperçu mis en forme d'une facture validée : page en lecture
 seule stricte présentée comme une vraie facture (en-tête émetteur /
 destinataire depuis le snapshot figé, tableau des prestations, totaux,
 pied de page paiement), socle du futur export PDF/Factur-X.
+
+Enfin, la génération d'un avoir depuis une facture validée (POST relayant
+POST /factures/{facture_id}/avoir, confirmation en amont depuis l'aperçu ou
+la liste des validées) : l'avoir est créé en brouillon par l'API, l'utilisateur
+est redirigé vers son récap pour relecture avant validation.
 """
 
 from typing import Any
@@ -731,6 +736,83 @@ def facture_delete_view(request: HttpRequest, facture_id: int) -> HttpResponse:
     else:
         messages.success(request, "Brouillon supprimé.")
     return redirect(list_url)
+
+
+def facture_avoir_view(request: HttpRequest, facture_id: int) -> HttpResponse:
+    """Génère un avoir à partir d'une facture validée (POST uniquement).
+
+    Relaie POST /factures/{facture_id}/avoir via la couche `clients/`
+    (pattern BFF : le navigateur ne touche jamais l'API). L'API crée l'avoir
+    en brouillon (montants inversés) : en cas de succès, redirection vers le
+    récap éditable de l'avoir pour relecture avant validation. Générer un
+    avoir est un acte comptable : la confirmation est demandée en amont par
+    les formulaires (aperçu et liste). Un GET ne déclenche rien.
+
+    L'API refuse en 409 si la facture source n'est pas validée ; le contrat
+    ne garde pas contre un avoir déjà existant, le message du 409 est donc
+    relayé tel quel. En cas d'échec, retour à la provenance : la liste dans
+    l'état transmis par le champ `retour` (réencodé en liste blanche), ou
+    l'aperçu de la facture source si le POST vient de l'aperçu.
+
+    Args:
+        request (HttpRequest): Requête Django courante. Obligatoire.
+        facture_id (int): Identifiant de la facture d'origine. Obligatoire.
+
+    Returns:
+        HttpResponse: Redirection vers le récap de l'avoir créé (repli :
+        liste des brouillons si son id est illisible), vers la provenance en
+        cas d'erreur, ou vers le login si session expirée.
+    """
+    refus = _guard_entreprise(request)
+    if refus:
+        return refus
+
+    # Provenance : la liste (champ `retour` posté, même vide) ou l'aperçu.
+    if "retour" in request.POST:
+        query = _safe_list_query(request.POST.get("retour"))
+        back_url = reverse("factures") + (f"?{query}" if query else "")
+    else:
+        back_url = reverse("facture_apercu", kwargs={"facture_id": facture_id})
+
+    if request.method != "POST":
+        return redirect(back_url)
+
+    try:
+        avoir = FacturesClient(request).create_credit_note(facture_id)
+    except TokenExpiredError:
+        return redirect("login")
+    except ResourceNotFoundError:
+        messages.error(request, "Facture introuvable.")
+        return redirect(back_url)
+    except ResourceConflictError as e:
+        messages.error(
+            request,
+            str(e.detail or "Seule une facture validée peut donner lieu à un avoir."),
+        )
+        return redirect(back_url)
+    except APIUnavailableError:
+        messages.error(request, _MSG_INDISPONIBLE)
+        return redirect(back_url)
+    except APIClientError as e:
+        messages.error(request, str(e.message))
+        return redirect(back_url)
+
+    numero = avoir.get("numero_facture") if isinstance(avoir, dict) else None
+    messages.success(
+        request,
+        (
+            f"Avoir {numero} généré en brouillon"
+            if numero
+            else "Avoir généré en brouillon"
+        )
+        + " — relisez-le puis validez-le.",
+    )
+    avoir_id = avoir.get("id") if isinstance(avoir, dict) else None
+    if avoir_id is None:
+        # Réponse illisible (défensif) : l'avoir existe côté API, il est dans
+        # l'onglet brouillons de la liste.
+        return redirect(reverse("factures") + "?onglet=brouillons")
+    return redirect("facture_recap", facture_id=avoir_id)
 
 
 def facture_recap_view(request: HttpRequest, facture_id: int) -> HttpResponse:

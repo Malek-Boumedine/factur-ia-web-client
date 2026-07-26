@@ -2995,6 +2995,9 @@
   .text-red-700 {
     color: var(--color-red-700);
   }
+  .text-secondary {
+    color: var(--color-secondary);
+  }
   .text-success {
     color: var(--color-success);
   }

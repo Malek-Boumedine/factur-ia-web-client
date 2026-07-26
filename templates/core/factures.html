@@ -13,10 +13,12 @@ debounce sur la saisie et soumission automatique des filtres au changement.
 
 Un brouillon pointe vers son récap éditable ; une facture validée pointe
 vers son aperçu mis en forme (facture_apercu, lecture seule).
-L'onglet Brouillons ajoute une colonne Actions avec la suppression (form POST
-par ligne vers `facture_delete`, confirmation navigateur, hidden `retour`
-pour revenir sur la liste dans le même état) — jamais sur les validées,
-immuables. Thème facturia (daisyUI).
+La colonne Actions est présente sur les deux onglets (form POST par ligne,
+confirmation navigateur, hidden `retour` pour revenir sur la liste dans le
+même état) : suppression côté Brouillons (`facture_delete` — jamais sur les
+validées, immuables), génération d'un avoir côté Validées (`facture_avoir`,
+uniquement sur les factures : cellule vide pour un avoir, on ne génère pas
+d'avoir d'un avoir). Thème facturia (daisyUI).
 {% endcomment %}
 
 {% block title %}Factures — Factur-IA{% endblock %}
@@ -89,7 +91,7 @@ immuables. Thème facturia (daisyUI).
                         <th>Échéance</th>
                         <th class="text-right">Total TTC</th>
                         <th>Type</th>
-                        {% if onglet == 'brouillons' %}<th class="text-right">Actions</th>{% endif %}
+                        <th class="text-right">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -115,23 +117,33 @@ immuables. Thème facturia (daisyUI).
                                 {{ facture.type_facture|default:"facture"|capfirst }}
                             </span>
                         </td>
-                        {% if onglet == 'brouillons' %}
                         <td class="text-right">
-                            {# Suppression définitive : uniquement les brouillons (une validée est immuable). #}
-                            <form method="post" action="{% url 'facture_delete' facture_id=facture.id %}" class="inline-block"
-                                  onsubmit="return confirm('Supprimer définitivement ce brouillon ({{ facture.nom_destinataire|default:'sans destinataire'|escapejs }}) ? Cette action est irréversible.');">
-                                {% csrf_token %}
-                                <input type="hidden" name="retour" value="{{ current_query }}">
-                                <button type="submit" class="btn btn-ghost btn-sm btn-square text-error" title="Supprimer">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                </button>
-                            </form>
+                            {% if onglet == 'brouillons' %}
+                                {# Suppression définitive : uniquement les brouillons (une validée est immuable). #}
+                                <form method="post" action="{% url 'facture_delete' facture_id=facture.id %}" class="inline-block"
+                                      onsubmit="return confirm('Supprimer définitivement ce brouillon ({{ facture.nom_destinataire|default:'sans destinataire'|escapejs }}) ? Cette action est irréversible.');">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="retour" value="{{ current_query }}">
+                                    <button type="submit" class="btn btn-ghost btn-sm btn-square text-error" title="Supprimer">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    </button>
+                                </form>
+                            {% elif facture.type_facture != "avoir" %}
+                                {# Génération d'un avoir : acte comptable, confirmation demandée. Jamais sur un avoir. #}
+                                <form method="post" action="{% url 'facture_avoir' facture_id=facture.id %}" class="inline-block"
+                                      onsubmit="return confirm('Générer un avoir pour la facture {{ facture.numero_facture|escapejs }} ? Cette opération crée un document comptable d\'annulation, en brouillon.');">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="retour" value="{{ current_query }}">
+                                    <button type="submit" class="btn btn-ghost btn-sm btn-square text-secondary" title="Générer un avoir">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 15v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m9 14V5a2 2 0 00-2-2H6a2 2 0 00-2 2v16l4-2 4 2 4-2 4 2z"></path></svg>
+                                    </button>
+                                </form>
+                            {% endif %}
                         </td>
-                        {% endif %}
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="{% if onglet == 'brouillons' %}7{% else %}6{% endif %}" class="text-center text-base-content/60 py-8">
+                        <td colspan="7" class="text-center text-base-content/60 py-8">
                             {% if onglet == 'brouillons' %}
                                 <p>Aucun brouillon en attente.</p>
                                 <a href="{% url 'upload_document' %}" class="link link-primary text-sm">Déposer un document pour créer une facture</a>
