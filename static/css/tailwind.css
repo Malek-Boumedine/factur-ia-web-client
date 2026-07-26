@@ -2228,6 +2228,9 @@
   .min-w-24 {
     min-width: calc(var(--spacing) * 24);
   }
+  .min-w-36 {
+    min-width: calc(var(--spacing) * 36);
+  }
   .min-w-40 {
     min-width: calc(var(--spacing) * 40);
   }
