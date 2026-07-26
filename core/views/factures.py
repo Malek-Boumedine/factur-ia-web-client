@@ -60,11 +60,18 @@ _EDITABLE_HEADER_FIELDS = (
     "date_emission",
     "date_echeance",
     "devise",
+    "siret_emetteur",
+    "siret_destinataire",
     "mode_paiement",
     "iban",
     "reference_commande",
     "notes",
 )
+
+# Champs SIRET du formulaire : la saisie usuelle avec espaces
+# (« 123 456 789 00012 ») est normalisée avant envoi, l'API n'acceptant que
+# des chiffres (14 max, incomplet accepté, vide = effacement).
+_SIRET_FIELDS = ("siret_emetteur", "siret_destinataire")
 
 # Champs éditables d'une ligne (préfixés `ligne-N-` dans le formulaire),
 # alignés sur le schéma FactureLigneCreate.
@@ -151,6 +158,9 @@ def _build_update_payload(post: QueryDict) -> dict[str, Any]:
     payload: dict[str, Any] = {
         field: _clean_optional(post.get(field)) for field in _EDITABLE_HEADER_FIELDS
     }
+    for field in _SIRET_FIELDS:
+        if payload[field]:
+            payload[field] = payload[field].replace(" ", "")
     count = _to_int(post.get("lignes_count")) or 0
     lines = []
     for index in range(count):
@@ -225,8 +235,8 @@ def _merge_posted_header(facture: Any, post: QueryDict) -> Any:
     """Réinjecte dans la facture les valeurs d'en-tête saisies.
 
     Utilisé pour re-rendre le formulaire après un 422 sans perdre les
-    corrections de l'utilisateur. Les champs non éditables (numéro, SIRET,
-    montants, snapshot) gardent les valeurs de l'API.
+    corrections de l'utilisateur. Les champs non éditables (numéro, montants,
+    snapshot) gardent les valeurs de l'API.
     """
     if not isinstance(facture, dict):
         return facture
