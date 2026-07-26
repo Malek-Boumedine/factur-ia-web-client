@@ -7,10 +7,12 @@ correction avant validation. Convention de nommage : en-tête à plat (clés du
 contrat FactureReadWithLignes), lignes préfixées `ligne-N-champ` + hidden
 `ligne-N-id` et `lignes_count`. Les montants calculés par l'API (lignes et
 totaux) et le numéro (généré à la validation) sont en lecture seule.
-Deux actions : « save » (PATCH seul) et
-« validate » (PATCH + vérification SIRENE + validation), plus un lien
-« Annuler » (pure navigation vers la liste des brouillons, rien n'est
-enregistré). Les erreurs 422 sont
+Actions du formulaire récap : « save » (PATCH seul), « validate » (PATCH +
+vérification SIRENE + validation), « attach_client » (PATCH + rattachement du
+client existant) et « sirene_lookup » (PATCH + recherche SIRENE, qui ouvre la
+fenêtre de création du client — formulaire séparé, action « create_attach »),
+plus un lien « Annuler » (pure navigation vers la liste des brouillons, rien
+n'est enregistré). Les erreurs 422 sont
 affichées inline (`erreurs` pour l'en-tête, `ligne.erreurs` par ligne,
 `erreurs_globales` sinon). Thème facturia (daisyUI).
 {% endcomment %}
@@ -129,6 +131,38 @@ affichées inline (`erreurs` pour l'en-tête, `ligne.erreurs` par ligne,
                     </dl>
                 </div>
             {% endif %}
+
+            {# --- Rattachement du client destinataire (requis pour valider) : #}
+            {# trois états — déjà rattaché, client existant à rattacher, ou #}
+            {# recherche SIRENE. Les boutons soumettent le formulaire récap : #}
+            {# les corrections en cours sont enregistrées en même temps. --- #}
+            <div class="rounded-lg border border-base-300 p-4 space-y-3">
+                <div>
+                    <p class="text-sm font-medium">Client destinataire</p>
+                    <p class="text-xs text-base-content/50">Une fiche client doit être rattachée à la facture pour pouvoir la valider.</p>
+                </div>
+
+                {% if facture.id_client %}
+                    <div role="alert" class="alert alert-success">
+                        <span>Client rattaché{% if client_attache.raison_sociale %} : {{ client_attache.raison_sociale }}{% endif %}.</span>
+                    </div>
+                {% elif client_panel_error %}
+                    <div role="alert" class="alert alert-warning">
+                        <span>{{ client_panel_error }}</span>
+                    </div>
+                {% elif client_existant %}
+                    <p class="text-sm">Un client existant correspond au SIRET destinataire : <span class="font-medium">{{ client_existant.raison_sociale }}</span>.</p>
+                    <input type="hidden" name="client_id" value="{{ client_existant.id }}">
+                    <button type="submit" name="action" value="attach_client" class="btn btn-primary btn-sm">Rattacher ce client</button>
+                    <p class="text-xs text-base-content/50">Vos corrections en cours seront enregistrées en même temps.</p>
+                {% elif siret_destinataire_valide %}
+                    <p class="text-sm">Aucun client de votre référentiel ne correspond au SIRET destinataire.</p>
+                    <button type="submit" name="action" value="sirene_lookup" class="btn btn-outline btn-primary btn-sm">Rechercher via SIRENE</button>
+                    <p class="text-xs text-base-content/50">Vos corrections en cours seront enregistrées avant la recherche.</p>
+                {% else %}
+                    <p class="text-sm text-base-content/60">Renseignez le SIRET destinataire (14 chiffres) ci-dessus, puis enregistrez le brouillon pour rechercher le client correspondant.</p>
+                {% endif %}
+            </div>
         </div>
 
         {# --- Lignes extraites, dans l'ordre. Montants calculés : lecture seule. --- #}
@@ -263,5 +297,67 @@ affichées inline (`erreurs` pour l'en-tête, `ligne.erreurs` par ligne,
             <button type="submit" name="action" value="validate" class="btn btn-primary">Valider la facture</button>
         </div>
     </form>
+
+    {# --- Fenêtre SIRENE : création du client destinataire. Formulaire séparé #}
+    {# (action `create_attach`), hors du formulaire récap. Champs éditables #}
+    {# pré-remplis : SIRENE peut renvoyer CP/ville vides alors qu'ils sont #}
+    {# requis par ClientCreate. Fermeture par simple lien (résultat consommé, #}
+    {# la fenêtre ne se rouvre pas au rechargement). --- #}
+    {% if sirene_result %}
+        <dialog class="modal modal-open">
+            <div class="modal-box max-w-lg">
+                <h3 class="font-bold text-lg">Entreprise trouvée dans la base SIRENE</h3>
+                <p class="text-sm text-base-content/60 mt-1 mb-4">
+                    Vérifiez et complétez ces informations avant de créer la fiche client{% if sirene_result.activite_principale %} — activité : {{ sirene_result.activite_principale }}{% endif %}.
+                </p>
+
+                <form method="post" action="" class="space-y-4">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="create_attach">
+
+                    <div>
+                        <label for="client_raison_sociale" class="block text-sm font-medium mb-1">Raison sociale</label>
+                        <input type="text" id="client_raison_sociale" name="client_raison_sociale" required maxlength="255"
+                               value="{{ sirene_result.raison_sociale|default:'' }}" class="input w-full">
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label for="client_siret" class="block text-sm font-medium mb-1">SIRET</label>
+                            <input type="text" id="client_siret" name="client_siret" maxlength="14" inputmode="numeric"
+                                   value="{{ sirene_result.siret|default:'' }}" class="input w-full">
+                        </div>
+                        <div>
+                            <label for="client_numero_tva" class="block text-sm font-medium mb-1">N° TVA <span class="text-base-content/50 font-normal">(optionnel)</span></label>
+                            <input type="text" id="client_numero_tva" name="client_numero_tva" maxlength="20"
+                                   value="{{ sirene_result.numero_tva|default:'' }}" class="input w-full">
+                        </div>
+                    </div>
+                    <div>
+                        <label for="client_adresse" class="block text-sm font-medium mb-1">Adresse <span class="text-base-content/50 font-normal">(optionnel)</span></label>
+                        <input type="text" id="client_adresse" name="client_adresse" maxlength="255"
+                               value="{{ sirene_result.adresse|default:'' }}" class="input w-full">
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label for="client_code_postal" class="block text-sm font-medium mb-1">Code postal</label>
+                            <input type="text" id="client_code_postal" name="client_code_postal" required maxlength="10"
+                                   value="{{ sirene_result.code_postal|default:'' }}" class="input w-full">
+                        </div>
+                        <div class="sm:col-span-2">
+                            <label for="client_ville" class="block text-sm font-medium mb-1">Ville</label>
+                            <input type="text" id="client_ville" name="client_ville" required maxlength="150"
+                                   value="{{ sirene_result.ville|default:'' }}" class="input w-full">
+                        </div>
+                    </div>
+
+                    <div class="modal-action">
+                        <a href="{% url 'facture_recap' facture_id=facture.id %}" class="btn btn-ghost">Annuler</a>
+                        <button type="submit" class="btn btn-primary">Créer et rattacher</button>
+                    </div>
+                </form>
+            </div>
+            <a href="{% url 'facture_recap' facture_id=facture.id %}" class="modal-backdrop" aria-label="Fermer"></a>
+        </dialog>
+    {% endif %}
 </div>
 {% endblock content %}
