@@ -15,7 +15,6 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 
-from django.conf import settings
 from django.urls import path
 from django.views.generic import TemplateView
 from core.views.auth import (
@@ -219,15 +218,13 @@ urlpatterns = [
         name="facture_avoir",
     ),
     path("", home_view, name="home"),
+    # Page de démonstration TEMPORAIRE du layout dashboard — exposée hors
+    # DEBUG le temps de la transition (cible du lien « Tableau de bord » du
+    # header) ; à remplacer par la vraie route du tableau de bord puis à
+    # supprimer avec templates/core/_demo_dashboard.html après la migration.
+    path(
+        "_demo/dashboard/",
+        TemplateView.as_view(template_name="core/_demo_dashboard.html"),
+        name="demo_dashboard",
+    ),
 ]
-
-# Page de démonstration TEMPORAIRE du layout dashboard (dev uniquement) —
-# à supprimer avec templates/core/_demo_dashboard.html après la migration.
-if settings.DEBUG:
-    urlpatterns += [
-        path(
-            "_demo/dashboard/",
-            TemplateView.as_view(template_name="core/_demo_dashboard.html"),
-            name="demo_dashboard",
-        ),
-    ]
