@@ -14,8 +14,11 @@ Chaque ligne montre le nom original, un badge de statut, la date de
 chargement, et les actions selon l'état : « Voir le document » ouvre le
 fichier original dans un nouvel onglet via la vue BFF de relais (le
 navigateur ne tape jamais l'API Data) ; un document traité pointe en plus
-vers le récap du brouillon de facture généré par l'OCR. Thème facturia
-(daisyUI).
+vers le récap du brouillon de facture généré par l'OCR. La corbeille
+(form POST par ligne, confirmation navigateur, hidden `retour` pour revenir
+sur la liste dans le même état) est visible sur toutes les lignes : c'est
+l'API qui arbitre (409 si une facture référence le document), l'état affiché
+pouvant être périmé. Thème facturia (daisyUI).
 {% endcomment %}
 
 {% block title %}Documents — Factur-IA{% endblock %}
@@ -101,6 +104,15 @@ vers le récap du brouillon de facture généré par l'OCR. Thème facturia
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
                                     Voir le document
                                 </a>
+                                {# Suppression définitive : l'API refuse (409) si une facture référence le document. #}
+                                <form method="post" action="{% url 'document_delete' document_id=document.id %}" class="inline-block"
+                                      onsubmit="return confirm('Supprimer définitivement le document {{ document.nom_original|default:'sans nom'|escapejs }} ? Cette action est irréversible.');">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="retour" value="{{ current_query }}">
+                                    <button type="submit" class="btn btn-ghost btn-sm btn-square text-error" title="Supprimer">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    </button>
+                                </form>
                             </div>
                         </td>
                     </tr>

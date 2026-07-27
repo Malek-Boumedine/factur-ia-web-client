@@ -7,6 +7,7 @@ from django.http import (
     HttpResponse,
     HttpResponseBase,
     JsonResponse,
+    QueryDict,
     StreamingHttpResponse,
 )
 from django.shortcuts import redirect, render
@@ -17,6 +18,7 @@ from clients.exceptions import (
     APIClientError,
     APIUnavailableError,
     APIValidationError,
+    ResourceConflictError,
     ResourceNotFoundError,
     TokenExpiredError,
 )
@@ -52,6 +54,10 @@ _STATUS_TABS: dict[str, str | None] = {
     "erreur": _STATUT_ERREUR,
 }
 _DEFAULT_STATUS_TAB = "tous"
+
+# Paramètres d'état de la liste des documents, seuls conservés lors du
+# réencodage de la query string de retour (liste blanche).
+_LIST_STATE_PARAMS = ("statut", "page")
 
 
 def _contexte_upload() -> dict[str, object]:
@@ -349,6 +355,9 @@ def documents_list_view(request: HttpRequest) -> HttpResponse:
         "total": total,
         "statut": tab,
         "base_query": base_querystring(request),
+        # Query string complète, embarquée par les forms de suppression pour
+        # revenir sur la liste dans le même état.
+        "current_query": request.GET.urlencode(),
         **pagination,
     }
     return render(request, "core/documents.html", context)
@@ -398,3 +407,89 @@ def document_file_view(request: HttpRequest, document_id: int) -> HttpResponseBa
     response = StreamingHttpResponse(chunks, content_type=content_type)
     response["Content-Disposition"] = content_disposition or "inline"
     return response
+
+
+def _safe_list_query(raw: object) -> str:
+    """Réencode une query string de retour vers la liste des documents.
+
+    Ne conserve que les paramètres d'état connus (`_LIST_STATE_PARAMS`) : la
+    valeur soumise par le formulaire n'est jamais réutilisée telle quelle
+    dans la redirection. Le paramètre `statut` est en outre revalidé contre
+    les onglets connus (`_STATUS_TABS`) pour ne jamais rediriger vers un
+    filtre inexistant.
+
+    Args:
+        raw (object): Query string soumise (champ hidden `retour`),
+            possiblement absente ou d'une autre forme. Obligatoire.
+
+    Returns:
+        str: Query string urlencodée ne contenant que les paramètres connus,
+        ou chaîne vide.
+    """
+    parsed = QueryDict(raw if isinstance(raw, str) else "")
+    params = QueryDict(mutable=True)
+    for key in _LIST_STATE_PARAMS:
+        value = parsed.get(key)
+        if not value:
+            continue
+        if key == "statut" and value not in _STATUS_TABS:
+            continue
+        params[key] = value
+    return params.urlencode()
+
+
+def document_delete_view(request: HttpRequest, document_id: int) -> HttpResponse:
+    """Supprime un document depuis la liste (POST uniquement).
+
+    Relaie DELETE /documents/{id_document} via la couche `clients/` (pattern
+    BFF : le navigateur ne touche jamais l'API). La suppression est
+    définitive côté API (document, extractions OCR et fichier physique) ; la
+    confirmation est demandée en amont par le formulaire de la liste. L'API
+    refuse en 409 si une facture — brouillon ou validée — référence le
+    document : le message invite alors à supprimer d'abord la facture. Dans
+    tous les cas, redirige vers la liste des documents dans l'état transmis
+    par le champ `retour` (onglet, page — réencodé en liste blanche). Un GET
+    ne déclenche rien.
+
+    Args:
+        request (HttpRequest): Requête Django courante. Obligatoire.
+        document_id (int): Identifiant du document à supprimer. Obligatoire.
+
+    Returns:
+        HttpResponse: Redirection vers la liste des documents (avec message
+        de succès ou d'erreur), ou vers le login si session expirée.
+    """
+    refus = _guard_entreprise(request)
+    if refus:
+        return refus
+
+    query = _safe_list_query(request.POST.get("retour"))
+    list_url = reverse("documents") + (f"?{query}" if query else "")
+
+    if request.method != "POST":
+        return redirect(list_url)
+
+    try:
+        DocumentsClient(request).delete_document(document_id)
+    except TokenExpiredError:
+        return redirect("login")
+    except ResourceNotFoundError:
+        messages.error(
+            request, "Document introuvable — il a peut-être déjà été supprimé."
+        )
+    except ResourceConflictError as e:
+        messages.error(
+            request,
+            str(
+                e.detail
+                or "Une facture est liée à ce document : supprimez d'abord "
+                "la facture avant de supprimer le document."
+            ),
+        )
+    except APIUnavailableError:
+        messages.error(request, _MSG_INDISPONIBLE)
+    except APIClientError as e:
+        messages.error(request, str(e.message))
+    else:
+        messages.success(request, "Document supprimé.")
+    return redirect(list_url)

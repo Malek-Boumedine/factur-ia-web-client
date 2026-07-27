@@ -52,6 +52,7 @@ from core.views.clients import (
     clients_list_view,
 )
 from core.views.documents import (
+    document_delete_view,
     document_file_view,
     document_status_view,
     document_wait_view,
@@ -188,6 +189,11 @@ urlpatterns = [
         "documents/<int:document_id>/statut/",
         document_status_view,
         name="document_statut",
+    ),
+    path(
+        "documents/<int:document_id>/supprimer/",
+        document_delete_view,
+        name="document_delete",
     ),
     path("factures/", factures_list_view, name="factures"),
     path(
