@@ -11,6 +11,9 @@ son formulaire et son endpoint, distinguées par un champ caché `action`
   masquage « propre ligne » de la page équipe) ;
 - `mot_de_passe` : POST /utilisateurs/me/changer-mot-de-passe.
 
+S'y ajoute une section « Mon entreprise » en lecture seule (GET /entreprises/me),
+masquée pour un utilisateur sans entreprise active (admin plateforme pur).
+
 Tout appel réseau passe par la couche `clients/`. Les 422 sont reportés dans
 les champs, le 409 (email pris) sur le champ email, les 400 en message local
 fixe (le client de base ne conserve pas le `detail` des 400) — l'API restant
@@ -21,6 +24,7 @@ from django.contrib import messages
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 
+from clients.entreprises_client import EntreprisesClient
 from clients.exceptions import (
     APIClientError,
     APIUnavailableError,
@@ -74,6 +78,20 @@ def profil_view(request: HttpRequest) -> HttpResponse:
         messages.error(request, _MSG_INDISPONIBLE)
     except APIClientError:
         messages.error(request, "Erreur lors du chargement du profil.")
+
+    # Entreprise active : section « Mon entreprise » (lecture seule). Masquée
+    # sans `entreprise_id` en session (admin plateforme pur) ; en cas d'échec,
+    # alerte locale dans la section — pas de bannière globale, pour éviter le
+    # doublon avec un éventuel échec du chargement du profil.
+    entreprise: dict | None = None
+    entreprise_error: str | None = None
+    if request.session.get("entreprise_id"):
+        try:
+            entreprise = EntreprisesClient(request).get_my_entreprise()
+        except TokenExpiredError:
+            return redirect("login")
+        except APIClientError:
+            entreprise_error = _MSG_INDISPONIBLE
 
     form_infos = ProfilForm(initial={f: profil.get(f) for f in _PROFIL_FIELDS})
     form_email = ChangementEmailForm()
@@ -174,5 +192,7 @@ def profil_view(request: HttpRequest) -> HttpResponse:
         "form_email": form_email,
         "form_mdp": form_mdp,
         "current_email": profil.get("email") or request.session.get("user_email", ""),
+        "entreprise": entreprise,
+        "entreprise_error": entreprise_error,
     }
     return render(request, "core/profil.html", context)

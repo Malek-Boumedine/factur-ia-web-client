@@ -4,8 +4,9 @@
 Page profil (« Modifier mes informations »), accessible à tout utilisateur
 authentifié depuis le header (email cliquable / entrée « Mon profil »).
 
-Trois sections indépendantes, chacune avec son formulaire POST vers
-{% url 'profil' %} et un champ caché `action` :
+Une section « Mon entreprise » en lecture seule (masquée pour un utilisateur
+sans entreprise active), puis trois sections indépendantes, chacune avec son
+formulaire POST vers {% url 'profil' %} et un champ caché `action` :
 - infos : nom, prénom et coordonnées (PATCH /utilisateurs/me) ;
 - email : mot de passe actuel + nouvel email (l'email actuel est affiché en
   lecture seule ; au succès, la session repart avec le nouveau token) ;
@@ -31,6 +32,29 @@ Les mots de passe ne sont jamais ré-affichés après une erreur.
     <div class="bg-base-100 rounded-t-lg shadow-sm p-4 border-b border-base-300">
         <h2 class="text-xl font-bold">Mon profil</h2>
     </div>
+
+    {% if entreprise or entreprise_error %}
+    <div class="bg-base-100 rounded-lg shadow-md border border-base-200 p-6">
+        <h3 class="text-lg font-semibold mb-4">Mon entreprise</h3>
+
+        {% if entreprise_error %}
+            <div role="alert" class="alert alert-error">
+                <span>{{ entreprise_error }}</span>
+            </div>
+        {% else %}
+            <dl class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <dt class="text-sm font-medium text-base-content/60 mb-1">Nom de l'entreprise</dt>
+                    <dd class="font-medium">{{ entreprise.nom_entreprise }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-base-content/60 mb-1">SIRET</dt>
+                    <dd class="font-medium">{{ entreprise.siret|default:"Non renseigné" }}</dd>
+                </div>
+            </dl>
+        {% endif %}
+    </div>
+    {% endif %}
 
     {# Section 1 — Mes informations (ProfilUpdate). #}
     <div class="bg-base-100 rounded-lg shadow-md border border-base-200 p-6">
