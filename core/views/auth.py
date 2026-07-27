@@ -108,6 +108,26 @@ def _charger_flags_admin(request):
     request.session["can_manage_team"] = profile.get("role") in _TEAM_MANAGEMENT_ROLES
 
 
+def _load_entreprise_siret(request):
+    """Renseigne en session le SIRET de l'entreprise active.
+
+    Appelle GET /entreprises/me (le header `x-entreprise-id` est injecté par
+    la couche clients depuis `entreprise_id`, déjà résolu en session). Le SIRET
+    sert au récap de facture pour signaler une divergence avec le SIRET
+    émetteur extrait par l'OCR, sans appel API à chaque affichage. Cet
+    enrichissement ne doit JAMAIS bloquer la connexion : en cas d'échec ou
+    d'entreprise sans SIRET, la clé reste absente (l'alerte de divergence est
+    simplement désactivée).
+    """
+    try:
+        entreprise = EntreprisesClient(request).get_my_entreprise()
+    except APIClientError:
+        return
+    siret = entreprise.get("siret") if isinstance(entreprise, dict) else None
+    if siret:
+        request.session["entreprise_siret"] = siret
+
+
 def _guard_entreprise(request):
     """Garde-fou des pages métier : exige une entreprise active en session.
 
@@ -210,6 +230,7 @@ def login_view(request):
         #    l'entreprise active, transmise via le header `x-entreprise-id`.
         request.session["entreprise_id"] = abonnements[0].get("id_entreprise")
         _charger_flags_admin(request)
+        _load_entreprise_siret(request)
         return _redirect_to_user_space(request)
 
     # Affichage de la page de connexion (GET)
@@ -376,6 +397,11 @@ def onboarding_view(request):
                 # reflète ces statuts en session sans appel supplémentaire.
                 request.session["is_entreprise_admin"] = True
                 request.session["can_manage_team"] = True
+                # Le SIRET (optionnel) est déjà dans la réponse de création :
+                # on le pose en session sans appel supplémentaire (utilisé par
+                # l'alerte de divergence du récap de facture).
+                if entreprise.get("siret"):
+                    request.session["entreprise_siret"] = entreprise["siret"]
                 messages.success(
                     request, "Votre espace de travail a été créé avec succès."
                 )

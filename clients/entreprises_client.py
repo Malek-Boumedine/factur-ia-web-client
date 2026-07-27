@@ -1,15 +1,17 @@
 """Client HTTP pour les entreprises (espaces de travail / tenants).
 
-Couvre la création d'entreprise, utilisée par l'onboarding : un utilisateur
+Couvre la création d'entreprise, utilisée par l'onboarding (un utilisateur
 authentifié sans entreprise rattachée crée son espace et en devient le
-propriétaire.
+propriétaire), et la lecture de l'entreprise active.
 
 - POST /entreprises/ : création d'une entreprise (schéma EntrepriseCreate).
+- GET /entreprises/me : lecture de l'entreprise active (schéma EntrepriseRead).
 
-Cette route exige le JWT (Bearer) mais **pas** le header `x-entreprise-id` :
+La création exige le JWT (Bearer) mais **pas** le header `x-entreprise-id` :
 l'utilisateur n'a pas encore d'entreprise au moment de l'appel. Comme la session
 ne contient pas encore `entreprise_id`, `BaseAPIClient.auth_headers` ne l'injecte
-pas — l'appel part donc sans ce header, conformément au contrat.
+pas — l'appel part donc sans ce header, conformément au contrat. La lecture,
+elle, exige ce header : l'API résout l'entreprise active à partir de lui.
 """
 
 from typing import Any
@@ -42,3 +44,22 @@ class EntreprisesClient(BaseAPIClient):
                 (APIUnavailableError).
         """
         return self.post("/entreprises/", data=payload)
+
+    def get_my_entreprise(self) -> Any:
+        """Récupère l'entreprise active (espace de travail courant).
+
+        Appelle GET /entreprises/me : l'API résout l'entreprise via le header
+        `x-entreprise-id` (injecté par `BaseAPIClient.auth_headers` depuis la
+        session) après contrôle d'appartenance. Donne accès aux informations
+        légales de l'émetteur, notamment le SIRET.
+
+        Returns:
+            dict: L'entreprise active (EntrepriseRead), dont la clé `siret`
+            (optionnelle) sert à alimenter `entreprise_siret` en session.
+
+        Raises:
+            TokenExpiredError: En cas de réponse 401 (session vidée).
+            APIClientError: Toute autre erreur API mappée, ou API injoignable
+                (APIUnavailableError).
+        """
+        return self.get("/entreprises/me")

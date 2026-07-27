@@ -2,6 +2,23 @@
 
 <!-- version list -->
 
+## v0.7.0 (2026-07-03)
+
+### Features
+
+- **accueil**: Refonte de la vitrine et garde-fou d'accès
+  ([`fc5f7a3`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/fc5f7a3c6fc768edd483871eb466188281668d8b))
+
+- **admin**: Parcours dédié pour l'admin plateforme sans entreprise
+  ([`f8ccfae`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/f8ccfaeada7556a58ea9f9620b455a3b80cfcaca))
+
+- **profil**: Page de modification du profil utilisateur
+  ([`a5af5f8`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/a5af5f88a526351bc0f600094dde7750791c159e))
+
+- **taux-tva**: Page d'administration des taux de TVA (admin plateforme)
+  ([`439c2a3`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/439c2a3a26dfcc520eb0aa01b329afdda7f4bc98))
+
+
 ## v0.6.0 (2026-07-03)
 
 ### Bug Fixes
