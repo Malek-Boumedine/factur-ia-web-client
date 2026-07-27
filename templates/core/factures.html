@@ -13,6 +13,9 @@ debounce sur la saisie et soumission automatique des filtres au changement.
 
 Un brouillon pointe vers son récap éditable ; une facture validée pointe
 vers son aperçu mis en forme (facture_apercu, lecture seule).
+L'onglet Validées porte en plus une colonne Statut (badge coloré préparé par
+la vue : `statut_libelle`/`statut_badge`, « — » si statut absent) — inutile
+côté Brouillons, où le statut est toujours « brouillon ».
 La colonne Actions est présente sur les deux onglets (form POST par ligne,
 confirmation navigateur, hidden `retour` pour revenir sur la liste dans le
 même état) : suppression côté Brouillons (`facture_delete` — jamais sur les
@@ -81,6 +84,7 @@ d'avoir d'un avoir). Thème facturia (daisyUI).
                         <th>Échéance</th>
                         <th class="text-right">Total TTC</th>
                         <th>Type</th>
+                        {% if onglet == 'validees' %}<th>Statut</th>{% endif %}
                         <th class="text-right">Actions</th>
                     </tr>
                 </thead>
@@ -107,6 +111,15 @@ d'avoir d'un avoir). Thème facturia (daisyUI).
                                 {{ facture.type_facture|default:"facture"|capfirst }}
                             </span>
                         </td>
+                        {% if onglet == 'validees' %}
+                        <td>
+                            {% if facture.statut_libelle %}
+                                <span class="badge {{ facture.statut_badge }} whitespace-nowrap">{{ facture.statut_libelle }}</span>
+                            {% else %}
+                                <span class="text-base-content/60">—</span>
+                            {% endif %}
+                        </td>
+                        {% endif %}
                         <td class="text-right">
                             {% if onglet == 'brouillons' %}
                                 {# Suppression définitive : uniquement les brouillons (une validée est immuable). #}
@@ -133,7 +146,7 @@ d'avoir d'un avoir). Thème facturia (daisyUI).
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="7" class="text-center text-base-content/60 py-8">
+                        <td colspan="{% if onglet == 'validees' %}8{% else %}7{% endif %}" class="text-center text-base-content/60 py-8">
                             {% if onglet == 'brouillons' %}
                                 <p>Aucun brouillon en attente.</p>
                                 <a href="{% url 'upload_document' %}" class="link link-primary text-sm">Déposer un document pour créer une facture</a>

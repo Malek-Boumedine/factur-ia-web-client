@@ -104,6 +104,25 @@ _TABS = {
 }
 _DEFAULT_TAB = "brouillons"
 
+# Statuts du référentiel (`libelle_statut` du contrat, clés en minuscules —
+# « validée » est la seule accentuée) -> libellé FR affiché et classes du
+# badge daisyUI. Groupé par famille visuelle : gris = cycle initial, bleu =
+# transmission, vert = payé, orange = attention, rouge = problème.
+_STATUS_BADGES = {
+    "brouillon": ("Brouillon", "badge-ghost"),
+    "validée": ("Validée", "badge-neutral"),
+    "annulee": ("Annulée", "badge-ghost line-through"),
+    "envoyee_client": ("Envoyée au client", "badge-info"),
+    "en_attente_pdp": ("En attente PDP", "badge-info badge-outline"),
+    "deposee_pdp": ("Déposée PDP", "badge-info"),
+    "payee": ("Payée", "badge-success"),
+    "partiellement_payee": ("Partiellement payée", "badge-warning"),
+    "contestee": ("Contestée", "badge-warning"),
+    "en_retard": ("En retard", "badge-error"),
+    "rejetee_pdp": ("Rejetée PDP", "badge-error"),
+    "erreur_transmission": ("Erreur de transmission", "badge-error"),
+}
+
 # Paramètres d'état de la liste des factures (onglet, recherche, filtres,
 # page) : seule cette liste blanche est réencodée dans les redirections de
 # retour vers la liste — jamais une query string arbitraire.
@@ -124,6 +143,37 @@ _LINES_SCORE_KEYS = ("lignes", "total_ht", "total_tva", "total_ttc")
 # chaîne libre dans le contrat : toute valeur inattendue est ramenée à
 # « inconnu » (même signal de prudence pour l'utilisateur).
 _KNOWN_DOCUMENT_TYPES = ("facture", "devis", "avoir", "inconnu")
+
+
+def _with_status_badge(items: list) -> list:
+    """Enrichit chaque facture du libellé FR et du badge de son statut.
+
+    Le `libelle_statut` du contrat (clé en minuscules, nullable) est normalisé
+    (espaces, casse) puis résolu via `_STATUS_BADGES`. Lecture défensive :
+    statut inconnu → libellé brut sur badge neutre (l'affichage ne casse
+    jamais) ; statut absent → `statut_libelle` à `None`, le template affiche
+    « — ».
+
+    Args:
+        items (list): Items de GET /factures/ (schéma FactureListItem).
+            Obligatoire.
+
+    Returns:
+        list: Copies des items enrichies de `statut_libelle` et
+        `statut_badge` (les éléments inattendus sont laissés tels quels).
+    """
+    enriched = []
+    for item in items:
+        if not isinstance(item, dict):
+            enriched.append(item)
+            continue
+        item = dict(item)
+        raw = str(item.get("libelle_statut") or "").strip()
+        label, badge = _STATUS_BADGES.get(raw.lower(), (raw, "badge-ghost"))
+        item["statut_libelle"] = label or None
+        item["statut_badge"] = badge
+        enriched.append(item)
+    return enriched
 
 
 def _snapshot_items(snapshot: object) -> list[tuple[str, str]]:
@@ -661,7 +711,9 @@ def factures_list_view(request: HttpRequest) -> HttpResponse:
     recherche `q` (numéro, référence de commande ou raison sociale, déléguée
     à l'API) et les bornes `date_min`/`date_max` sur la date d'émission
     s'appliquent à l'onglet actif ; l'état complet est porté par l'URL, la
-    page est donc partageable et rechargeable. La pagination réutilise
+    page est donc partageable et rechargeable. Chaque item est enrichi du
+    libellé FR et du badge de son statut (`_STATUS_BADGES`), affichés en
+    colonne Statut sur l'onglet validées. La pagination réutilise
     `core.pagination` (les liens de page conservent onglet, recherche et
     filtres via `base_query`) ; les liens d'onglets conservent recherche et
     filtres mais repartent en première page (`tab_query`).
@@ -698,7 +750,7 @@ def factures_list_view(request: HttpRequest) -> HttpResponse:
             limit=PAGE_SIZE,
         )
         if isinstance(result, dict):
-            items = result.get("items", [])
+            items = _with_status_badge(result.get("items") or [])
             total = result.get("total", 0)
     except TokenExpiredError:
         return redirect("login")
