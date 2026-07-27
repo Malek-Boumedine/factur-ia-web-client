@@ -14,7 +14,15 @@
     {% endif %}
 
     <div class="bg-base-100 rounded-lg shadow-md p-6">
-        <h2 class="text-xl font-bold text-base-content mb-1">Envoyer un document</h2>
+        <div class="flex justify-between items-start mb-1">
+            <h2 class="text-xl font-bold text-base-content">Envoyer un document</h2>
+            <a href="{% url 'documents' %}" class="btn btn-outline btn-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+                </svg>
+                Voir mes documents
+            </a>
+        </div>
         <p class="text-sm text-base-content/60 mb-6">PDF, PNG ou JPEG — {{ taille_max_mo }} Mo maximum. Le document est transmis à l'API pour extraction.</p>
 
         <form id="upload-form" method="POST" action="{% url 'upload_document' %}" enctype="multipart/form-data" class="space-y-4"
