@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "base_dashboard.html" %}
 
 {% comment %}
 Récapitulatif human-in-the-loop d'un brouillon de facture (facture_recap_view).
@@ -36,15 +36,6 @@ ne change. Thème facturia (daisyUI).
 {% block content %}
 <div class="max-w-6xl mx-auto space-y-6">
 
-    {% if messages %}
-        <div class="space-y-2">
-            {% for message in messages %}
-                <div role="alert" class="alert {% if message.tags == 'error' %}alert-error{% elif message.tags == 'info' %}alert-info{% else %}alert-success{% endif %}">
-                    <span>{{ message }}</span>
-                </div>
-            {% endfor %}
-        </div>
-    {% endif %}
 
     {% if erreurs_globales %}
         <div role="alert" class="alert alert-error">
