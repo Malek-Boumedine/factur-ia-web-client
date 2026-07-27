@@ -1,0 +1,55 @@
+{% extends "base_root.html" %}
+{% comment %}
+Layout « dashboard » : sidebar de navigation + zone de contenu.
+
+- Sidebar fixe et visible ≥ lg (drawer daisyUI en mode « lg:drawer-open »),
+  drawer off-canvas avec overlay en dessous de lg — piloté par une case à
+  cocher, sans JavaScript.
+- Reproduit les mêmes blocs que base.html (title, extra_head, content_full,
+  content, extra_js) pour permettre la migration des pages sans réécriture.
+- Les messages Django sont rendus centralement ici (bloc « messages ») :
+  une page migrée ne doit PLUS les rendre elle-même, sinon double affichage.
+- Une page qui surcharge « content_full » (pleine largeur) prend en charge
+  elle-même le rendu des messages, comme le conteneur par défaut.
+{% endcomment %}
+
+{% block body %}
+<body class="min-h-screen bg-base-200 font-sans text-base-content">
+
+    <div class="drawer lg:drawer-open">
+        <input id="dashboard-drawer" type="checkbox" class="drawer-toggle" />
+
+        {# Zone principale : topbar + contenu. #}
+        <div class="drawer-content flex min-h-screen flex-col">
+            {% include "partials/dashboard/topbar.html" %}
+
+            <main class="flex-1">
+                {% block content_full %}
+                    <div class="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+                        {% block messages %}
+                            {% if messages %}
+                                <div class="mb-6 space-y-2">
+                                    {% for message in messages %}
+                                        <div role="alert" class="alert {% if message.tags == 'error' %}alert-error{% elif message.tags == 'info' %}alert-info{% elif message.tags == 'warning' %}alert-warning{% else %}alert-success{% endif %}">
+                                            <span>{{ message }}</span>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        {% endblock messages %}
+                        {% block content %}{% endblock content %}
+                    </div>
+                {% endblock content_full %}
+            </main>
+        </div>
+
+        {# Sidebar : panneau du drawer + overlay de fermeture (mobile). #}
+        <div class="drawer-side z-40">
+            <label for="dashboard-drawer" aria-label="Fermer le menu" class="drawer-overlay"></label>
+            {% include "partials/dashboard/sidebar.html" %}
+        </div>
+    </div>
+
+    {% block extra_js %}{% endblock %}
+</body>
+{% endblock body %}

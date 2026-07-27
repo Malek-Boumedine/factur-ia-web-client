@@ -1,0 +1,22 @@
+{% load tailwind_cli static %}{% comment %}
+Squelette racine partagé par les deux layouts (public « base.html » et
+dashboard « base_dashboard.html ») : head commun (Tailwind/daisyUI, thème
+facturia, Alpine). Chaque layout fournit son propre <body> via le bloc
+« body » — ne pas étendre ce fichier directement depuis une page.
+NB : les balises de blocs sont collées au HTML voisin pour que le rendu
+reste byte-identique à l'ancien base.html monolithique.
+{% endcomment %}
+<!DOCTYPE html>
+<html lang="fr" data-theme="facturia">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Factur-IA{% endblock %}</title>
+    {% tailwind_css %}
+    {# Alpine.js (vendored, chargé une seule fois pour toutes les pages). #}
+    <script defer src="{% static 'js/alpine.min.js' %}"></script>
+    {# Évite l'affichage des éléments Alpine avant l'initialisation du JS. #}
+    <style>[x-cloak]{display:none !important;}</style>
+    {% block extra_head %}{% endblock %}
+</head>
+{% block body %}{% endblock body %}</html>

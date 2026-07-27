@@ -1,0 +1,43 @@
+{% comment %}
+Barre haute du layout dashboard : bouton hamburger (ouvre le drawer,
+< lg uniquement), marque visible quand la sidebar est cachée, et actions
+de session à droite (profil, déconnexion). Cibles tactiles ≥ 44px (h-11).
+{% endcomment %}
+<header class="sticky top-0 z-30 border-b border-base-300 bg-base-100">
+    <div class="flex h-16 items-center gap-2 px-4 sm:px-6">
+
+        {# Hamburger — pilote la case à cocher du drawer (mobile). #}
+        <label for="dashboard-drawer" aria-label="Ouvrir le menu"
+               class="btn btn-ghost btn-square h-11 w-11 lg:hidden">
+            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+            </svg>
+        </label>
+
+        {# Marque — seulement quand la sidebar (qui porte la marque) est cachée. #}
+        <a href="{% url 'home' %}" class="flex items-center gap-2 lg:hidden">
+            <span class="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500 font-bold text-white">F</span>
+            <span class="text-lg font-bold tracking-tight">Factur<span class="text-primary">-IA</span></span>
+        </a>
+
+        <div class="flex-1"></div>
+
+        {# Actions de session. #}
+        {% if request.session.is_authenticated %}
+            <a href="{% url 'profil' %}" title="Mon profil"
+               class="btn btn-ghost hidden h-11 max-w-56 sm:inline-flex">
+                <span class="truncate font-normal normal-case">{{ request.session.user_email }}</span>
+            </a>
+            {# Accès profil compact sur mobile (l'email serait trop long). #}
+            <a href="{% url 'profil' %}" aria-label="Mon profil"
+               class="btn btn-ghost btn-square h-11 w-11 sm:hidden">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+                </svg>
+            </a>
+            <a href="{% url 'logout' %}" class="btn btn-ghost h-11 font-semibold">Se déconnecter</a>
+        {% else %}
+            <a href="{% url 'login' %}" class="btn btn-ghost h-11">Connexion</a>
+        {% endif %}
+    </div>
+</header>

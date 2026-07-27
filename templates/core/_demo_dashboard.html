@@ -1,0 +1,112 @@
+{% extends "base_dashboard.html" %}
+
+{% comment %}
+Page de démonstration TEMPORAIRE du layout dashboard — à supprimer une fois
+la migration des pages métier effectuée (avec sa route dans config/urls.py).
+Accessible uniquement en DEBUG via /_demo/dashboard/. Contenu factice varié
+pour valider le responsive : cards, tableau large (test du débordement
+horizontal), texte long.
+{% endcomment %}
+
+{% block title %}Démo dashboard — Factur-IA{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <div>
+        <h1 class="text-2xl font-bold">Démo du layout dashboard</h1>
+        <p class="mt-1 text-sm text-base-content/60">
+            Page temporaire de validation visuelle — sidebar fixe ≥ lg, drawer off-canvas en dessous.
+        </p>
+    </div>
+
+    {# Cards de statistiques factices. #}
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="rounded-box border border-base-300 bg-base-100 p-5 shadow-sm">
+            <p class="text-sm text-base-content/60">Factures émises</p>
+            <p class="mt-1 text-3xl font-bold">128</p>
+        </div>
+        <div class="rounded-box border border-base-300 bg-base-100 p-5 shadow-sm">
+            <p class="text-sm text-base-content/60">En attente</p>
+            <p class="mt-1 text-3xl font-bold text-warning">7</p>
+        </div>
+        <div class="rounded-box border border-base-300 bg-base-100 p-5 shadow-sm">
+            <p class="text-sm text-base-content/60">Clients actifs</p>
+            <p class="mt-1 text-3xl font-bold">42</p>
+        </div>
+        <div class="rounded-box border border-base-300 bg-base-100 p-5 shadow-sm">
+            <p class="text-sm text-base-content/60">CA du mois</p>
+            <p class="mt-1 text-3xl font-bold text-primary">12 480 €</p>
+        </div>
+    </div>
+
+    {# Tableau volontairement large : le scroll horizontal doit rester confiné au conteneur. #}
+    <div class="rounded-box border border-base-300 bg-base-100 shadow-sm">
+        <div class="border-b border-base-300 p-4">
+            <h2 class="font-bold">Dernières factures (factice)</h2>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Numéro</th>
+                        <th>Client</th>
+                        <th>Date d'émission</th>
+                        <th>Échéance</th>
+                        <th>Montant HT</th>
+                        <th>TVA</th>
+                        <th>Montant TTC</th>
+                        <th>Statut</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>FAC-2026-0128</td>
+                        <td>Dupont &amp; Fils SARL</td>
+                        <td>24/07/2026</td>
+                        <td>23/08/2026</td>
+                        <td>1 200,00 €</td>
+                        <td>240,00 €</td>
+                        <td>1 440,00 €</td>
+                        <td><span class="badge badge-success">Payée</span></td>
+                    </tr>
+                    <tr>
+                        <td>FAC-2026-0127</td>
+                        <td>Atelier Martin — Menuiserie et agencement d'intérieur</td>
+                        <td>22/07/2026</td>
+                        <td>21/08/2026</td>
+                        <td>3 850,00 €</td>
+                        <td>770,00 €</td>
+                        <td>4 620,00 €</td>
+                        <td><span class="badge badge-warning whitespace-nowrap">En attente</span></td>
+                    </tr>
+                    <tr>
+                        <td>FAC-2026-0126</td>
+                        <td>SCI Les Oliviers</td>
+                        <td>18/07/2026</td>
+                        <td>17/08/2026</td>
+                        <td>640,00 €</td>
+                        <td>128,00 €</td>
+                        <td>768,00 €</td>
+                        <td><span class="badge badge-error">En retard</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {# Texte long : vérifie la lisibilité et l'absence de débordement. #}
+    <div class="rounded-box border border-base-300 bg-base-100 p-5 shadow-sm">
+        <h2 class="font-bold">Bloc de texte</h2>
+        <p class="mt-2 text-sm leading-relaxed text-base-content/70">
+            Ce paragraphe factice sert à vérifier le confort de lecture dans la
+            zone de contenu du nouveau layout, sur mobile comme sur grand écran.
+            La sidebar doit rester fixe à gauche à partir du breakpoint lg, et
+            se replier en tiroir off-canvas en dessous — ouvrable par le bouton
+            hamburger de la barre haute, refermable par l'overlay ou le bouton
+            de fermeture. Aucun débordement horizontal ne doit apparaître, quel
+            que soit le contenu de la page.
+        </p>
+    </div>
+</div>
+{% endblock content %}
