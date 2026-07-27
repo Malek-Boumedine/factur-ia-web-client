@@ -35,6 +35,7 @@ from core.views.abonnements import (
     plan_update_view,
     plans_admin_view,
 )
+from core.views.acces import acces_view
 from core.views.admins_plateforme import admins_plateforme_view
 from core.views.catalogue import (
     catalogue_create_view,
@@ -92,6 +93,7 @@ urlpatterns = [
     path("profile-lock/", profile_lock_view, name="profile_lock"),
     path("onboarding/", onboarding_view, name="onboarding"),
     path("profil/", profil_view, name="profil"),
+    path("mes-acces/", acces_view, name="acces"),
     path("equipe/", equipe_view, name="equipe"),
     path("admins/", admins_plateforme_view, name="admins_plateforme"),
     path("abonnements/", abonnements_view, name="abonnements"),
