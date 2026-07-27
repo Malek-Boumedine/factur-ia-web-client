@@ -7,11 +7,31 @@ NB : les balises de blocs sont collées au HTML voisin pour que le rendu
 reste byte-identique à l'ancien base.html monolithique.
 {% endcomment %}
 <!DOCTYPE html>
-<html lang="fr" data-theme="facturia">
+<html lang="fr" data-theme="facturia-dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Factur-IA{% endblock %}</title>
+    {# Applique le thème mémorisé AVANT le premier rendu (anti-flash) — sombre par défaut. #}
+    <script>
+      (function () {
+        var theme = localStorage.getItem("facturia-theme");
+        if (theme !== "facturia" && theme !== "facturia-dark") theme = "facturia-dark";
+        document.documentElement.setAttribute("data-theme", theme);
+      })();
+      {# Factory du bouton de bascule clair/sombre (utilisée via x-data="themeToggle()"). #}
+      function themeToggle() {
+        return {
+          dark: document.documentElement.getAttribute("data-theme") === "facturia-dark",
+          toggle: function () {
+            this.dark = !this.dark;
+            var theme = this.dark ? "facturia-dark" : "facturia";
+            document.documentElement.setAttribute("data-theme", theme);
+            localStorage.setItem("facturia-theme", theme);
+          },
+        };
+      }
+    </script>
     {% tailwind_css %}
     {# Alpine.js (vendored, chargé une seule fois pour toutes les pages). #}
     <script defer src="{% static 'js/alpine.min.js' %}"></script>
