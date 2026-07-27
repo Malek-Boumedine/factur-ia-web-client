@@ -22,7 +22,13 @@ du client — formulaire séparé, action « create_attach »), plus un lien
 reste dans l'onglet Brouillons) et un bouton « Supprimer le brouillon »
 (formulaire séparé vers facture_delete, avec confirmation). Les erreurs 422 sont
 affichées inline (`erreurs` pour l'en-tête, `ligne.erreurs` par ligne,
-`erreurs_globales` sinon). Thème facturia (daisyUI).
+`erreurs_globales` sinon). Les indices d'extraction OCR guident la relecture :
+un champ de `champs_douteux` prend une bordure d'alerte et un hint « à
+vérifier » (l'erreur 422 garde la priorité), `lignes_douteuses` affiche un
+encart unique sur la section lignes (le score lignes est global, les totaux
+sont recalculés depuis les lignes), et `type_document_detecte` un badge
+discret (facture) ou une alerte (devis/avoir/inconnu). Sans extraction, rien
+ne change. Thème facturia (daisyUI).
 {% endcomment %}
 
 {% block title %}Vérifier la facture — Factur-IA{% endblock %}
@@ -58,10 +64,31 @@ affichées inline (`erreurs` pour l'en-tête, `ligne.erreurs` par ligne,
             <h2 class="text-xl font-bold">Vérification de la facture</h2>
             <p class="text-sm text-base-content/60">Relisez et corrigez les données extraites avant validation.</p>
         </div>
-        <span class="badge {% if facture.type_facture == 'avoir' %}badge-secondary{% else %}badge-primary{% endif %} badge-outline">
-            {{ facture.type_facture|default:"facture"|capfirst }}
-        </span>
+        <div class="flex items-center gap-2">
+            {% if type_document_detecte == "facture" %}
+                <span class="badge badge-ghost">Détecté : facture</span>
+            {% endif %}
+            <span class="badge {% if facture.type_facture == 'avoir' %}badge-secondary{% else %}badge-primary{% endif %} badge-outline">
+                {{ facture.type_facture|default:"facture"|capfirst }}
+            </span>
+        </div>
     </div>
+
+    {# --- Type de document détecté par l'OCR différent d'une facture : #}
+    {# signal fort, l'utilisateur a peut-être déposé le mauvais document. --- #}
+    {% if type_document_detecte and type_document_detecte != "facture" %}
+        <div role="alert" class="alert alert-warning">
+            <span>
+                {% if type_document_detecte == "devis" %}
+                    Ce document a été détecté comme un <strong>devis</strong>. Vérifiez qu'il s'agit bien d'une facture avant de valider.
+                {% elif type_document_detecte == "avoir" %}
+                    Ce document a été détecté comme un <strong>avoir</strong>. Vérifiez qu'il s'agit bien du document attendu avant de valider.
+                {% else %}
+                    Le type de ce document n'a pas pu être déterminé. Relisez attentivement les données extraites avant de valider.
+                {% endif %}
+            </span>
+        </div>
+    {% endif %}
 
     {# --- Alerte de divergence : SIRET émetteur extrait ≠ SIRET de l'entreprise. --- #}
     {% if siret_mismatch %}
@@ -93,8 +120,9 @@ affichées inline (`erreurs` pour l'en-tête, `ligne.erreurs` par ligne,
                 <div>
                     <label for="date_emission" class="block text-sm font-medium mb-1">Date d'émission</label>
                     <input type="date" id="date_emission" name="date_emission"
-                           value="{{ facture.date_emission|default:'' }}" class="input w-full{% if erreurs.date_emission %} input-error{% endif %}">
-                    {% if erreurs.date_emission %}<p class="text-error text-xs mt-1">{{ erreurs.date_emission }}</p>{% endif %}
+                           value="{{ facture.date_emission|default:'' }}" class="input w-full{% if erreurs.date_emission %} input-error{% elif "date_emission" in champs_douteux %} input-warning{% endif %}">
+                    {% if erreurs.date_emission %}<p class="text-error text-xs mt-1">{{ erreurs.date_emission }}</p>
+                    {% elif "date_emission" in champs_douteux %}<p class="text-warning text-xs mt-1">Extraction incertaine — vérifiez cette valeur.</p>{% endif %}
                 </div>
                 <div>
                     <label for="date_echeance" class="block text-sm font-medium mb-1">Date d'échéance</label>
@@ -112,15 +140,17 @@ affichées inline (`erreurs` pour l'en-tête, `ligne.erreurs` par ligne,
                 <div>
                     <label for="siret_emetteur" class="block text-sm font-medium mb-1">SIRET émetteur</label>
                     <input type="text" id="siret_emetteur" name="siret_emetteur" maxlength="14" inputmode="numeric"
-                           value="{{ facture.siret_emetteur|default:'' }}" class="input w-full{% if erreurs.siret_emetteur %} input-error{% endif %}">
-                    {% if erreurs.siret_emetteur %}<p class="text-error text-xs mt-1">{{ erreurs.siret_emetteur }}</p>{% endif %}
+                           value="{{ facture.siret_emetteur|default:'' }}" class="input w-full{% if erreurs.siret_emetteur %} input-error{% elif "siret_emetteur" in champs_douteux %} input-warning{% endif %}">
+                    {% if erreurs.siret_emetteur %}<p class="text-error text-xs mt-1">{{ erreurs.siret_emetteur }}</p>
+                    {% elif "siret_emetteur" in champs_douteux %}<p class="text-warning text-xs mt-1">Extraction incertaine — vérifiez cette valeur.</p>{% endif %}
                     <p class="text-xs text-base-content/50 mt-1">À la validation, le SIRET émetteur est remplacé par celui de votre entreprise.</p>
                 </div>
                 <div>
                     <label for="siret_destinataire" class="block text-sm font-medium mb-1">SIRET destinataire</label>
                     <input type="text" id="siret_destinataire" name="siret_destinataire" maxlength="14" inputmode="numeric"
-                           value="{{ facture.siret_destinataire|default:'' }}" class="input w-full{% if erreurs.siret_destinataire %} input-error{% endif %}">
-                    {% if erreurs.siret_destinataire %}<p class="text-error text-xs mt-1">{{ erreurs.siret_destinataire }}</p>{% endif %}
+                           value="{{ facture.siret_destinataire|default:'' }}" class="input w-full{% if erreurs.siret_destinataire %} input-error{% elif "siret_destinataire" in champs_douteux %} input-warning{% endif %}">
+                    {% if erreurs.siret_destinataire %}<p class="text-error text-xs mt-1">{{ erreurs.siret_destinataire }}</p>
+                    {% elif "siret_destinataire" in champs_douteux %}<p class="text-warning text-xs mt-1">Extraction incertaine — vérifiez cette valeur.</p>{% endif %}
                     <p class="text-xs text-base-content/50 mt-1">Vérifié dans la base SIRENE au moment de la validation.</p>
                 </div>
             </div>
@@ -177,6 +207,15 @@ affichées inline (`erreurs` pour l'en-tête, `ligne.erreurs` par ligne,
         {# --- commentaire d'en-tête). Montants calculés : lecture seule. --- #}
         <div class="bg-base-100 rounded-lg shadow-md border border-base-200 p-6 space-y-4">
             <h3 class="font-semibold text-base-content/80">Lignes de la facture</h3>
+
+            {# --- Encart unique pour la confiance des lignes : le score #}
+            {# `lignes` est global à la section, et un total douteux renvoie #}
+            {# aussi aux lignes (totaux recalculés à l'enregistrement). --- #}
+            {% if lignes_douteuses %}
+                <div role="alert" class="alert alert-warning">
+                    <span>L'extraction des lignes est incertaine — vérifiez les désignations, quantités et montants.</span>
+                </div>
+            {% endif %}
 
             {# États initiaux rendus côté serveur (pas de flash avant l'init #}
             {# Alpine), puis pilotés par x-show quand des lignes sont #}
@@ -324,8 +363,9 @@ affichées inline (`erreurs` pour l'en-tête, `ligne.erreurs` par ligne,
             <div>
                 <label for="iban" class="block text-sm font-medium mb-1">IBAN <span class="text-base-content/50 font-normal">(optionnel)</span></label>
                 <input type="text" id="iban" name="iban" maxlength="34"
-                       value="{{ facture.iban|default:'' }}" class="input w-full font-mono{% if erreurs.iban %} input-error{% endif %}">
-                {% if erreurs.iban %}<p class="text-error text-xs mt-1">{{ erreurs.iban }}</p>{% endif %}
+                       value="{{ facture.iban|default:'' }}" class="input w-full font-mono{% if erreurs.iban %} input-error{% elif "iban" in champs_douteux %} input-warning{% endif %}">
+                {% if erreurs.iban %}<p class="text-error text-xs mt-1">{{ erreurs.iban }}</p>
+                {% elif "iban" in champs_douteux %}<p class="text-warning text-xs mt-1">Extraction incertaine — vérifiez cette valeur.</p>{% endif %}
             </div>
             <div>
                 <label for="notes" class="block text-sm font-medium mb-1">Notes <span class="text-base-content/50 font-normal">(optionnel)</span></label>

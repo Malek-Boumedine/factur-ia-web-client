@@ -27,6 +27,7 @@ la liste des validées) : l'avoir est créé en brouillon par l'API, l'utilisate
 est redirigé vers son récap pour relecture avant validation.
 """
 
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from django.contrib import messages
@@ -108,6 +109,22 @@ _DEFAULT_TAB = "brouillons"
 # retour vers la liste — jamais une query string arbitraire.
 _LIST_STATE_PARAMS = ("onglet", "q", "date_min", "date_max", "page")
 
+# Seuil de faible confiance : un champ dont le score d'extraction OCR est
+# strictement inférieur est marqué « à vérifier » dans le récap (aligné sur
+# le seuil d'alerte retenu pour le score de confiance global).
+LOW_CONFIDENCE_THRESHOLD = Decimal("0.7")
+
+# Clés de `par_champ` regroupées sous l'encart unique de la section lignes :
+# le score `lignes` est global à l'ensemble des lignes (pas par ligne), et
+# les totaux, en lecture seule, sont recalculés depuis les lignes à
+# l'enregistrement — un total douteux signifie « relisez les lignes ».
+_LINES_SCORE_KEYS = ("lignes", "total_ht", "total_tva", "total_ttc")
+
+# Types de document que l'analyse IA peut détecter. `type_document` est une
+# chaîne libre dans le contrat : toute valeur inattendue est ramenée à
+# « inconnu » (même signal de prudence pour l'utilisateur).
+_KNOWN_DOCUMENT_TYPES = ("facture", "devis", "avoir", "inconnu")
+
 
 def _snapshot_items(snapshot: object) -> list[tuple[str, str]]:
     """Extrait du snapshot client les champs affichables (libellé, valeur).
@@ -129,6 +146,65 @@ def _snapshot_items(snapshot: object) -> list[tuple[str, str]]:
         if value not in (None, ""):
             items.append((label, str(value)))
     return items
+
+
+def _parse_score(value: Any) -> Decimal | None:
+    """Parse un score de confiance du contrat (chaîne décimale), `None` si illisible."""
+    if value is None:
+        return None
+    try:
+        return Decimal(str(value).strip())
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def _extraction_hints(extraction: object) -> dict[str, Any]:
+    """Prépare les indices de relecture issus de l'extraction OCR.
+
+    Compare chaque score de `par_champ` au seuil de faible confiance pour
+    signaler les champs douteux du récap, et normalise le type de document
+    détecté. Lecture défensive : extraction absente (création manuelle, avoir
+    généré) ou malformée, score illisible → l'entrée est ignorée, jamais de
+    plantage.
+
+    Args:
+        extraction (object): Contenu de `extraction` de la facture (schéma
+            ExtractionOcrRead, possiblement `None` ou d'une autre forme).
+            Obligatoire.
+
+    Returns:
+        dict[str, Any]: Entrées de contexte pour le template —
+        `champs_douteux` (noms des champs d'en-tête sous le seuil),
+        `lignes_douteuses` (score des lignes ou d'un total sous le seuil) et
+        `type_document_detecte` (type normalisé, `None` si non détecté).
+    """
+    hints: dict[str, Any] = {
+        "champs_douteux": [],
+        "lignes_douteuses": False,
+        "type_document_detecte": None,
+    }
+    if not isinstance(extraction, dict):
+        return hints
+
+    type_document = extraction.get("type_document")
+    if isinstance(type_document, str) and type_document.strip():
+        type_document = type_document.strip().lower()
+        hints["type_document_detecte"] = (
+            type_document if type_document in _KNOWN_DOCUMENT_TYPES else "inconnu"
+        )
+
+    par_champ = extraction.get("par_champ")
+    if not isinstance(par_champ, dict):
+        return hints
+    for champ, value in par_champ.items():
+        score = _parse_score(value)
+        if score is None or score >= LOW_CONFIDENCE_THRESHOLD:
+            continue
+        if champ in _LINES_SCORE_KEYS:
+            hints["lignes_douteuses"] = True
+        else:
+            hints["champs_douteux"].append(champ)
+    return hints
 
 
 def _format_rate(value: Any) -> str | None:
@@ -833,6 +909,13 @@ def facture_recap_view(request: HttpRequest, facture_id: int) -> HttpResponse:
     référentiel correspondant au SIRET destinataire (bouton de rattachement),
     ou recherche SIRENE ouvrant une fenêtre de création pré-remplie.
 
+    Les métadonnées d'extraction OCR (`extraction` du contrat), si présentes,
+    guident la relecture : les champs dont le score de confiance est sous le
+    seuil sont surlignés (le score des lignes et des totaux alimente un
+    encart unique sur la section lignes), et le type de document détecté est
+    affiché (badge discret si facture, alerte si devis/avoir/inconnu).
+    Dégradation propre sans extraction : récap inchangé.
+
     POST : reconstruit le payload FactureUpdate depuis la convention de
     nommage (en-tête à plat, lignes en `ligne-N-champ` + `lignes_count`) et
     enregistre les corrections via PATCH. Selon l'action soumise :
@@ -1053,6 +1136,11 @@ def facture_recap_view(request: HttpRequest, facture_id: int) -> HttpResponse:
         siret_emetteur and siret_entreprise and siret_emetteur != siret_entreprise
     )
 
+    # Indices de relecture issus de l'extraction OCR : champs sous le seuil
+    # de confiance surlignés, type de document détecté. Sans extraction
+    # (création manuelle, avoir généré), aucun indice — récap inchangé.
+    extraction_hints = _extraction_hints(facture.get("extraction"))
+
     contexte = {
         "facture": facture,
         "lignes": lignes,
@@ -1069,6 +1157,7 @@ def facture_recap_view(request: HttpRequest, facture_id: int) -> HttpResponse:
         "client_panel_error": client_panel_error,
         "siret_destinataire_valide": siret_destinataire_valide,
         "sirene_result": sirene_result,
+        **extraction_hints,
     }
     return render(request, "core/facture_recap.html", contexte)
 
