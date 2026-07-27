@@ -1,6 +1,14 @@
+from datetime import datetime
+
 from django.conf import settings
 from django.contrib import messages
-from django.http import HttpRequest, HttpResponse, JsonResponse
+from django.http import (
+    HttpRequest,
+    HttpResponse,
+    HttpResponseBase,
+    JsonResponse,
+    StreamingHttpResponse,
+)
 from django.shortcuts import redirect, render
 from django.urls import reverse
 
@@ -12,7 +20,13 @@ from clients.exceptions import (
     ResourceNotFoundError,
     TokenExpiredError,
 )
-from core.views.auth import _guard_entreprise
+from core.pagination import (
+    PAGE_SIZE,
+    base_querystring,
+    build_pagination,
+    parse_page,
+)
+from core.views.auth import _MSG_INDISPONIBLE, _guard_entreprise
 
 # Cadence du polling de l'écran d'attente : une vérification toutes les 3 s,
 # 40 tentatives maximum (~2 min) avant d'afficher la porte de sortie.
@@ -26,6 +40,18 @@ _STATUT_ERREUR = "erreur"
 # Pseudo-statut côté BFF : API injoignable pendant le polling (le front garde
 # le spinner et réessaie jusqu'au timeout au lieu de planter l'écran).
 _STATUT_INDISPONIBLE = "indisponible"
+
+# Onglets de la liste des documents : valeur du query param `statut` (clés
+# ASCII, sûres en URL) -> valeur de l'enum StatutDocument attendue par l'API
+# (None = pas de filtre, onglet « Tous »).
+_STATUS_TABS: dict[str, str | None] = {
+    "tous": None,
+    "en_attente": "en_attente",
+    "en_cours": "en_cours",
+    "traites": _STATUT_TRAITE,
+    "erreur": _STATUT_ERREUR,
+}
+_DEFAULT_STATUS_TAB = "tous"
 
 
 def _contexte_upload() -> dict[str, object]:
@@ -240,3 +266,135 @@ def document_status_view(request: HttpRequest, document_id: int) -> JsonResponse
             "message": message,
         }
     )
+
+
+def _parse_datetime(raw: object) -> datetime | None:
+    """Convertit un horodatage ISO de l'API en datetime.
+
+    Le filtre `date` des templates Django ignore les chaînes brutes : la
+    conversion doit se faire côté vue. Lecture défensive : toute valeur
+    absente ou mal formée devient `None` (affichée « — »).
+
+    Args:
+        raw (object): Valeur brute de `date_chargement` (chaîne ISO 8601
+            attendue, possiblement absente ou d'une autre forme). Obligatoire.
+
+    Returns:
+        datetime | None: L'horodatage converti, ou `None` si inexploitable.
+    """
+    if not isinstance(raw, str):
+        return None
+    try:
+        return datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+
+
+def documents_list_view(request: HttpRequest) -> HttpResponse:
+    """Affiche la liste paginée des documents uploadés, filtrable par statut.
+
+    Vue d'ensemble des dépôts de l'entreprise active (GET /documents/, les
+    plus récents d'abord). Le filtre s'exprime en onglets (query param
+    `statut` : « tous » par défaut, ou une clé de `_STATUS_TABS` mappée vers
+    l'enum StatutDocument de l'API) ; l'état complet est porté par l'URL, la
+    page est donc partageable et rechargeable. La pagination réutilise
+    `core.pagination` (les liens de page conservent l'onglet via
+    `base_query` ; les liens d'onglets repartent en première page).
+
+    Args:
+        request (HttpRequest): Requête Django courante. Obligatoire.
+
+    Returns:
+        HttpResponse: Rendu de la liste (vide avec message d'erreur si l'API
+        est indisponible), ou redirection vers le login si session expirée.
+    """
+    refus = _guard_entreprise(request)
+    if refus:
+        return refus
+
+    tab = request.GET.get("statut", _DEFAULT_STATUS_TAB)
+    if tab not in _STATUS_TABS:
+        tab = _DEFAULT_STATUS_TAB
+    page = parse_page(request.GET.get("page"))
+    skip = (page - 1) * PAGE_SIZE
+
+    items: list = []
+    total = 0
+    try:
+        result = DocumentsClient(request).list_documents(
+            statut=_STATUS_TABS[tab],
+            skip=skip,
+            limit=PAGE_SIZE,
+        )
+        if isinstance(result, dict):
+            items = result.get("items", [])
+            total = result.get("total", 0)
+    except TokenExpiredError:
+        return redirect("login")
+    except APIUnavailableError:
+        messages.error(request, _MSG_INDISPONIBLE)
+    except APIClientError as e:
+        messages.error(
+            request, f"Erreur lors du chargement des documents ({e.status_code})."
+        )
+
+    # Horodatage ISO -> datetime, pour le formatage `d/m/Y H:i` du template.
+    for item in items:
+        item["date_chargement_dt"] = _parse_datetime(item.get("date_chargement"))
+
+    pagination = build_pagination(page, total)
+
+    context = {
+        "items": items,
+        "total": total,
+        "statut": tab,
+        "base_query": base_querystring(request),
+        **pagination,
+    }
+    return render(request, "core/documents.html", context)
+
+
+def document_file_view(request: HttpRequest, document_id: int) -> HttpResponseBase:
+    """Relaie le fichier original d'un document vers le navigateur (BFF).
+
+    Le navigateur ne tape jamais l'API Data : cette vue récupère le flux de
+    GET /documents/{id_document}/fichier via la couche `clients/` (JWT
+    serveur-side) et le renvoie tel quel en `StreamingHttpResponse` — rien
+    n'est chargé en mémoire ni stocké côté Django. Le type MIME et le
+    `Content-Disposition` (`inline`, affichage dans l'onglet) de l'API sont
+    relayés au navigateur.
+
+    Args:
+        request (HttpRequest): Requête Django courante. Obligatoire.
+        document_id (int): Identifiant du document à consulter. Obligatoire.
+
+    Returns:
+        HttpResponseBase: Le flux du fichier (streaming), ou une redirection
+        vers la liste avec un message (introuvable, API indisponible), ou
+        vers le login si session expirée.
+    """
+    refus = _guard_entreprise(request)
+    if refus:
+        return refus
+
+    try:
+        chunks, content_type, content_disposition = DocumentsClient(
+            request
+        ).get_document_file(document_id)
+    except TokenExpiredError:
+        return redirect("login")
+    except ResourceNotFoundError:
+        # 404 indistinct côté API (document absent, fichier manquant ou hors
+        # tenant) : message clair + retour liste, pas de page blanche.
+        messages.error(request, "Document ou fichier introuvable.")
+        return redirect("documents")
+    except APIUnavailableError:
+        messages.error(request, _MSG_INDISPONIBLE)
+        return redirect("documents")
+    except APIClientError:
+        messages.error(request, "Erreur lors de l'ouverture du document.")
+        return redirect("documents")
+
+    response = StreamingHttpResponse(chunks, content_type=content_type)
+    response["Content-Disposition"] = content_disposition or "inline"
+    return response

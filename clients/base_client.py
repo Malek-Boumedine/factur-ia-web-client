@@ -20,6 +20,7 @@ réutilisées par les sous-classes, qui portent, elles, les chemins du contrat.
 
 import logging
 import time
+from collections.abc import Iterator
 from typing import Any
 
 import httpx
@@ -59,7 +60,8 @@ class BaseAPIClient:
     Injecte le JWT et gère la déconnexion forcée en cas d'expiration.
 
     Toutes les sous-classes héritent de cette classe et réutilisent ses méthodes
-    HTTP (`get`, `post`, `put`, `patch`, `delete`, `post_file`) ; elles ne
+    HTTP (`get`, `get_stream`, `post`, `put`, `patch`, `delete`, `post_file`) ;
+    elles ne
     doivent jamais appeler `httpx` directement, ni manipuler de codes HTTP bruts.
     L'authentification (Bearer JWT) et le contexte multi-tenant
     (`x-entreprise-id`) sont résolus depuis la session Django et injectés
@@ -344,6 +346,100 @@ class BaseAPIClient:
             "GET", endpoint, idempotent=True, headers=self.headers, params=params
         )
         return self._map_response(response)
+
+    def get_stream(self, endpoint: str) -> tuple[Iterator[bytes], str, str | None]:
+        """Émet un GET authentifié et renvoie le corps en streaming (fichiers).
+
+        Contrairement à `get`, le corps n'est jamais chargé en mémoire : la
+        réponse est consommée par morceaux (`iter_bytes`), pour relayer des
+        fichiers volumineux vers le navigateur (pattern BFF). Les erreurs
+        transitoires (timeout, réseau, 502/503/504) ne sont rejouées qu'à
+        l'établissement de la connexion, avant le premier octet : un flux
+        entamé n'est jamais rejoué.
+
+        Args:
+            endpoint (str): Chemin de la route, concaténé à `base_url`
+                (ex. `/documents/1/fichier`). Obligatoire.
+
+        Returns:
+            tuple: Un triplet `(chunks, content_type, content_disposition)` :
+            générateur de morceaux binaires (ferme le flux HTTP une fois épuisé
+            ou abandonné), type MIME de la réponse, et en-tête
+            `Content-Disposition` de l'API (`None` s'il est absent).
+
+        Raises:
+            TokenExpiredError: Authentification expirée (401).
+            ResourceNotFoundError: Ressource ou fichier inexistant (404).
+            APIClientError: Toute autre erreur API mappée (422 validation,
+                5xx serveur) ou API injoignable après retries
+                (`APIUnavailableError`).
+        """
+        url = f"{self.base_url}{endpoint}"
+        # Accept générique : la réponse attendue est un binaire, pas du JSON.
+        stream_headers = {**self.auth_headers, "Accept": "*/*"}
+        attempt = 0
+        while True:
+            client = httpx.Client(timeout=self._timeout)
+            try:
+                http_request = client.build_request("GET", url, headers=stream_headers)
+                response = client.send(http_request, stream=True)
+            except (httpx.TimeoutException, httpx.NetworkError) as exc:
+                client.close()
+                if attempt < self._max_retries:
+                    self._log_retry("GET", url, attempt, exc.__class__.__name__)
+                    self._sleep_backoff(attempt)
+                    attempt += 1
+                    continue
+                logger.error(
+                    "API injoignable après %d tentative(s) : GET %s (%s)",
+                    attempt + 1,
+                    url,
+                    exc.__class__.__name__,
+                )
+                raise APIUnavailableError() from exc
+
+            if response.status_code in _RETRYABLE_STATUS:
+                response.close()
+                client.close()
+                if attempt < self._max_retries:
+                    self._log_retry("GET", url, attempt, f"HTTP {response.status_code}")
+                    self._sleep_backoff(attempt)
+                    attempt += 1
+                    continue
+                logger.error(
+                    "API injoignable après %d tentative(s) : GET %s (HTTP %d)",
+                    attempt + 1,
+                    url,
+                    response.status_code,
+                )
+                raise APIUnavailableError(status_code=response.status_code)
+
+            if response.status_code >= 400:
+                # Corps d'erreur : petit JSON, lu en entier puis traduit en
+                # exception métier par le mapping habituel (qui lève toujours
+                # pour un statut >= 400).
+                try:
+                    response.read()
+                    self._map_response(response)
+                finally:
+                    response.close()
+                    client.close()
+
+            content_type = response.headers.get(
+                "content-type", "application/octet-stream"
+            )
+            content_disposition = response.headers.get("content-disposition")
+
+            def iter_chunks(
+                resp: httpx.Response = response, cli: httpx.Client = client
+            ) -> Iterator[bytes]:
+                try:
+                    yield from resp.iter_bytes()
+                finally:
+                    resp.close()
+                    cli.close()
+
+            return iter_chunks(), content_type, content_disposition
 
     def post(self, endpoint: str, data: dict[str, Any] | None = None) -> Any:
         """Émet une requête POST authentifiée avec un corps JSON.

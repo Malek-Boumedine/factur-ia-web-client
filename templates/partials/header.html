@@ -14,7 +14,7 @@
       <nav class="hidden lg:flex lg:items-center lg:gap-1">
         {% if request.session.is_authenticated %}
           {% if request.session.entreprise_id %}
-            <a href="{% url 'upload_document' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Documents</a>
+            <a href="{% url 'documents' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Documents</a>
             {% if request.session.can_manage_team %}
               <a href="{% url 'equipe' %}" class="rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white">Équipe</a>
             {% endif %}
@@ -74,7 +74,7 @@
         {# Pages métier : réservées aux sessions avec une entreprise active
            (un admin plateforme pur ne voit que ses pages d'administration). #}
         {% if request.session.entreprise_id %}
-          <a href="{% url 'upload_document' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Documents</a>
+          <a href="{% url 'documents' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Documents</a>
           {% if request.session.can_manage_team %}
             <a href="{% url 'equipe' %}" class="block rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-white/5 hover:text-white">Équipe</a>
           {% endif %}

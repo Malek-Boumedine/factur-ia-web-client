@@ -52,8 +52,10 @@ from core.views.clients import (
     clients_list_view,
 )
 from core.views.documents import (
+    document_file_view,
     document_status_view,
     document_wait_view,
+    documents_list_view,
     upload_document_view,
 )
 from core.views.equipe import equipe_view
@@ -170,7 +172,13 @@ urlpatterns = [
         catalogue_reactivate_view,
         name="catalogue_reactivate",
     ),
+    path("documents/", documents_list_view, name="documents"),
     path("documents/upload/", upload_document_view, name="upload_document"),
+    path(
+        "documents/<int:document_id>/fichier/",
+        document_file_view,
+        name="document_fichier",
+    ),
     path(
         "documents/<int:document_id>/attente/",
         document_wait_view,
