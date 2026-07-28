@@ -2,7 +2,9 @@
 Sidebar du layout dashboard : fixe et visible ≥ lg, panneau off-canvas du
 drawer en dessous (voir base_dashboard.html).
 
-Navigation en trois groupes, conditionnés comme l'ancien header :
+Navigation : l'entrée « Tableau de bord » ouvre la liste (accueil de l'espace
+connecté, cible du lien du header), puis trois groupes conditionnés comme
+l'ancien header :
 - « Facturation » et « Entreprise » : session avec une entreprise active ;
   Équipe requiert en plus can_manage_team.
 - « Compte » : toute session authentifiée ; Mon abonnement requiert une
@@ -39,6 +41,18 @@ lien quand la page existera.
         <ul class="menu w-full gap-1 p-0">
 
             {% if request.session.entreprise_id %}
+                {# Accueil de l'espace connecté — hors groupe, en tête de liste. #}
+                <li>
+                    <a href="{% url 'dashboard' %}"
+                       class="min-h-11 gap-3 rounded-lg px-3 {% if active == 'dashboard' %}menu-active{% endif %}"
+                       {% if active == 'dashboard' %}aria-current="page"{% endif %}>
+                        <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
+                        </svg>
+                        Tableau de bord
+                    </a>
+                </li>
+
                 {# Groupe Facturation. #}
                 <li class="menu-title">Facturation</li>
                 <li>

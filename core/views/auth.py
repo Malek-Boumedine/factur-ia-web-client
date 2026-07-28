@@ -108,24 +108,28 @@ def _charger_flags_admin(request):
     request.session["can_manage_team"] = profile.get("role") in _TEAM_MANAGEMENT_ROLES
 
 
-def _load_entreprise_siret(request):
-    """Renseigne en session le SIRET de l'entreprise active.
+def _load_entreprise_profile(request):
+    """Renseigne en session le SIRET et la raison sociale de l'entreprise active.
 
     Appelle GET /entreprises/me (le header `x-entreprise-id` est injecté par
     la couche clients depuis `entreprise_id`, déjà résolu en session). Le SIRET
     sert au récap de facture pour signaler une divergence avec le SIRET
-    émetteur extrait par l'OCR, sans appel API à chaque affichage. Cet
-    enrichissement ne doit JAMAIS bloquer la connexion : en cas d'échec ou
-    d'entreprise sans SIRET, la clé reste absente (l'alerte de divergence est
-    simplement désactivée).
+    émetteur extrait par l'OCR, la raison sociale au bandeau du tableau de
+    bord : les deux sont posés ici pour éviter un appel API à chaque
+    affichage. Cet enrichissement ne doit JAMAIS bloquer la connexion : en cas
+    d'échec ou de champ absent, la clé correspondante reste absente (l'alerte
+    de divergence est désactivée, le bandeau s'affiche sans nom).
     """
     try:
         entreprise = EntreprisesClient(request).get_my_entreprise()
     except APIClientError:
         return
-    siret = entreprise.get("siret") if isinstance(entreprise, dict) else None
-    if siret:
-        request.session["entreprise_siret"] = siret
+    if not isinstance(entreprise, dict):
+        return
+    if entreprise.get("siret"):
+        request.session["entreprise_siret"] = entreprise["siret"]
+    if entreprise.get("raison_sociale"):
+        request.session["entreprise_nom"] = entreprise["raison_sociale"]
 
 
 def _guard_entreprise(request):
@@ -152,14 +156,15 @@ def _redirect_to_user_space(request):
     Destination post-login factorisée, partagée par `login_view` et le garde
     des pages publiques : un admin plateforme sans entreprise gère les plans,
     un utilisateur sans entreprise passe par l'onboarding, sinon (entreprise
-    active) il atterrit sur l'accueil applicatif. Suppose les flags de session
+    active) il atterrit sur son tableau de bord — pas sur la vitrine publique,
+    qui reste accessible via la marque du header. Suppose les flags de session
     déjà posés (voir `_charger_flags_admin`).
     """
     if not request.session.get("entreprise_id"):
         if request.session.get("is_platform_admin"):
             return redirect("plans_admin")
         return redirect("onboarding")
-    return redirect("home")
+    return redirect("dashboard")
 
 
 def _redirect_if_authenticated(request):
@@ -230,7 +235,7 @@ def login_view(request):
         #    l'entreprise active, transmise via le header `x-entreprise-id`.
         request.session["entreprise_id"] = abonnements[0].get("id_entreprise")
         _charger_flags_admin(request)
-        _load_entreprise_siret(request)
+        _load_entreprise_profile(request)
         return _redirect_to_user_space(request)
 
     # Affichage de la page de connexion (GET)
@@ -376,7 +381,7 @@ def onboarding_view(request):
         return redirect("login")
     # Déjà un espace de travail : rien à créer, on renvoie vers l'app.
     if request.session.get("entreprise_id"):
-        return redirect("home")
+        return redirect("dashboard")
     # Un admin plateforme sans entreprise n'a pas d'espace à créer : on
     # l'oriente vers ses pages d'administration (évite une création par
     # accident ; la double casquette volontaire n'est pas gérée à ce stade).
@@ -397,15 +402,18 @@ def onboarding_view(request):
                 # reflète ces statuts en session sans appel supplémentaire.
                 request.session["is_entreprise_admin"] = True
                 request.session["can_manage_team"] = True
-                # Le SIRET (optionnel) est déjà dans la réponse de création :
-                # on le pose en session sans appel supplémentaire (utilisé par
-                # l'alerte de divergence du récap de facture).
+                # Le SIRET (optionnel) et la raison sociale sont déjà dans la
+                # réponse de création : on les pose en session sans appel
+                # supplémentaire (alerte de divergence du récap de facture,
+                # bandeau du tableau de bord).
                 if entreprise.get("siret"):
                     request.session["entreprise_siret"] = entreprise["siret"]
+                if entreprise.get("raison_sociale"):
+                    request.session["entreprise_nom"] = entreprise["raison_sociale"]
                 messages.success(
                     request, "Votre espace de travail a été créé avec succès."
                 )
-                return redirect("home")
+                return redirect("dashboard")
             except TokenExpiredError:
                 return redirect("login")
             except APIValidationError as e:

@@ -4,6 +4,8 @@ Couvre le domaine `factures` de l'API :
 
 - GET /factures/ : liste paginée avec recherche et filtres (enveloppe
   Page[FactureListItem]).
+- GET /factures/statistiques : agrégations de facturation calculées en base
+  (schéma StatistiquesFactures), pour le tableau de bord.
 - POST /factures/ : création d'une facture en brouillon (schéma FactureCreate).
 - GET /factures/{facture_id} : détail d'une facture avec ses lignes
   (schéma FactureReadWithLignes), utilisé par le récap human-in-the-loop.
@@ -24,9 +26,9 @@ class FacturesClient(BaseAPIClient):
 
     Hérite de `BaseAPIClient` et réutilise ses méthodes HTTP ; le JWT et le
     header `x-entreprise-id` sont injectés automatiquement depuis la session.
-    Couvre la liste paginée, la création de brouillon, le détail avec lignes,
-    la modification et la suppression d'un brouillon, la validation et la
-    génération d'avoir.
+    Couvre la liste paginée, les statistiques agrégées, la création de
+    brouillon, le détail avec lignes, la modification et la suppression d'un
+    brouillon, la validation et la génération d'avoir.
     """
 
     def list_invoices(
@@ -91,6 +93,62 @@ class FacturesClient(BaseAPIClient):
         if date_emission_max:
             params["date_emission_max"] = date_emission_max
         return self.get("/factures/", params=params)
+
+    def get_statistiques(
+        self,
+        date_min: str | None = None,
+        date_max: str | None = None,
+        devise: str | None = None,
+        limite_top_clients: int | None = None,
+    ) -> Any:
+        """Agrégations de facturation de l'entreprise active.
+
+        Appelle GET /factures/statistiques (schéma StatistiquesFactures) : tout
+        est calculé en base (SUM/COUNT/GROUP BY), la réponse est donc exacte
+        sans pagination ni plafond. Le périmètre couvre les seuls documents
+        émis de la période et de la devise demandées ; les brouillons sont
+        comptés à part dans `brouillons`, et les avoirs sont soustraits de tous
+        les montants.
+
+        Attention : `paiement` et `brouillons` sont eux aussi bornés par la
+        période — une fenêtre étroite masque les impayés et les brouillons plus
+        anciens. Sans dates, l'API applique 12 mois glissants.
+
+        Args:
+            date_min (str | None): Borne basse (incluse) sur la date
+                d'émission, au format ISO `AAAA-MM-JJ`. Optionnel : par défaut
+                l'API prend le premier jour du mois, 11 mois avant `date_max`.
+            date_max (str | None): Borne haute (incluse) sur la date
+                d'émission, au format ISO `AAAA-MM-JJ`. Optionnel : par défaut
+                aujourd'hui côté API.
+            devise (str | None): Devise des montants agrégés (code ISO 4217 sur
+                3 lettres). Optionnel, `EUR` par défaut côté API ; les
+                documents d'une autre devise sont exclus des totaux et
+                signalés dans `devises_exclues`.
+            limite_top_clients (int | None): Nombre de clients renvoyés dans
+                `top_clients` (1 à 20). Optionnel, 5 par défaut côté API.
+
+        Returns:
+            dict: Les agrégations (schéma StatistiquesFactures) : `periode`,
+            `devise`, `totaux`, `par_statut`, `par_mois`, `top_clients`,
+            `paiement`, `devises_exclues` et `brouillons`. Les montants sont
+            des chaînes décimales.
+
+        Raises:
+            TokenExpiredError: En cas de réponse 401.
+            APIClientError: Toute autre erreur API mappée (422 validation,
+                5xx serveur) ou API injoignable (APIUnavailableError).
+        """
+        params: dict[str, Any] = {}
+        if date_min:
+            params["date_min"] = date_min
+        if date_max:
+            params["date_max"] = date_max
+        if devise:
+            params["devise"] = devise
+        if limite_top_clients is not None:
+            params["limite_top_clients"] = limite_top_clients
+        return self.get("/factures/statistiques", params=params)
 
     def get_facture(self, facture_id: int) -> Any:
         """Récupère le détail d'une facture avec ses lignes.

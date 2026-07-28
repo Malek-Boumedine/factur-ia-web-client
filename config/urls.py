@@ -16,7 +16,6 @@ Including another URLconf
 """
 
 from django.urls import path
-from django.views.generic import TemplateView
 from core.views.auth import (
     forgot_password_view,
     login_view,
@@ -53,6 +52,7 @@ from core.views.clients import (
     client_update_view,
     clients_list_view,
 )
+from core.views.dashboard import dashboard_view
 from core.views.documents import (
     document_delete_view,
     document_file_view,
@@ -219,14 +219,6 @@ urlpatterns = [
         facture_avoir_view,
         name="facture_avoir",
     ),
+    path("tableau-de-bord/", dashboard_view, name="dashboard"),
     path("", home_view, name="home"),
-    # Page de démonstration TEMPORAIRE du layout dashboard — exposée hors
-    # DEBUG le temps de la transition (cible du lien « Tableau de bord » du
-    # header) ; à remplacer par la vraie route du tableau de bord puis à
-    # supprimer avec templates/core/_demo_dashboard.html après la migration.
-    path(
-        "_demo/dashboard/",
-        TemplateView.as_view(template_name="core/_demo_dashboard.html"),
-        name="demo_dashboard",
-    ),
 ]
