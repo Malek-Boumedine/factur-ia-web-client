@@ -204,12 +204,11 @@ de la page sur mobile.
         {% endif %}
     </div>
 
-    {# Statistiques détaillées : page à venir (entrée « Bientôt » de la sidebar). #}
-    <div class="rounded-box border border-dashed border-base-300 p-4">
+    {# Renvoi vers la page Statistiques (période paramétrable, synthèse détaillée). #}
+    <div class="rounded-box border border-base-300 bg-base-100 p-4 shadow-sm">
         <p class="text-sm text-base-content/60">
-            <span class="font-medium text-base-content/80">Statistiques détaillées</span>
-            <span class="badge badge-sm ml-1">Bientôt</span>
-            — évolution mensuelle, répartition par statut et meilleurs clients.
+            <a href="{% url 'statistiques' %}" class="link link-hover font-medium text-primary">Voir les statistiques détaillées</a>
+            — chiffre d'affaires, TVA et encours sur la période de votre choix.
             {% if stats_disponibles and periode_debut %}
                 <br>Encours et brouillons ci-dessus calculés depuis le {{ periode_debut }}.
             {% endif %}

@@ -21,7 +21,7 @@ une erreur.
 """
 
 from datetime import date
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from typing import Any
 
 from django.http import HttpRequest, HttpResponse
@@ -30,97 +30,12 @@ from django.shortcuts import redirect, render
 from clients.entreprises_client import EntreprisesClient
 from clients.exceptions import APIClientError, TokenExpiredError
 from clients.factures_client import FacturesClient
+from core.formatting import format_amount, format_date_fr, parse_iso_date, to_decimal
 from core.views.auth import _guard_entreprise
 from core.views.factures import _with_status_badge
 
 # Nombre de factures affichées dans le tableau « activité récente ».
 _RECENT_INVOICES_LIMIT = 5
-
-# Noms de mois en français : `LANGUAGE_CODE` vaut « en-us », le filtre `date`
-# de Django rendrait donc les dates en anglais.
-_MONTHS_FR = (
-    "janvier",
-    "février",
-    "mars",
-    "avril",
-    "mai",
-    "juin",
-    "juillet",
-    "août",
-    "septembre",
-    "octobre",
-    "novembre",
-    "décembre",
-)
-
-# Séparateur de milliers des montants : espace fine insécable (U+202F), usage
-# typographique français — un montant ne doit jamais se couper en fin de ligne.
-_THIN_NBSP = " "
-
-
-def _to_decimal(value: Any) -> Decimal | None:
-    """Convertit un montant du contrat (chaîne décimale) en `Decimal`.
-
-    Args:
-        value (Any): Valeur brute renvoyée par l'API, possiblement absente ou
-            d'une autre forme. Obligatoire.
-
-    Returns:
-        Decimal | None: Le montant, ou `None` s'il est absent ou illisible
-        (l'affichage retombe alors sur « — »).
-    """
-    if value is None:
-        return None
-    try:
-        return Decimal(str(value).strip())
-    except (InvalidOperation, ValueError):
-        return None
-
-
-def _currency_symbol(devise: Any) -> str:
-    """Symbole d'affichage d'une devise (« € » pour EUR, sinon le code brut)."""
-    code = str(devise or "EUR").strip().upper()
-    return "€" if code == "EUR" else code
-
-
-def _format_amount(value: Any, devise: Any) -> str | None:
-    """Formate un montant à la française avec sa devise (ex. « 12 480,00 € »).
-
-    Args:
-        value (Any): Montant brut du contrat (chaîne décimale). Obligatoire.
-        devise (Any): Code devise ISO 4217 renvoyé par l'API ; « EUR » est
-            rendu par son symbole, tout autre code est affiché tel quel.
-            Obligatoire.
-
-    Returns:
-        str | None: Le montant formaté, ou `None` s'il est illisible (le
-        template affiche alors « — »).
-    """
-    amount = _to_decimal(value)
-    if amount is None:
-        return None
-    # Arrondi comptable à deux décimales, puis séparateurs français.
-    units, _, decimals = f"{amount.quantize(Decimal('0.01')):,.2f}".partition(".")
-    return f"{units.replace(',', _THIN_NBSP)},{decimals} {_currency_symbol(devise)}"
-
-
-def _format_date_fr(value: date) -> str:
-    """Formate une date en toutes lettres à la française (ex. « 28 juillet 2026 »).
-
-    Le 1er du mois prend son ordinal (« 1er juillet »), comme l'usage.
-    """
-    jour = "1er" if value.day == 1 else str(value.day)
-    return f"{jour} {_MONTHS_FR[value.month - 1]} {value.year}"
-
-
-def _parse_iso_date(value: Any) -> date | None:
-    """Convertit une date ISO du contrat en `date`, `None` si absente ou illisible."""
-    if not value:
-        return None
-    try:
-        return date.fromisoformat(str(value).strip())
-    except (TypeError, ValueError):
-        return None
 
 
 def _previous_month_key(today: date) -> str:
@@ -149,7 +64,7 @@ def _month_revenue(par_mois: Any, key: str) -> Decimal:
         return Decimal(0)
     for point in par_mois:
         if isinstance(point, dict) and str(point.get("mois") or "") == key:
-            return _to_decimal(point.get("ca_ttc")) or Decimal(0)
+            return to_decimal(point.get("ca_ttc")) or Decimal(0)
     return Decimal(0)
 
 
@@ -243,7 +158,7 @@ def _build_indicators(stats: Any, today: date) -> dict[str, Any]:
     ca_mois_precedent = _month_revenue(par_mois, _previous_month_key(today))
 
     paiement = stats.get("paiement") if isinstance(stats.get("paiement"), dict) else {}
-    en_retard = _to_decimal(paiement.get("montant_en_retard")) or Decimal(0)
+    en_retard = to_decimal(paiement.get("montant_en_retard")) or Decimal(0)
 
     brouillons = (
         stats.get("brouillons") if isinstance(stats.get("brouillons"), dict) else {}
@@ -260,27 +175,25 @@ def _build_indicators(stats: Any, today: date) -> dict[str, Any]:
     # Début de la fenêtre réellement agrégée par l'API : sert à préciser sur
     # quelle profondeur portent l'encours et les brouillons.
     periode = stats.get("periode")
-    periode_debut = _parse_iso_date(
+    periode_debut = parse_iso_date(
         periode.get("date_min") if isinstance(periode, dict) else None
     )
 
     return {
         "devise_code": devise,
-        "ca_mois": _format_amount(ca_mois, devise),
+        "ca_mois": format_amount(ca_mois, devise),
         "ca_variation": _month_variation(ca_mois, ca_mois_precedent),
-        "restant_a_encaisser": _format_amount(
+        "restant_a_encaisser": format_amount(
             paiement.get("restant_a_encaisser") or 0, devise
         ),
-        "montant_en_retard": _format_amount(en_retard, devise),
+        "montant_en_retard": format_amount(en_retard, devise),
         "en_retard_actif": en_retard > 0,
         "brouillons_nombre": (
             brouillons_nombre if isinstance(brouillons_nombre, int) else 0
         ),
-        "brouillons_montant": _format_amount(
-            brouillons.get("montant_ttc") or 0, devise
-        ),
+        "brouillons_montant": format_amount(brouillons.get("montant_ttc") or 0, devise),
         "devises_exclues": devises_exclues,
-        "periode_debut": _format_date_fr(periode_debut) if periode_debut else None,
+        "periode_debut": format_date_fr(periode_debut) if periode_debut else None,
     }
 
 
@@ -305,11 +218,11 @@ def _prepare_recent_invoices(items: Any) -> list[dict[str, Any]]:
         if not isinstance(item, dict) or item.get("id") is None:
             continue
         item = dict(item)
-        emission = _parse_iso_date(item.get("date_emission"))
+        emission = parse_iso_date(item.get("date_emission"))
         item["date_emission_affichee"] = (
             emission.strftime("%d/%m/%Y") if emission else None
         )
-        item["total_ttc_affiche"] = _format_amount(
+        item["total_ttc_affiche"] = format_amount(
             item.get("total_ttc"), str(item.get("devise") or "EUR")
         )
         item["est_brouillon"] = (
@@ -376,7 +289,7 @@ def dashboard_view(request: HttpRequest) -> HttpResponse:
 
     contexte = {
         "entreprise_nom": entreprise_nom,
-        "date_du_jour": _format_date_fr(today),
+        "date_du_jour": format_date_fr(today),
         "stats_disponibles": stats_disponibles,
         "factures_disponibles": factures_disponibles,
         "factures_recentes": factures_recentes,

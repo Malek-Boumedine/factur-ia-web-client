@@ -71,6 +71,7 @@ from core.views.factures import (
 )
 from core.views.home import home_view
 from core.views.profil import profil_view
+from core.views.statistiques import statistiques_view
 from core.views.taux_tva import (
     taux_tva_admin_view,
     taux_tva_create_view,
@@ -220,5 +221,6 @@ urlpatterns = [
         name="facture_avoir",
     ),
     path("tableau-de-bord/", dashboard_view, name="dashboard"),
+    path("statistiques/", statistiques_view, name="statistiques"),
     path("", home_view, name="home"),
 ]

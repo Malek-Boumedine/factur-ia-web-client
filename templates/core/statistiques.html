@@ -1,0 +1,206 @@
+{% extends "base_dashboard.html" %}
+
+{% comment %}
+Page Statistiques : synthèse chiffrée de la facturation sur une période
+choisie — le pendant analytique du tableau de bord (qui, lui, fige le mois en
+cours et les raccourcis d'action).
+
+Sélecteur de période sans JavaScript : les choix rapides sont de simples liens
+`?periode=<clé>`, le mode personnalisé un formulaire GET (`date_min`/`date_max`)
+— la période vit dans l'URL, la page est partageable et rechargeable. La
+période affichée sous le titre est celle réellement appliquée par l'API.
+
+Les montants arrivent déjà formatés par la vue (français, devise incluse) : le
+template n'effectue aucun calcul. Dégradation : API indisponible → message
+local, le sélecteur reste utilisable ; période sans document → zéros propres
+et invitation à élargir la période.
+
+Trois sections en bas réservent la place des visualisations détaillées
+(évolution mensuelle, répartition par statut, meilleurs clients) — tâche
+suivante, les données sont déjà dans la réponse de l'API.
+
+Thème facturia (tokens daisyUI), lisible clair/sombre, responsive (grilles
+1 → 2 → 4 colonnes).
+{% endcomment %}
+
+{% block title %}Statistiques — Factur-IA{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    {# Titre + période réellement appliquée (renvoyée par l'API). #}
+    <div>
+        <h1 class="text-2xl font-bold">Statistiques</h1>
+        {% if stats_disponibles and periode_debut and periode_fin %}
+            <p class="mt-1 text-sm text-base-content/60">
+                Du {{ periode_debut }} au {{ periode_fin }}
+            </p>
+        {% endif %}
+    </div>
+
+    {# Sélecteur de période : liens presets + formulaire personnalisé. #}
+    <div class="rounded-box border border-base-300 bg-base-100 p-4 shadow-sm">
+        <div class="flex flex-wrap items-center gap-2">
+            {% for cle, libelle, active in periode_choix %}
+                <a href="{% url 'statistiques' %}?periode={{ cle }}"
+                   class="btn btn-sm h-9 {% if active and not periode_personnalisee %}btn-primary{% else %}btn-ghost border border-base-300{% endif %}"
+                   {% if active and not periode_personnalisee %}aria-current="true"{% endif %}>
+                    {{ libelle }}
+                </a>
+            {% endfor %}
+            <a href="{% url 'statistiques' %}?periode=personnalise&amp;date_min={{ date_min }}&amp;date_max={{ date_max }}"
+               class="btn btn-sm h-9 {% if periode_personnalisee %}btn-primary{% else %}btn-ghost border border-base-300{% endif %}"
+               {% if periode_personnalisee %}aria-current="true"{% endif %}>
+                Personnalisé
+            </a>
+        </div>
+
+        {% if periode_personnalisee %}
+            <form method="get" class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+                <input type="hidden" name="periode" value="personnalise">
+                <div class="sm:w-44">
+                    <label for="date_min" class="mb-1 block text-sm font-medium">Du</label>
+                    <input type="date" id="date_min" name="date_min" value="{{ date_min }}"
+                           class="input input-sm h-10 w-full">
+                </div>
+                <div class="sm:w-44">
+                    <label for="date_max" class="mb-1 block text-sm font-medium">Au</label>
+                    <input type="date" id="date_max" name="date_max" value="{{ date_max }}"
+                           class="input input-sm h-10 w-full">
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm h-10">Appliquer</button>
+            </form>
+        {% endif %}
+
+        {% if periode_warning %}
+            <p role="status" class="mt-3 text-sm text-warning">{{ periode_warning }}</p>
+        {% endif %}
+    </div>
+
+    {# API injoignable : message local, le sélecteur ci-dessus reste utilisable. #}
+    {% if not stats_disponibles %}
+        <div role="status" class="alert alert-warning">
+            <span>Les statistiques sont indisponibles pour le moment. Réessayez dans quelques instants.</span>
+        </div>
+    {% else %}
+
+        {# Période sans aucun document : zéros propres + invitation à élargir. #}
+        {% if periode_vide %}
+            <div role="status" class="alert alert-info">
+                <span>Aucune facture sur cette période — élargissez la période pour voir vos chiffres.</span>
+            </div>
+        {% endif %}
+
+        {# Rangée 1 — chiffre d'affaires de la période. #}
+        <section aria-label="Chiffre d'affaires">
+            <h2 class="mb-3 text-sm font-semibold text-base-content/60">Chiffre d'affaires</h2>
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <div class="rounded-box border border-base-300 bg-base-100 p-5 shadow-sm">
+                    <p class="text-sm text-base-content/60">CA HT</p>
+                    <p class="mt-1 text-2xl font-bold break-words sm:text-3xl">{{ ca_ht|default:"—" }}</p>
+                    <p class="mt-1 text-xs text-base-content/50">Net des avoirs</p>
+                </div>
+                <div class="rounded-box border border-base-300 bg-base-100 p-5 shadow-sm">
+                    <p class="text-sm text-base-content/60">CA TTC</p>
+                    <p class="mt-1 text-2xl font-bold break-words sm:text-3xl">{{ ca_ttc|default:"—" }}</p>
+                    <p class="mt-1 text-xs text-base-content/50">Net des avoirs</p>
+                </div>
+                <div class="rounded-box border border-base-300 bg-base-100 p-5 shadow-sm">
+                    <p class="text-sm text-base-content/60">TVA collectée</p>
+                    <p class="mt-1 text-2xl font-bold break-words sm:text-3xl">{{ tva_collectee|default:"—" }}</p>
+                    <p class="mt-1 text-xs text-base-content/50">Sur la période</p>
+                </div>
+                <div class="rounded-box border border-base-300 bg-base-100 p-5 shadow-sm">
+                    <p class="text-sm text-base-content/60">Panier moyen</p>
+                    <p class="mt-1 text-2xl font-bold break-words sm:text-3xl">{{ panier_moyen|default:"—" }}</p>
+                    <p class="mt-1 text-xs text-base-content/50">CA TTC / facture émise</p>
+                </div>
+            </div>
+        </section>
+
+        {# Rangée 2 — volumes et encours de la période. #}
+        <section aria-label="Volumes et encours">
+            <h2 class="mb-3 text-sm font-semibold text-base-content/60">Volumes et encours</h2>
+            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <div class="rounded-box border border-base-300 bg-base-100 p-5 shadow-sm">
+                    <p class="text-sm text-base-content/60">Factures émises</p>
+                    <p class="mt-1 text-2xl font-bold sm:text-3xl">
+                        {% if nombre_factures is not None %}{{ nombre_factures }}{% else %}—{% endif %}
+                    </p>
+                    <p class="mt-1 text-xs text-base-content/50">
+                        {% if nombre_avoirs is not None %}dont {{ nombre_avoirs }} avoir{{ nombre_avoirs|pluralize }} émis à part{% else %}—{% endif %}
+                    </p>
+                </div>
+                <div class="rounded-box border border-base-300 bg-base-100 p-5 shadow-sm">
+                    <p class="text-sm text-base-content/60">Restant à encaisser</p>
+                    <p class="mt-1 text-2xl font-bold break-words sm:text-3xl">{{ restant_a_encaisser|default:"—" }}</p>
+                    <p class="mt-1 text-xs text-base-content/50">Chiffre pessimiste : un paiement partiel compte pour le total</p>
+                </div>
+                <div class="rounded-box border border-base-300 bg-base-100 p-5 shadow-sm">
+                    <p class="text-sm text-base-content/60">Montant en retard</p>
+                    <p class="mt-1 text-2xl font-bold break-words sm:text-3xl">{{ montant_en_retard|default:"—" }}</p>
+                    <p class="mt-1 text-xs text-base-content/50">Échéance dépassée, inclus dans le restant à encaisser</p>
+                </div>
+                <div class="rounded-box border border-base-300 bg-base-100 p-5 shadow-sm">
+                    <p class="text-sm text-base-content/60">Brouillons</p>
+                    <p class="mt-1 text-2xl font-bold sm:text-3xl">
+                        {% if brouillons_nombre is not None %}{{ brouillons_nombre }}{% else %}—{% endif %}
+                    </p>
+                    <p class="mt-1 text-xs text-base-content/50">{{ brouillons_montant|default:"—" }} hors chiffre d'affaires</p>
+                </div>
+            </div>
+        </section>
+
+        {# Devises écartées des totaux : précision de lecture, pas une alerte. #}
+        {% if devises_exclues %}
+            <p role="note" class="flex items-start gap-2 text-xs text-base-content/60">
+                <svg class="mt-0.5 h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
+                </svg>
+                <span>
+                    Montants exprimés en {{ devise_code }} uniquement : {% for exclue in devises_exclues %}{{ exclue.nombre }} document{{ exclue.nombre|pluralize }} en {{ exclue.devise }}{% if not forloop.last %}, {% endif %}{% endfor %} en sont exclus (deux devises ne s'additionnent pas).
+                </span>
+            </p>
+        {% endif %}
+
+    {% endif %}
+
+    {# Sections réservées aux visualisations détaillées — tâche suivante. #}
+    <div class="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <div class="rounded-box border border-dashed border-base-300 p-5">
+            <h2 class="text-sm font-semibold text-base-content/70">
+                Évolution mensuelle <span class="badge badge-sm ml-1">Bientôt</span>
+            </h2>
+            <p class="mt-2 text-xs text-base-content/50">Le chiffre d'affaires mois par mois sur la période.</p>
+        </div>
+        <div class="rounded-box border border-dashed border-base-300 p-5">
+            <h2 class="text-sm font-semibold text-base-content/70">
+                Répartition par statut <span class="badge badge-sm ml-1">Bientôt</span>
+            </h2>
+            <p class="mt-2 text-xs text-base-content/50">Nombre et montants des factures selon leur statut.</p>
+        </div>
+        <div class="rounded-box border border-dashed border-base-300 p-5">
+            <h2 class="text-sm font-semibold text-base-content/70">
+                Meilleurs clients <span class="badge badge-sm ml-1">Bientôt</span>
+            </h2>
+            <p class="mt-2 text-xs text-base-content/50">Les clients qui contribuent le plus au chiffre d'affaires.</p>
+        </div>
+    </div>
+
+    {# Précisions de lecture : replié par défaut, honnête sans être anxiogène. #}
+    <div class="collapse-arrow collapse rounded-box border border-base-300 bg-base-100">
+        <input type="checkbox" aria-label="Afficher les précisions de lecture">
+        <div class="collapse-title text-sm font-semibold">Précisions de lecture</div>
+        <div class="collapse-content text-sm text-base-content/70">
+            <ul class="list-inside list-disc space-y-1">
+                <li>Les avoirs sont soustraits de tous les montants ; une facture annulée reste comptée et se neutralise avec son avoir.</li>
+                <li>Le montant en retard est un sous-ensemble du restant à encaisser : ne pas additionner les deux.</li>
+                <li>Faute de suivi des règlements, une facture partiellement payée compte pour son total dans le restant à encaisser.</li>
+                <li>Les brouillons sont comptés à part et n'entrent pas dans le chiffre d'affaires.</li>
+                <li>Seuls les documents émis sur la période choisie (date d'émission) sont pris en compte.</li>
+            </ul>
+        </div>
+    </div>
+
+</div>
+{% endblock content %}
