@@ -31,14 +31,8 @@ _MSG_INDISPONIBLE = "Service momentanément indisponible. Veuillez réessayer."
 # métier d'entreprise (voir `_guard_entreprise`).
 _MSG_PAGE_ENTREPRISE = (
     "Cette page concerne un espace de travail entreprise. "
-    "Votre compte administrateur de plateforme n'y est pas rattaché."
-)
-
-# Message affiché à un admin plateforme sans entreprise qui accède à
-# l'onboarding : il gère la plateforme, pas un espace de travail client.
-_MSG_ONBOARDING_ADMIN = (
-    "En tant qu'administrateur de la plateforme, vous n'avez pas "
-    "d'espace de travail entreprise à créer."
+    "Votre compte administrateur de plateforme n'y est pas rattaché : "
+    "vous pouvez créer votre espace de travail depuis le menu « Compte »."
 )
 
 # Clé de session du résultat SIRENE en attente à l'onboarding. Un utilisateur
@@ -145,9 +139,10 @@ def _guard_entreprise(request):
     """Garde-fou des pages métier : exige une entreprise active en session.
 
     Non authentifié → login. Sans entreprise active : un admin plateforme est
-    orienté vers la gestion des plans avec un message informatif (les pages
-    métier ne le concernent pas), un utilisateur classique vers l'onboarding
-    pour créer son espace de travail. Renvoie `None` si l'accès est autorisé.
+    orienté vers la gestion des plans avec un message informatif (il n'est pas
+    forcé de créer un espace, mais peut le faire via l'onboarding), un
+    utilisateur classique vers l'onboarding pour créer son espace de travail.
+    Renvoie `None` si l'accès est autorisé.
     """
     if not request.session.get("is_authenticated"):
         return redirect("login")
@@ -163,11 +158,13 @@ def _redirect_to_user_space(request):
     """Redirige un utilisateur authentifié vers son espace approprié.
 
     Destination post-login factorisée, partagée par `login_view` et le garde
-    des pages publiques : un admin plateforme sans entreprise gère les plans,
-    un utilisateur sans entreprise passe par l'onboarding, sinon (entreprise
-    active) il atterrit sur son tableau de bord — pas sur la vitrine publique,
-    qui reste accessible via la marque du header. Suppose les flags de session
-    déjà posés (voir `_charger_flags_admin`).
+    des pages publiques : un admin plateforme sans entreprise atterrit sur la
+    gestion des plans (sans onboarding forcé — il garde la possibilité de
+    créer son espace via le menu ou `/onboarding`), un utilisateur sans
+    entreprise passe par l'onboarding, sinon (entreprise active) il atterrit
+    sur son tableau de bord — pas sur la vitrine publique, qui reste
+    accessible via la marque du header. Suppose les flags de session déjà
+    posés (voir `_charger_flags_admin`).
     """
     if not request.session.get("entreprise_id"):
         if request.session.get("is_platform_admin"):
@@ -233,8 +230,8 @@ def login_view(request):
         #    que de bloquer (la session porte déjà le JWT nécessaire). Les flags
         #    admin sont posés sans contexte entreprise (`est_admin` restera à
         #    False, seul le statut plateforme est exploitable). Exception : un
-        #    admin plateforme gère la plateforme, pas un espace client — il
-        #    atterrit sur la gestion des plans, sans onboarding forcé.
+        #    admin plateforme atterrit sur la gestion des plans, sans onboarding
+        #    forcé — il reste libre de créer son propre espace via le menu.
         if not abonnements:
             _charger_flags_admin(request)
             return _redirect_to_user_space(request)
@@ -485,10 +482,13 @@ def onboarding_view(request):
     """Création du premier espace de travail (POST /entreprises/).
 
     Écran présenté après login quand l'utilisateur n'a aucune entreprise
-    rattachée. Le JWT est déjà en session (posé par `login_view`) : le client
-    entreprises le réutilise, sans `x-entreprise-id` (pas encore d'entreprise).
-    Après création, on initialise `entreprise_id` en session et on donne accès
-    à l'application.
+    rattachée. Accessible à tout authentifié sans entreprise, y compris un
+    admin plateforme (double casquette : il n'y est jamais redirigé d'office,
+    mais peut choisir d'y créer son propre espace et de souscrire, tout en
+    conservant ses fonctions d'administration). Le JWT est déjà en session
+    (posé par `login_view`) : le client entreprises le réutilise, sans
+    `x-entreprise-id` (pas encore d'entreprise). Après création, on initialise
+    `entreprise_id` en session et on donne accès à l'application.
 
     Le bouton « Rechercher » du champ SIRET (action `sirene_lookup`) est une
     aide facultative : il pré-remplit le nom et le SIRET depuis la base SIRENE
@@ -501,12 +501,6 @@ def onboarding_view(request):
     # Déjà un espace de travail : rien à créer, on renvoie vers l'app.
     if request.session.get("entreprise_id"):
         return redirect("dashboard")
-    # Un admin plateforme sans entreprise n'a pas d'espace à créer : on
-    # l'oriente vers ses pages d'administration (évite une création par
-    # accident ; la double casquette volontaire n'est pas gérée à ce stade).
-    if request.session.get("is_platform_admin"):
-        messages.info(request, _MSG_ONBOARDING_ADMIN)
-        return redirect("plans_admin")
 
     if request.method == "POST":
         # Recherche SIRENE : traitée avant toute validation (le formulaire peut

@@ -8,7 +8,8 @@ l'ancien header :
 - « Facturation » et « Entreprise » : session avec une entreprise active ;
   Équipe requiert en plus can_manage_team.
 - « Compte » : toute session authentifiée ; Mon abonnement requiert une
-  entreprise active.
+  entreprise active, remplacé sinon par « Créer mon espace de travail »
+  (chemin de souscription d'un admin plateforme sans entreprise).
 - « Administration » : backoffice plateforme (is_platform_admin), sans
   exigence d'entreprise active — un admin plateforme n'en a pas forcément.
 
@@ -152,6 +153,24 @@ aria-current="page".
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5a2.25 2.25 0 0 0 2.25 2.25Z" />
                             </svg>
                             Mon abonnement
+                        </a>
+                    </li>
+                {% else %}
+                    {% comment %}
+                    Session sans espace de travail (en pratique : admin
+                    plateforme, un utilisateur classique étant redirigé vers
+                    l'onboarding par les gardes) : chemin explicite pour créer
+                    son entreprise et souscrire. Remplacé par « Mon
+                    abonnement » une fois l'espace créé.
+                    {% endcomment %}
+                    <li>
+                        <a href="{% url 'onboarding' %}"
+                           class="min-h-11 gap-3 rounded-lg px-3 {% if active == 'onboarding' %}menu-active{% endif %}"
+                           {% if active == 'onboarding' %}aria-current="page"{% endif %}>
+                            <svg class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
+                            </svg>
+                            Créer mon espace de travail
                         </a>
                     </li>
                 {% endif %}
