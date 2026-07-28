@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "base_dashboard.html" %}
 
 {% comment %}
 Aperçu mis en forme d'une facture (facture_apercu_view) — lecture seule
@@ -19,7 +19,8 @@ feuille, elle, reste en lecture seule stricte.
 
 Socle du futur export PDF/Factur-X : la feuille est balisée comme un document
 (article/header/footer) et un style d'impression masque le layout applicatif
-(header/footer du site et barre d'actions, marqués `no-print`) pour ne
+(sidebar et topbar du dashboard, messages et barre d'actions marqués
+`no-print` — le bloc « messages » du layout est surchargé pour ça) pour ne
 laisser que la feuille — le bouton « Imprimer » repose sur window.print(),
 aucun PDF n'est généré ici. Thème facturia (daisyUI).
 {% endcomment %}
@@ -35,7 +36,7 @@ aucun PDF n'est généré ici. Thème facturia (daisyUI).
            d'impression reste côté utilisateur — le contrôle total viendra
            avec le futur export PDF. */
         @page { margin: 0; }
-        body > header, body > footer, .no-print { display: none !important; }
+        .drawer-side, .drawer-content > header, .no-print { display: none !important; }
         body { background: white; }
         .invoice-sheet {
             box-shadow: none !important;
@@ -48,11 +49,10 @@ aucun PDF n'est généré ici. Thème facturia (daisyUI).
 </style>
 {% endblock %}
 
-{% block content %}
-<div class="max-w-4xl mx-auto space-y-6">
-
+{# Messages hors document : mêmes alertes que le layout, masquées à l'impression. #}
+{% block messages %}
     {% if messages %}
-        <div class="space-y-2 no-print">
+        <div class="mb-6 space-y-2 no-print">
             {% for message in messages %}
                 <div role="alert" class="alert {% if message.tags == 'error' %}alert-error{% elif message.tags == 'info' %}alert-info{% elif message.tags == 'warning' %}alert-warning{% else %}alert-success{% endif %}">
                     <span>{{ message }}</span>
@@ -60,6 +60,11 @@ aucun PDF n'est généré ici. Thème facturia (daisyUI).
             {% endfor %}
         </div>
     {% endif %}
+{% endblock messages %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+
 
     {# Barre d'actions hors document : navigation et impression uniquement. #}
     <div class="flex flex-wrap items-center justify-between gap-3 no-print">

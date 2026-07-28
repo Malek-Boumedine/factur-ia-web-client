@@ -1,0 +1,128 @@
+{% extends "base_dashboard.html" %}
+
+{% comment %}
+Liste des documents uploadés (vue d'ensemble des dépôts, les plus récents
+d'abord).
+
+L'état est porté par les query params de l'URL (onglet de statut `statut`,
+page `page`) — la page est donc partageable et rechargeable. Les onglets
+filtrent par statut d'extraction (clés ASCII mappées côté vue vers l'enum
+StatutDocument de l'API) et repartent en première page ; les liens de
+pagination conservent l'onglet (`base_query`).
+
+Chaque ligne montre le nom original, un badge de statut, la date de
+chargement, et les actions selon l'état : « Voir le document » ouvre le
+fichier original dans un nouvel onglet via la vue BFF de relais (le
+navigateur ne tape jamais l'API Data) ; un document traité pointe en plus
+vers le récap du brouillon de facture généré par l'OCR. La corbeille
+(form POST par ligne, confirmation navigateur, hidden `retour` pour revenir
+sur la liste dans le même état) est visible sur toutes les lignes : c'est
+l'API qui arbitre (409 si une facture référence le document), l'état affiché
+pouvant être périmé. Thème facturia (daisyUI).
+{% endcomment %}
+
+{% block title %}Documents — Factur-IA{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-6">
+
+    <div class="flex justify-between items-center bg-base-100 rounded-t-lg shadow-sm p-4 border-b border-base-300">
+        <div class="flex items-center gap-3">
+            <h2 class="text-xl font-bold">Documents</h2>
+            <span class="text-sm text-base-content/60">{{ total }} document{{ total|pluralize }}</span>
+        </div>
+        <a href="{% url 'upload_document' %}" class="btn btn-primary">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+            Déposer un document
+        </a>
+    </div>
+
+    {# Onglets de statut : chaque lien fixe son filtre et repart en première page. #}
+    <div role="tablist" class="tabs tabs-border">
+        <a role="tab" href="{% url 'documents' %}?statut=tous"
+           class="tab{% if statut == 'tous' %} tab-active{% endif %}">Tous</a>
+        <a role="tab" href="{% url 'documents' %}?statut=en_attente"
+           class="tab{% if statut == 'en_attente' %} tab-active{% endif %}">En attente</a>
+        <a role="tab" href="{% url 'documents' %}?statut=en_cours"
+           class="tab{% if statut == 'en_cours' %} tab-active{% endif %}">En cours</a>
+        <a role="tab" href="{% url 'documents' %}?statut=traites"
+           class="tab{% if statut == 'traites' %} tab-active{% endif %}">Traités</a>
+        <a role="tab" href="{% url 'documents' %}?statut=erreur"
+           class="tab{% if statut == 'erreur' %} tab-active{% endif %}">En erreur</a>
+    </div>
+
+    <div class="bg-base-100 rounded-lg shadow-md border border-base-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Document</th>
+                        <th>Statut</th>
+                        <th>Chargé le</th>
+                        <th class="text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for document in items %}
+                    <tr class="hover">
+                        <td class="font-medium">{{ document.nom_original|default:"—" }}</td>
+                        <td>
+                            {% if document.statut == "en_attente" %}
+                                <span class="badge badge-ghost">En attente</span>
+                            {% elif document.statut == "en_cours" %}
+                                <span class="badge badge-info">En cours d'analyse</span>
+                            {% elif document.statut == "traité" %}
+                                <span class="badge badge-success">Traité</span>
+                            {% elif document.statut == "erreur" %}
+                                <span class="badge badge-error">Erreur d'extraction</span>
+                            {% else %}
+                                <span class="badge badge-ghost">{{ document.statut|default:"—" }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-base-content/70 whitespace-nowrap">{{ document.date_chargement_dt|date:"d/m/Y H:i"|default:"—" }}</td>
+                        <td class="text-right">
+                            <div class="flex justify-end items-center gap-1">
+                                {% if document.statut == "traité" and document.id_facture %}
+                                    {# Brouillon généré par l'OCR : relecture avant validation. #}
+                                    <a href="{% url 'facture_recap' facture_id=document.id_facture %}" class="btn btn-ghost btn-sm" title="Ouvrir la facture générée">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                        Ouvrir la facture
+                                    </a>
+                                {% endif %}
+                                {# Fichier original relayé par la vue BFF (inline, nouvel onglet). #}
+                                <a href="{% url 'document_fichier' document_id=document.id %}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm" title="Voir le fichier original">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                                    Voir le document
+                                </a>
+                                {# Suppression définitive : l'API refuse (409) si une facture référence le document. #}
+                                <form method="post" action="{% url 'document_delete' document_id=document.id %}" class="inline-block"
+                                      onsubmit="return confirm('Supprimer définitivement le document {{ document.nom_original|default:'sans nom'|escapejs }} ? Cette action est irréversible.');">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="retour" value="{{ current_query }}">
+                                    <button type="submit" class="btn btn-ghost btn-sm btn-square text-error" title="Supprimer">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-center text-base-content/60 py-8">
+                            {% if statut == 'tous' %}
+                                <p>Aucun document déposé.</p>
+                                <a href="{% url 'upload_document' %}" class="link link-primary text-sm">Déposer un document pour créer une facture</a>
+                            {% else %}
+                                <p>Aucun document pour ce filtre.</p>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% include "core/partials/pagination.html" %}
+</div>
+{% endblock content %}

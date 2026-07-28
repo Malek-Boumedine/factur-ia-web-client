@@ -1,21 +1,19 @@
-{% extends "base.html" %}
+{% extends "base_dashboard.html" %}
 
 {% block content %}
 <div class="max-w-xl mx-auto space-y-6">
 
-    {% if messages %}
-        <div class="space-y-2">
-            {% for message in messages %}
-                <div class="p-3 rounded-md text-sm font-medium {% if message.tags == 'error' %}bg-red-100 text-red-700 border border-red-200{% else %}bg-emerald-100 text-emerald-700 border border-emerald-200{% endif %}">
-                    {{ message }}
-                </div>
-            {% endfor %}
+    <div class="bg-base-100 rounded-lg shadow-md p-6">
+        <div class="flex justify-between items-start mb-1">
+            <h2 class="text-xl font-bold text-base-content">Envoyer un document</h2>
+            <a href="{% url 'documents' %}" class="btn btn-outline btn-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+                </svg>
+                Voir mes documents
+            </a>
         </div>
-    {% endif %}
-
-    <div class="bg-white rounded-lg shadow-md p-6">
-        <h2 class="text-xl font-bold text-gray-800 mb-1">Envoyer un document</h2>
-        <p class="text-sm text-gray-500 mb-6">PDF, PNG ou JPEG — {{ taille_max_mo }} Mo maximum. Le document est transmis à l'API pour extraction.</p>
+        <p class="text-sm text-base-content/60 mb-6">PDF, PNG ou JPEG — {{ taille_max_mo }} Mo maximum. Le document est transmis à l'API pour extraction.</p>
 
         <form id="upload-form" method="POST" action="{% url 'upload_document' %}" enctype="multipart/form-data" class="space-y-4"
               data-max-size="{{ taille_max_octets }}" data-extensions="{{ extensions_autorisees }}">
@@ -23,22 +21,22 @@
 
             <!-- Zone de dépôt : cliquable et compatible glisser-déposer. -->
             <label id="dropzone" for="file"
-                   class="flex flex-col items-center justify-center gap-2 w-full py-10 px-4 text-center border-2 border-dashed border-gray-300 rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
-                <svg class="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                   class="flex flex-col items-center justify-center gap-2 w-full py-10 px-4 text-center border-2 border-dashed border-base-300 rounded-lg cursor-pointer bg-base-200 hover:bg-base-300 transition-colors">
+                <svg class="w-10 h-10 text-base-content/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.9 5 5 0 019.9-1A4.5 4.5 0 1116 16m-4-4v8m0-8l-3 3m3-3l3 3" />
                 </svg>
-                <span id="dropzone-text" class="text-sm text-gray-600 font-medium">Glissez un fichier ici ou cliquez pour parcourir</span>
-                <span class="text-xs text-gray-400">PDF, PNG ou JPEG — {{ taille_max_mo }} Mo max</span>
+                <span id="dropzone-text" class="text-sm text-base-content/70 font-medium">Glissez un fichier ici ou cliquez pour parcourir</span>
+                <span class="text-xs text-base-content/40">PDF, PNG ou JPEG — {{ taille_max_mo }} Mo max</span>
             </label>
 
             <input type="file" id="file" name="file" required
                    accept="{{ extensions_autorisees }},application/pdf,image/png,image/jpeg"
                    class="sr-only">
 
-            <p id="client-error" class="hidden text-sm font-medium text-red-600"></p>
+            <p id="client-error" class="hidden text-sm font-medium text-error"></p>
 
             <div class="pt-2">
-                <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-md transition-colors">
+                <button type="submit" class="btn btn-primary">
                     Envoyer le document
                 </button>
             </div>

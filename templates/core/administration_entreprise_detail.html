@@ -1,0 +1,378 @@
+{% extends "base_dashboard.html" %}
+
+{% comment %}
+Fiche d'une entreprise abonnée, réservée aux administrateurs de plateforme.
+
+Quatre cartes de lecture — identité, abonnement (courant + historique),
+volumétrie des données, membres — et les actions de gestion. Toutes les actions
+passent par une vue Django POST-only avec CSRF puis reviennent ici (PRG) : le
+navigateur ne contacte jamais l'API directement, et la fiche est rechargée
+complète plutôt que rendue depuis la réponse allégée de l'action.
+
+Les compteurs préaffichent ce qui bloquerait une suppression (bouton désactivé
+et message d'explication), mais l'API reste juge : ses refus 403 et 409 sont
+relayés tels quels par la vue.
+{% endcomment %}
+
+{% block title %}{{ entreprise.nom_entreprise }} — Factur-IA{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-6" x-data="actionsEntreprise()">
+
+    <div class="flex flex-wrap justify-between items-center gap-3 bg-base-100 rounded-t-lg shadow-sm p-4 border-b border-base-300">
+        <div class="flex flex-wrap items-center gap-3">
+            <h2 class="text-xl font-bold">{{ entreprise.nom_entreprise }}</h2>
+            {% if entreprise.est_actif %}
+                <span class="badge badge-success badge-soft">Active</span>
+            {% else %}
+                <span class="badge badge-error badge-soft">Suspendue</span>
+            {% endif %}
+            {% if entreprise.statut_label %}
+                <span class="badge {{ entreprise.statut_badge }} badge-soft">Abonnement {{ entreprise.statut_label|lower }}</span>
+            {% endif %}
+        </div>
+        <div class="flex items-center gap-2">
+            <a href="{% url 'admin_entreprise_update' entreprise_id=entreprise.id %}" class="btn btn-primary btn-sm">Modifier</a>
+            <a href="{% url 'admin_entreprises' %}" class="btn btn-ghost btn-sm">Retour à la liste</a>
+        </div>
+    </div>
+
+    {# Bandeau de suspension : la mesure en cours prime sur le reste de la fiche. #}
+    {% if not entreprise.est_actif %}
+        <div role="alert" class="alert alert-warning">
+            <div>
+                <p class="font-medium">Entreprise suspendue{% if entreprise.date_suspension_fr %} depuis le {{ entreprise.date_suspension_fr }}{% endif %}.</p>
+                <p class="text-sm">
+                    {% if entreprise.motif_suspension %}Motif : {{ entreprise.motif_suspension }}{% else %}Aucun motif enregistré.{% endif %}
+                    Ses membres n'ont plus accès à leur espace de travail ; aucune donnée n'a été supprimée.
+                </p>
+            </div>
+        </div>
+    {% endif %}
+
+    {# --- Identité ---------------------------------------------------- #}
+    <div class="bg-base-100 rounded-lg shadow-md border border-base-200 p-6">
+        <h3 class="text-base font-semibold mb-4">Identité</h3>
+        <dl class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+            <div>
+                <dt class="text-xs font-semibold uppercase tracking-wider text-base-content/50">Raison sociale</dt>
+                <dd class="mt-1">{{ entreprise.nom_entreprise }}</dd>
+            </div>
+            <div>
+                <dt class="text-xs font-semibold uppercase tracking-wider text-base-content/50">SIRET</dt>
+                <dd class="mt-1">{{ entreprise.siret|default:"—" }}</dd>
+            </div>
+            <div>
+                <dt class="text-xs font-semibold uppercase tracking-wider text-base-content/50">Forme juridique</dt>
+                <dd class="mt-1">
+                    {{ entreprise.forme_juridique|default:"—" }}
+                    {% if entreprise.id_forme_juridique %}
+                        <span class="text-base-content/50 text-sm">(n° {{ entreprise.id_forme_juridique }})</span>
+                    {% endif %}
+                </dd>
+            </div>
+            <div>
+                <dt class="text-xs font-semibold uppercase tracking-wider text-base-content/50">Inscrite le</dt>
+                <dd class="mt-1">{{ entreprise.date_creation_fr|default:"—" }}</dd>
+            </div>
+        </dl>
+    </div>
+
+    {# --- Abonnement --------------------------------------------------- #}
+    <div class="bg-base-100 rounded-lg shadow-md border border-base-200 p-6">
+        <h3 class="text-base font-semibold mb-4">Abonnement</h3>
+
+        {% if souscription %}
+            <dl class="grid grid-cols-1 md:grid-cols-3 gap-x-8 gap-y-4">
+                <div>
+                    <dt class="text-xs font-semibold uppercase tracking-wider text-base-content/50">Plan en cours</dt>
+                    <dd class="mt-1 font-medium">{{ souscription.libelle_abonnement|default:"—" }}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs font-semibold uppercase tracking-wider text-base-content/50">Statut</dt>
+                    <dd class="mt-1">
+                        <span class="badge {{ entreprise.statut_badge }} badge-soft">{{ entreprise.statut_label }}</span>
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-xs font-semibold uppercase tracking-wider text-base-content/50">Échéance</dt>
+                    <dd class="mt-1">{{ souscriptions.0.date_fin_fr|default:"Sans échéance" }}</dd>
+                </div>
+            </dl>
+        {% else %}
+            <p class="text-base-content/60">Cette entreprise n'a jamais souscrit d'abonnement.</p>
+        {% endif %}
+
+        {# Actions sur l'abonnement : changer de plan, prolonger, résilier. #}
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-end border-t border-base-300 mt-6 pt-4">
+            {% if plans %}
+                <form method="post" action="{% url 'admin_entreprise_change_plan' entreprise_id=entreprise.id %}"
+                      class="flex flex-col gap-2 sm:flex-row sm:items-end sm:flex-1"
+                      x-on:submit="if (! confirmerPlan($el)) $event.preventDefault()">
+                    {% csrf_token %}
+                    <div class="sm:flex-1">
+                        <label for="id_abonnement" class="block text-sm font-medium mb-1">Changer de plan</label>
+                        <select id="id_abonnement" name="id_abonnement" required class="select w-full">
+                            <option value="" selected disabled>Choisir un plan…</option>
+                            {% for plan in plans %}
+                                <option value="{{ plan.id }}">{{ plan.libelle }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Appliquer</button>
+                </form>
+            {% endif %}
+            <div class="flex flex-wrap gap-2">
+                <form method="post" action="{% url 'admin_entreprise_extend' entreprise_id=entreprise.id %}" class="inline-block"
+                      onsubmit="return confirm('Prolonger d\'un mois l\'abonnement de {{ entreprise.nom_entreprise|escapejs }} ?');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline">Prolonger d'un mois</button>
+                </form>
+                <button type="button" class="btn btn-outline btn-warning" x-on:click="ouvrir('resiliation')">
+                    Résilier
+                </button>
+            </div>
+        </div>
+
+        {# Historique complet des souscriptions, du plus récent au plus ancien. #}
+        {% if souscriptions %}
+            <div class="mt-6">
+                <h4 class="text-sm font-semibold text-base-content/70 mb-2">Historique des souscriptions</h4>
+                <div class="overflow-x-auto">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Plan</th>
+                                <th>Statut</th>
+                                <th>Début</th>
+                                <th>Fin</th>
+                                <th class="text-right">Tarif</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ligne in souscriptions %}
+                            <tr class="hover">
+                                <td class="font-medium">{{ ligne.libelle_abonnement|default:"—" }}</td>
+                                <td><span class="badge {{ ligne.statut_badge }} badge-soft">{{ ligne.statut_label }}</span></td>
+                                <td class="whitespace-nowrap">{{ ligne.date_debut_fr|default:"—" }}</td>
+                                <td class="whitespace-nowrap">{{ ligne.date_fin_fr|default:"—" }}</td>
+                                <td class="text-right whitespace-nowrap">{{ ligne.tarif|default:"—" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    {# --- Compteurs de données ----------------------------------------- #}
+    <div class="bg-base-100 rounded-lg shadow-md border border-base-200 p-6">
+        <h3 class="text-base font-semibold mb-4">Données de l'entreprise</h3>
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div class="rounded-lg border border-base-200 p-3">
+                <p class="text-xs uppercase tracking-wider text-base-content/50">Factures</p>
+                <p class="mt-1 text-2xl font-semibold">{{ compteurs.factures_total|default:"0" }}</p>
+            </div>
+            <div class="rounded-lg border border-base-200 p-3">
+                <p class="text-xs uppercase tracking-wider text-base-content/50">Brouillons</p>
+                <p class="mt-1 text-2xl font-semibold">{{ compteurs.factures_brouillon|default:"0" }}</p>
+            </div>
+            <div class="rounded-lg border border-base-200 p-3">
+                <p class="text-xs uppercase tracking-wider text-base-content/50">Scellées</p>
+                <p class="mt-1 text-2xl font-semibold">{{ compteurs.factures_scellees|default:"0" }}</p>
+            </div>
+            <div class="rounded-lg border border-base-200 p-3">
+                <p class="text-xs uppercase tracking-wider text-base-content/50">Clients</p>
+                <p class="mt-1 text-2xl font-semibold">{{ compteurs.clients|default:"0" }}</p>
+            </div>
+            <div class="rounded-lg border border-base-200 p-3">
+                <p class="text-xs uppercase tracking-wider text-base-content/50">Produits</p>
+                <p class="mt-1 text-2xl font-semibold">{{ compteurs.produits|default:"0" }}</p>
+            </div>
+            <div class="rounded-lg border border-base-200 p-3">
+                <p class="text-xs uppercase tracking-wider text-base-content/50">Documents</p>
+                <p class="mt-1 text-2xl font-semibold">{{ compteurs.documents|default:"0" }}</p>
+            </div>
+        </div>
+        <p class="mt-3 text-xs text-base-content/60">
+            Une facture scellée a quitté l'état brouillon : elle est conservée définitivement
+            et rend la suppression de l'entreprise impossible.
+        </p>
+    </div>
+
+    {# --- Membres ------------------------------------------------------- #}
+    <div class="bg-base-100 rounded-lg shadow-md border border-base-200 overflow-hidden">
+        <div class="flex justify-between items-center p-4 border-b border-base-300">
+            <h3 class="text-base font-semibold">Membres</h3>
+            <span class="text-sm text-base-content/60">
+                {{ entreprise.nombre_utilisateurs_actifs|default:"0" }} actif{{ entreprise.nombre_utilisateurs_actifs|pluralize }}
+                sur {{ entreprise.nombre_utilisateurs|default:"0" }}
+            </span>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Nom</th>
+                        <th>Email</th>
+                        <th>Rôle</th>
+                        <th>État</th>
+                        <th>Dernière connexion</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for membre in membres %}
+                    <tr class="hover">
+                        <td>
+                            <div class="font-medium">{{ membre.prenom }} {{ membre.nom }}</div>
+                            <div class="flex flex-wrap gap-1 mt-1">
+                                {% if membre.est_admin %}
+                                    <span class="badge badge-primary badge-soft badge-sm">Admin entreprise</span>
+                                {% endif %}
+                                {% if membre.admin_plateforme %}
+                                    <span class="badge badge-info badge-soft badge-sm">Admin plateforme</span>
+                                {% endif %}
+                                {% if membre.compte_protege %}
+                                    <span class="badge badge-warning badge-soft badge-sm" title="Compte protégé : ni suppression ni désactivation possibles.">Protégé</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="text-base-content/70">{{ membre.email }}</td>
+                        <td class="text-base-content/70">{{ membre.role|default:"—" }}</td>
+                        <td>
+                            {% if membre.est_actif %}
+                                <span class="badge badge-success badge-soft">Actif</span>
+                            {% else %}
+                                <span class="badge badge-error badge-soft">Inactif</span>
+                            {% endif %}
+                        </td>
+                        <td class="whitespace-nowrap text-base-content/70">{{ membre.derniere_connexion_fr|default:"Jamais" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center text-base-content/60 py-8">Aucun membre rattaché à cette entreprise.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {# --- Actions sur l'entreprise -------------------------------------- #}
+    <div class="bg-base-100 rounded-lg shadow-md border border-base-200 p-6">
+        <h3 class="text-base font-semibold mb-1">Actions</h3>
+        <p class="text-sm text-base-content/60 mb-4">
+            La suspension est réversible et ne supprime aucune donnée : c'est la mesure
+            à privilégier face à une entreprise qu'on ne peut pas supprimer.
+        </p>
+
+        <div class="flex flex-wrap gap-2">
+            {% if entreprise.est_actif %}
+                <button type="button" class="btn btn-outline btn-error" x-on:click="ouvrir('suspension')">
+                    Suspendre l'entreprise
+                </button>
+            {% else %}
+                <form method="post" action="{% url 'admin_entreprise_reactivate' entreprise_id=entreprise.id %}" class="inline-block"
+                      onsubmit="return confirm('Réactiver l\'entreprise {{ entreprise.nom_entreprise|escapejs }} ? Ses membres retrouveront l\'accès à leur espace de travail.');">
+                    {% csrf_token %}
+                    <input type="hidden" name="origine" value="detail">
+                    <button type="submit" class="btn btn-outline btn-success">Réactiver l'entreprise</button>
+                </form>
+            {% endif %}
+
+            {% if blocage_suppression %}
+                {# Préaffichage : inutile de proposer une suppression que l'API refusera. #}
+                <button type="button" class="btn btn-error" disabled>Supprimer l'entreprise</button>
+            {% else %}
+                <form method="post" action="{% url 'admin_entreprise_delete' entreprise_id=entreprise.id %}" class="inline-block"
+                      onsubmit="return confirm('Supprimer définitivement l\'entreprise {{ entreprise.nom_entreprise|escapejs }} ? Cette action est irréversible.');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-error">Supprimer l'entreprise</button>
+                </form>
+            {% endif %}
+        </div>
+
+        {% if blocage_suppression %}
+            <p class="mt-3 text-sm text-warning">{{ blocage_suppression }}</p>
+        {% endif %}
+    </div>
+
+    {# Modal partagée : suspension et résiliation, toutes deux à motif facultatif. #}
+    <div class="modal" :class="{ 'modal-open': ouverte }" x-cloak role="dialog" aria-modal="true" aria-labelledby="action-title"
+         x-on:keydown.escape.window="fermer()">
+        <div class="modal-box w-11/12 max-w-lg">
+            <h3 class="text-lg font-semibold" id="action-title" x-text="titre"></h3>
+            <p class="mt-2 text-sm text-base-content/70">
+                <span class="font-medium">{{ entreprise.nom_entreprise }}</span>
+                <span x-text="explication"></span>
+            </p>
+            <form method="post" :action="action" class="mt-4 space-y-4">
+                {% csrf_token %}
+                <input type="hidden" name="origine" value="detail">
+                <div>
+                    <label for="motif" class="block text-sm font-medium mb-1">Motif <span class="text-base-content/50">(facultatif)</span></label>
+                    <input type="text" id="motif" name="motif" maxlength="{{ motif_max_length }}"
+                           placeholder="Impayé, demande du client…" class="input w-full">
+                    <p class="mt-1 text-xs text-base-content/60">Conservé pour le support, non visible par l'entreprise.</p>
+                </div>
+                <div class="modal-action border-t border-base-300 pt-4">
+                    <button type="button" class="btn btn-ghost" x-on:click="fermer()">Annuler</button>
+                    <button type="submit" class="btn" :class="couleur" x-text="valider"></button>
+                </div>
+            </form>
+        </div>
+        {# Fond cliquable pour fermer la modal. #}
+        <div class="modal-backdrop bg-black/40" x-on:click="fermer()"></div>
+    </div>
+</div>
+{% endblock content %}
+
+{% block extra_js %}
+<script>
+    // Suspension et résiliation partagent la même modal (cible unique, motif
+    // facultatif) : seuls le texte et l'URL d'action changent. Les URL viennent
+    // de Django pour ne dupliquer aucune route côté client.
+    function actionsEntreprise() {
+        const NOM = '{{ entreprise.nom_entreprise|escapejs }}';
+        const VARIANTES = {
+            suspension: {
+                action: '{% url "admin_entreprise_suspend" entreprise_id=entreprise.id %}',
+                titre: 'Suspendre une entreprise',
+                explication: " perdra l'accès à son espace de travail et son abonnement passera en « suspendu ». L'opération est réversible et ne supprime aucune donnée.",
+                valider: 'Suspendre',
+                couleur: 'btn-error',
+            },
+            resiliation: {
+                action: '{% url "admin_entreprise_cancel" entreprise_id=entreprise.id %}',
+                titre: 'Résilier un abonnement',
+                explication: " perdra l'accès à son espace de travail et la relation commerciale sera close. Aucune donnée n'est supprimée : une réactivation rouvre le service sur le plan gratuit.",
+                valider: 'Résilier',
+                couleur: 'btn-warning',
+            },
+        };
+        return {
+            ouverte: false,
+            action: '',
+            titre: '',
+            explication: '',
+            valider: '',
+            couleur: '',
+            ouvrir(variante) {
+                Object.assign(this, VARIANTES[variante]);
+                this.ouverte = true;
+            },
+            fermer() {
+                this.ouverte = false;
+            },
+            // Le plan visé n'est connu qu'au moment de l'envoi : on le nomme
+            // dans la confirmation plutôt que d'afficher un message générique.
+            confirmerPlan(form) {
+                const select = form.elements.id_abonnement;
+                const plan = select.options[select.selectedIndex]?.text ?? '';
+                return confirm(`Basculer ${NOM} sur le plan ${plan} ?`);
+            },
+        };
+    }
+</script>
+{% endblock extra_js %}

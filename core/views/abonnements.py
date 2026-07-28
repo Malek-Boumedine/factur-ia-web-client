@@ -2,9 +2,10 @@
 
 Trois volets :
 
-- affichage (`/abonnements/`, utilisateur rattaché à une entreprise active) :
-  liste des plans disponibles avec mise en évidence de l'abonnement actif de
-  l'entreprise courante (croisement GET /abonnements/ et GET /abonnements/me) ;
+- « Mon abonnement » (`/abonnements/`, utilisateur rattaché à une entreprise
+  active) : récapitulatif de la souscription courante de l'entreprise en tête
+  de page, suivi des autres plans disponibles pour un changement (croisement
+  GET /abonnements/ et GET /abonnements/me) ;
 - changement de plan (`/abonnements/<id>/choisir/`) et prolongation d'un mois
   (`/abonnements/prolonger/`), réservés aux admins de l'entreprise active :
   POST /abonnements/me/changer et /abonnements/me/prolonger, gardés par le
@@ -134,12 +135,15 @@ def _refus_api(request: HttpRequest) -> HttpResponse:
 
 
 def abonnements_view(request: HttpRequest) -> HttpResponse:
-    """Affiche les plans disponibles et l'abonnement de l'entreprise active.
+    """Affiche l'abonnement de l'entreprise active et les plans disponibles.
 
     La souscription courante provient de GET /abonnements/me : on retient celle
-    de l'entreprise active (session) au statut `actif` pour mettre le plan en
-    évidence. À défaut, la souscription la plus récente est signalée avec son
-    statut réel (expiré, suspendu…), sans mise en évidence.
+    de l'entreprise active (session) au statut `actif` pour construire le
+    récapitulatif de tête. À défaut, la souscription la plus récente est
+    signalée avec son statut réel (expiré, suspendu…), sans récapitulatif.
+
+    Les plans autres que celui en cours alimentent la section « Changer de
+    plan » ; sans souscription active, tous les plans y sont proposés.
     """
     refus = _guard_entreprise(request)
     if refus:
@@ -201,10 +205,19 @@ def abonnements_view(request: HttpRequest) -> HttpResponse:
             None,
         )
 
+    # Plan de la souscription active : alimente le récapitulatif de tête. Reste
+    # `None` si la liste des plans n'a pas pu être chargée — le récapitulatif
+    # se rabat alors sur les seules données de la souscription.
+    plan_actuel = next((p for p in plans if p.get("id") == current_plan_id), None)
+
+    # Section « Changer de plan » : tous les plans sauf celui en cours (sans
+    # souscription active, `current_plan_id` est nul et tous sont proposés).
+    autres_plans = [p for p in plans if p.get("id") != current_plan_id]
+
     context = {
-        "plans": plans,
         "is_entreprise_admin": bool(request.session.get("is_entreprise_admin")),
-        "current_plan_id": current_plan_id,
+        "plan_actuel": plan_actuel,
+        "autres_plans": autres_plans,
         "souscription_active": souscription_active,
         "souscription_inactive": souscription_inactive,
         "plan_inactif_libelle": plan_inactif_libelle,

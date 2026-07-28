@@ -1,15 +1,19 @@
+import re
+
 from django.conf import settings
 from django.contrib import messages
 from django.shortcuts import redirect, render
 
 from clients.abonnements_client import AbonnementsClient
 from clients.api_client import APIAuthClient
+from clients.clients_client import ClientsClient
 from clients.comptes_client import ComptesClient
 from clients.entreprises_client import EntreprisesClient
 from clients.exceptions import (
     APIClientError,
     APIUnavailableError,
     APIValidationError,
+    ResourceNotFoundError,
     TokenExpiredError,
 )
 from clients.utilisateurs_client import UtilisateursClient
@@ -27,15 +31,14 @@ _MSG_INDISPONIBLE = "Service momentanément indisponible. Veuillez réessayer."
 # métier d'entreprise (voir `_guard_entreprise`).
 _MSG_PAGE_ENTREPRISE = (
     "Cette page concerne un espace de travail entreprise. "
-    "Votre compte administrateur de plateforme n'y est pas rattaché."
+    "Votre compte administrateur de plateforme n'y est pas rattaché : "
+    "vous pouvez créer votre espace de travail depuis le menu « Compte »."
 )
 
-# Message affiché à un admin plateforme sans entreprise qui accède à
-# l'onboarding : il gère la plateforme, pas un espace de travail client.
-_MSG_ONBOARDING_ADMIN = (
-    "En tant qu'administrateur de la plateforme, vous n'avez pas "
-    "d'espace de travail entreprise à créer."
-)
+# Clé de session du résultat SIRENE en attente à l'onboarding. Un utilisateur
+# ne crée qu'un premier espace de travail à la fois : pas de portée
+# supplémentaire (contrairement au récap, scopé par facture).
+_SIRENE_SESSION_KEY = "onboarding_sirene"
 
 # Rôles d'entreprise autorisés à gérer l'équipe, alignés sur la permission
 # `users:read` du seed API (attribuée au seul rôle PROPRIETAIRE). Seul endroit
@@ -108,33 +111,38 @@ def _charger_flags_admin(request):
     request.session["can_manage_team"] = profile.get("role") in _TEAM_MANAGEMENT_ROLES
 
 
-def _load_entreprise_siret(request):
-    """Renseigne en session le SIRET de l'entreprise active.
+def _load_entreprise_profile(request):
+    """Renseigne en session le SIRET et la raison sociale de l'entreprise active.
 
     Appelle GET /entreprises/me (le header `x-entreprise-id` est injecté par
     la couche clients depuis `entreprise_id`, déjà résolu en session). Le SIRET
     sert au récap de facture pour signaler une divergence avec le SIRET
-    émetteur extrait par l'OCR, sans appel API à chaque affichage. Cet
-    enrichissement ne doit JAMAIS bloquer la connexion : en cas d'échec ou
-    d'entreprise sans SIRET, la clé reste absente (l'alerte de divergence est
-    simplement désactivée).
+    émetteur extrait par l'OCR, la raison sociale au bandeau du tableau de
+    bord : les deux sont posés ici pour éviter un appel API à chaque
+    affichage. Cet enrichissement ne doit JAMAIS bloquer la connexion : en cas
+    d'échec ou de champ absent, la clé correspondante reste absente (l'alerte
+    de divergence est désactivée, le bandeau s'affiche sans nom).
     """
     try:
         entreprise = EntreprisesClient(request).get_my_entreprise()
     except APIClientError:
         return
-    siret = entreprise.get("siret") if isinstance(entreprise, dict) else None
-    if siret:
-        request.session["entreprise_siret"] = siret
+    if not isinstance(entreprise, dict):
+        return
+    if entreprise.get("siret"):
+        request.session["entreprise_siret"] = entreprise["siret"]
+    if entreprise.get("raison_sociale"):
+        request.session["entreprise_nom"] = entreprise["raison_sociale"]
 
 
 def _guard_entreprise(request):
     """Garde-fou des pages métier : exige une entreprise active en session.
 
     Non authentifié → login. Sans entreprise active : un admin plateforme est
-    orienté vers la gestion des plans avec un message informatif (les pages
-    métier ne le concernent pas), un utilisateur classique vers l'onboarding
-    pour créer son espace de travail. Renvoie `None` si l'accès est autorisé.
+    orienté vers la gestion des plans avec un message informatif (il n'est pas
+    forcé de créer un espace, mais peut le faire via l'onboarding), un
+    utilisateur classique vers l'onboarding pour créer son espace de travail.
+    Renvoie `None` si l'accès est autorisé.
     """
     if not request.session.get("is_authenticated"):
         return redirect("login")
@@ -150,16 +158,19 @@ def _redirect_to_user_space(request):
     """Redirige un utilisateur authentifié vers son espace approprié.
 
     Destination post-login factorisée, partagée par `login_view` et le garde
-    des pages publiques : un admin plateforme sans entreprise gère les plans,
-    un utilisateur sans entreprise passe par l'onboarding, sinon (entreprise
-    active) il atterrit sur l'accueil applicatif. Suppose les flags de session
-    déjà posés (voir `_charger_flags_admin`).
+    des pages publiques : un admin plateforme sans entreprise atterrit sur la
+    gestion des plans (sans onboarding forcé — il garde la possibilité de
+    créer son espace via le menu ou `/onboarding`), un utilisateur sans
+    entreprise passe par l'onboarding, sinon (entreprise active) il atterrit
+    sur son tableau de bord — pas sur la vitrine publique, qui reste
+    accessible via la marque du header. Suppose les flags de session déjà
+    posés (voir `_charger_flags_admin`).
     """
     if not request.session.get("entreprise_id"):
         if request.session.get("is_platform_admin"):
             return redirect("plans_admin")
         return redirect("onboarding")
-    return redirect("home")
+    return redirect("dashboard")
 
 
 def _redirect_if_authenticated(request):
@@ -219,8 +230,8 @@ def login_view(request):
         #    que de bloquer (la session porte déjà le JWT nécessaire). Les flags
         #    admin sont posés sans contexte entreprise (`est_admin` restera à
         #    False, seul le statut plateforme est exploitable). Exception : un
-        #    admin plateforme gère la plateforme, pas un espace client — il
-        #    atterrit sur la gestion des plans, sans onboarding forcé.
+        #    admin plateforme atterrit sur la gestion des plans, sans onboarding
+        #    forcé — il reste libre de créer son propre espace via le menu.
         if not abonnements:
             _charger_flags_admin(request)
             return _redirect_to_user_space(request)
@@ -230,7 +241,7 @@ def login_view(request):
         #    l'entreprise active, transmise via le header `x-entreprise-id`.
         request.session["entreprise_id"] = abonnements[0].get("id_entreprise")
         _charger_flags_admin(request)
-        _load_entreprise_siret(request)
+        _load_entreprise_profile(request)
         return _redirect_to_user_space(request)
 
     # Affichage de la page de connexion (GET)
@@ -363,28 +374,141 @@ def profile_lock_view(request):
     return render(request, "core/auth/profile-lock.html")
 
 
+def _normalize_identifiant(value):
+    """Normalise un SIREN/SIRET saisi : espaces et points retirés.
+
+    Les numéros sont couramment recopiés avec des séparateurs (« 123 456 789
+    00012 ») : on les retire avant de contrôler le format et d'appeler l'API.
+    """
+    text = str(value or "").strip()
+    # Espace simple, insécable (U+00A0), fine insécable (U+202F), point et
+    # tiret : les séparateurs courants d'un numéro copié-collé.
+    for separateur in (" ", " ", " ", ".", "-"):
+        text = text.replace(separateur, "")
+    return text
+
+
+def _sirene_initial(company, submitted):
+    """Fusionne le résultat SIRENE avec la saisie en cours de l'onboarding.
+
+    La donnée officielle prime (l'utilisateur a demandé la recherche), mais un
+    champ absent de SIRENE — tous les champs du schéma sont nullable — ne doit
+    jamais effacer ce qui était déjà saisi.
+
+    Args:
+        company (dict): Réponse de GET /clients/recherche-sirene/{identifiant}.
+            Obligatoire.
+        submitted (dict): Valeurs présentes dans le formulaire au moment de la
+            recherche. Obligatoire.
+
+    Returns:
+        dict: Valeurs `initial` du formulaire entreprise.
+    """
+    raison_sociale = str(company.get("raison_sociale") or "").strip()
+    siret = _normalize_identifiant(company.get("siret"))
+    return {
+        "nom_entreprise": raison_sociale or submitted["nom_entreprise"],
+        # Une recherche par SIREN (9 chiffres) renvoie le SIRET du siège :
+        # on récupère ainsi les 14 chiffres attendus par l'API entreprises.
+        "siret": siret or submitted["siret"],
+    }
+
+
+def _handle_onboarding_sirene_lookup(request):
+    """Recherche SIRENE du SIRET/SIREN saisi à l'onboarding (aide non bloquante).
+
+    Même mécanisme que la fenêtre SIRENE du récap de facture : la vue relaie
+    l'appel (le navigateur ne touche jamais l'API SIRENE), dépose le résultat
+    en session puis redirige (PRG). Le rendu suivant consomme la clé pour
+    pré-remplir le formulaire et afficher l'encart de vérification. Tous les
+    échecs sont non bloquants : avertissement, saisie conservée, création
+    manuelle toujours possible.
+
+    Args:
+        request (HttpRequest): Requête Django courante (POST). Obligatoire.
+
+    Returns:
+        HttpResponse: Redirection vers l'onboarding (ou le login si la session
+        a expiré).
+    """
+    submitted = {
+        "nom_entreprise": (request.POST.get("nom_entreprise") or "").strip(),
+        "siret": _normalize_identifiant(request.POST.get("siret")),
+    }
+    identifiant = submitted["siret"]
+    pending = {"initial": submitted}
+
+    if not re.fullmatch(r"\d{9}|\d{14}", identifiant):
+        messages.warning(
+            request,
+            "Renseignez un SIRET (14 chiffres) ou un SIREN (9 chiffres) pour "
+            "lancer la recherche, ou saisissez les informations manuellement.",
+        )
+    else:
+        try:
+            company = ClientsClient(request).search_sirene(identifiant)
+        except TokenExpiredError:
+            return redirect("login")
+        except (ResourceNotFoundError, APIValidationError):
+            messages.warning(
+                request,
+                f"Le numéro {identifiant} est introuvable dans la base SIRENE : "
+                "vérifiez-le, ou saisissez les informations manuellement.",
+            )
+        except APIClientError:
+            messages.warning(
+                request,
+                "La recherche SIRENE est indisponible pour le moment : réessayez "
+                "plus tard, ou saisissez les informations manuellement.",
+            )
+        else:
+            if isinstance(company, dict):
+                pending = {
+                    "result": company,
+                    "initial": _sirene_initial(company, submitted),
+                }
+            else:
+                messages.warning(
+                    request,
+                    "La recherche SIRENE n'a renvoyé aucune donnée exploitable : "
+                    "saisissez les informations manuellement.",
+                )
+
+    request.session[_SIRENE_SESSION_KEY] = pending
+    return redirect("onboarding")
+
+
 def onboarding_view(request):
     """Création du premier espace de travail (POST /entreprises/).
 
     Écran présenté après login quand l'utilisateur n'a aucune entreprise
-    rattachée. Le JWT est déjà en session (posé par `login_view`) : le client
-    entreprises le réutilise, sans `x-entreprise-id` (pas encore d'entreprise).
-    Après création, on initialise `entreprise_id` en session et on donne accès
-    à l'application.
+    rattachée. Accessible à tout authentifié sans entreprise, y compris un
+    admin plateforme (double casquette : il n'y est jamais redirigé d'office,
+    mais peut choisir d'y créer son propre espace et de souscrire, tout en
+    conservant ses fonctions d'administration). Le JWT est déjà en session
+    (posé par `login_view`) : le client entreprises le réutilise, sans
+    `x-entreprise-id` (pas encore d'entreprise). Après création, on initialise
+    `entreprise_id` en session et on donne accès à l'application.
+
+    Le bouton « Rechercher » du champ SIRET (action `sirene_lookup`) est une
+    aide facultative : il pré-remplit le nom et le SIRET depuis la base SIRENE
+    et affiche les autres informations officielles (adresse, activité) pour
+    vérification — les champs restent éditables et la saisie manuelle reste
+    possible de bout en bout.
     """
     if not request.session.get("is_authenticated"):
         return redirect("login")
     # Déjà un espace de travail : rien à créer, on renvoie vers l'app.
     if request.session.get("entreprise_id"):
-        return redirect("home")
-    # Un admin plateforme sans entreprise n'a pas d'espace à créer : on
-    # l'oriente vers ses pages d'administration (évite une création par
-    # accident ; la double casquette volontaire n'est pas gérée à ce stade).
-    if request.session.get("is_platform_admin"):
-        messages.info(request, _MSG_ONBOARDING_ADMIN)
-        return redirect("plans_admin")
+        return redirect("dashboard")
 
     if request.method == "POST":
+        # Recherche SIRENE : traitée avant toute validation (le formulaire peut
+        # être incomplet à ce stade) et sortie par redirection, la création
+        # d'entreprise n'est pas concernée.
+        if request.POST.get("action") == "sirene_lookup":
+            return _handle_onboarding_sirene_lookup(request)
+
         form = EntrepriseForm(request.POST)
         if form.is_valid():
             try:
@@ -397,15 +521,18 @@ def onboarding_view(request):
                 # reflète ces statuts en session sans appel supplémentaire.
                 request.session["is_entreprise_admin"] = True
                 request.session["can_manage_team"] = True
-                # Le SIRET (optionnel) est déjà dans la réponse de création :
-                # on le pose en session sans appel supplémentaire (utilisé par
-                # l'alerte de divergence du récap de facture).
+                # Le SIRET (optionnel) et la raison sociale sont déjà dans la
+                # réponse de création : on les pose en session sans appel
+                # supplémentaire (alerte de divergence du récap de facture,
+                # bandeau du tableau de bord).
                 if entreprise.get("siret"):
                     request.session["entreprise_siret"] = entreprise["siret"]
+                if entreprise.get("raison_sociale"):
+                    request.session["entreprise_nom"] = entreprise["raison_sociale"]
                 messages.success(
                     request, "Votre espace de travail a été créé avec succès."
                 )
-                return redirect("home")
+                return redirect("dashboard")
             except TokenExpiredError:
                 return redirect("login")
             except APIValidationError as e:
@@ -416,4 +543,14 @@ def onboarding_view(request):
                 messages.error(request, "Impossible de créer l'espace de travail.")
         return render(request, "core/onboarding.html", {"form": form})
 
-    return render(request, "core/onboarding.html", {"form": EntrepriseForm()})
+    # Résultat d'une recherche SIRENE en attente : consommé une seule fois
+    # (pop) pour pré-remplir le formulaire et afficher l'encart de vérification.
+    pending = request.session.pop(_SIRENE_SESSION_KEY, None) or {}
+    return render(
+        request,
+        "core/onboarding.html",
+        {
+            "form": EntrepriseForm(initial=pending.get("initial") or {}),
+            "sirene_result": pending.get("result"),
+        },
+    )

@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "base_dashboard.html" %}
 
 {% comment %}
 Formulaire de création/édition d'un plan d'abonnement (admin plateforme).
@@ -13,16 +13,6 @@ aux champs par la vue.
 
 {% block content %}
 <div class="max-w-3xl mx-auto space-y-6">
-
-    {% if messages %}
-        <div class="space-y-2">
-            {% for message in messages %}
-                <div role="alert" class="alert {% if message.tags == 'error' %}alert-error{% else %}alert-success{% endif %}">
-                    <span>{{ message }}</span>
-                </div>
-            {% endfor %}
-        </div>
-    {% endif %}
 
     <div class="flex justify-between items-center bg-base-100 rounded-t-lg shadow-sm p-4 border-b border-base-300">
         <h2 class="text-xl font-bold">{% if is_edit %}Modifier le plan{% if plan %} « {{ plan.libelle }} »{% endif %}{% else %}Nouveau plan{% endif %}</h2>

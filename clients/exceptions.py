@@ -26,6 +26,11 @@ class APIClientError(Exception):
         message (str): Message d'erreur lisible.
         status_code (int | None): Code HTTP à l'origine de l'erreur, si connu
             (`None` pour un incident réseau sans réponse).
+        detail (Any): Contenu du champ `detail` du corps d'erreur, lorsqu'il est
+            exploitable. Renseigné notamment pour les 403 métier (garde-fous de
+            l'administration plateforme : facture émise, compte protégé, ...)
+            dont le message de l'API est explicite et destiné à l'utilisateur.
+            `None` si le corps est absent ou inexploitable.
     """
 
     def __init__(
@@ -33,10 +38,12 @@ class APIClientError(Exception):
         message: str = "Erreur de communication avec l'API.",
         *,
         status_code: int | None = None,
+        detail: Any = None,
     ) -> None:
         super().__init__(message)
         self.message = message
         self.status_code = status_code
+        self.detail = detail
 
 
 class TokenExpiredError(APIClientError):

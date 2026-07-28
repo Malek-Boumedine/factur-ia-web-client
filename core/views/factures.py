@@ -14,7 +14,11 @@ Le récap porte aussi le rattachement du client destinataire (requis pour
 valider) : si le brouillon n'a pas d'`id_client`, un encart propose de
 rattacher un client existant trouvé par SIRET dans le référentiel, ou de
 créer la fiche via une recherche SIRENE (fenêtre de création pré-remplie,
-POST /clients/ puis PATCH `id_client`).
+POST /clients/ puis PATCH `id_client`). La recherche du référentiel est
+bornée au tenant alors que l'unicité du SIRET porte plus loin : une fiche
+invisible ici peut refuser la création en 409. Ce conflit est rattrapé
+(fiche du référentiel rattachée, réactivée si besoin) ou expliqué dans la
+fenêtre, jamais laissé en cul-de-sac.
 
 S'y ajoute l'aperçu mis en forme d'une facture validée : page en lecture
 seule stricte présentée comme une vraie facture (en-tête émetteur /
@@ -27,6 +31,7 @@ la liste des validées) : l'avoir est créé en brouillon par l'API, l'utilisate
 est redirigé vers son récap pour relecture avant validation.
 """
 
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from django.contrib import messages
@@ -95,6 +100,19 @@ _SIRET_FIELDS = ("siret_emetteur", "siret_destinataire")
 # alignés sur le schéma FactureLigneCreate.
 _LINE_FIELDS = ("designation", "quantite", "unite", "prix_unitaire_ht", "id_taux_tva")
 
+# Champs de la fenêtre de création du client destinataire (préfixés `client_`
+# dans le formulaire), alignés sur le schéma ClientCreate. `_CLIENT_REQUIRED`
+# reprend les trois champs que le contrat exige.
+_CLIENT_FORM_FIELDS = (
+    "raison_sociale",
+    "siret",
+    "numero_tva",
+    "adresse",
+    "code_postal",
+    "ville",
+)
+_CLIENT_REQUIRED = ("raison_sociale", "code_postal", "ville")
+
 # Onglets de la liste des factures : valeur du query param `onglet` -> libellé
 # de statut attendu par l'API (query param `statut` de GET /factures/).
 _TABS = {
@@ -103,10 +121,76 @@ _TABS = {
 }
 _DEFAULT_TAB = "brouillons"
 
+# Statuts du référentiel (`libelle_statut` du contrat, clés en minuscules —
+# « validée » est la seule accentuée) -> libellé FR affiché et classes du
+# badge daisyUI. Groupé par famille visuelle : gris = cycle initial, bleu =
+# transmission, vert = payé, orange = attention, rouge = problème.
+_STATUS_BADGES = {
+    "brouillon": ("Brouillon", "badge-ghost"),
+    "validée": ("Validée", "badge-neutral"),
+    "annulee": ("Annulée", "badge-ghost line-through"),
+    "envoyee_client": ("Envoyée au client", "badge-info"),
+    "en_attente_pdp": ("En attente PDP", "badge-info badge-outline"),
+    "deposee_pdp": ("Déposée PDP", "badge-info"),
+    "payee": ("Payée", "badge-success"),
+    "partiellement_payee": ("Partiellement payée", "badge-warning"),
+    "contestee": ("Contestée", "badge-warning"),
+    "en_retard": ("En retard", "badge-error"),
+    "rejetee_pdp": ("Rejetée PDP", "badge-error"),
+    "erreur_transmission": ("Erreur de transmission", "badge-error"),
+}
+
 # Paramètres d'état de la liste des factures (onglet, recherche, filtres,
 # page) : seule cette liste blanche est réencodée dans les redirections de
 # retour vers la liste — jamais une query string arbitraire.
 _LIST_STATE_PARAMS = ("onglet", "q", "date_min", "date_max", "page")
+
+# Seuil de faible confiance : un champ dont le score d'extraction OCR est
+# strictement inférieur est marqué « à vérifier » dans le récap (aligné sur
+# le seuil d'alerte retenu pour le score de confiance global).
+LOW_CONFIDENCE_THRESHOLD = Decimal("0.7")
+
+# Clés de `par_champ` regroupées sous l'encart unique de la section lignes :
+# le score `lignes` est global à l'ensemble des lignes (pas par ligne), et
+# les totaux, en lecture seule, sont recalculés depuis les lignes à
+# l'enregistrement — un total douteux signifie « relisez les lignes ».
+_LINES_SCORE_KEYS = ("lignes", "total_ht", "total_tva", "total_ttc")
+
+# Types de document que l'analyse IA peut détecter. `type_document` est une
+# chaîne libre dans le contrat : toute valeur inattendue est ramenée à
+# « inconnu » (même signal de prudence pour l'utilisateur).
+_KNOWN_DOCUMENT_TYPES = ("facture", "devis", "avoir", "inconnu")
+
+
+def _with_status_badge(items: list) -> list:
+    """Enrichit chaque facture du libellé FR et du badge de son statut.
+
+    Le `libelle_statut` du contrat (clé en minuscules, nullable) est normalisé
+    (espaces, casse) puis résolu via `_STATUS_BADGES`. Lecture défensive :
+    statut inconnu → libellé brut sur badge neutre (l'affichage ne casse
+    jamais) ; statut absent → `statut_libelle` à `None`, le template affiche
+    « — ».
+
+    Args:
+        items (list): Items de GET /factures/ (schéma FactureListItem).
+            Obligatoire.
+
+    Returns:
+        list: Copies des items enrichies de `statut_libelle` et
+        `statut_badge` (les éléments inattendus sont laissés tels quels).
+    """
+    enriched = []
+    for item in items:
+        if not isinstance(item, dict):
+            enriched.append(item)
+            continue
+        item = dict(item)
+        raw = str(item.get("libelle_statut") or "").strip()
+        label, badge = _STATUS_BADGES.get(raw.lower(), (raw, "badge-ghost"))
+        item["statut_libelle"] = label or None
+        item["statut_badge"] = badge
+        enriched.append(item)
+    return enriched
 
 
 def _snapshot_items(snapshot: object) -> list[tuple[str, str]]:
@@ -129,6 +213,65 @@ def _snapshot_items(snapshot: object) -> list[tuple[str, str]]:
         if value not in (None, ""):
             items.append((label, str(value)))
     return items
+
+
+def _parse_score(value: Any) -> Decimal | None:
+    """Parse un score de confiance du contrat (chaîne décimale), `None` si illisible."""
+    if value is None:
+        return None
+    try:
+        return Decimal(str(value).strip())
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def _extraction_hints(extraction: object) -> dict[str, Any]:
+    """Prépare les indices de relecture issus de l'extraction OCR.
+
+    Compare chaque score de `par_champ` au seuil de faible confiance pour
+    signaler les champs douteux du récap, et normalise le type de document
+    détecté. Lecture défensive : extraction absente (création manuelle, avoir
+    généré) ou malformée, score illisible → l'entrée est ignorée, jamais de
+    plantage.
+
+    Args:
+        extraction (object): Contenu de `extraction` de la facture (schéma
+            ExtractionOcrRead, possiblement `None` ou d'une autre forme).
+            Obligatoire.
+
+    Returns:
+        dict[str, Any]: Entrées de contexte pour le template —
+        `champs_douteux` (noms des champs d'en-tête sous le seuil),
+        `lignes_douteuses` (score des lignes ou d'un total sous le seuil) et
+        `type_document_detecte` (type normalisé, `None` si non détecté).
+    """
+    hints: dict[str, Any] = {
+        "champs_douteux": [],
+        "lignes_douteuses": False,
+        "type_document_detecte": None,
+    }
+    if not isinstance(extraction, dict):
+        return hints
+
+    type_document = extraction.get("type_document")
+    if isinstance(type_document, str) and type_document.strip():
+        type_document = type_document.strip().lower()
+        hints["type_document_detecte"] = (
+            type_document if type_document in _KNOWN_DOCUMENT_TYPES else "inconnu"
+        )
+
+    par_champ = extraction.get("par_champ")
+    if not isinstance(par_champ, dict):
+        return hints
+    for champ, value in par_champ.items():
+        score = _parse_score(value)
+        if score is None or score >= LOW_CONFIDENCE_THRESHOLD:
+            continue
+        if champ in _LINES_SCORE_KEYS:
+            hints["lignes_douteuses"] = True
+        else:
+            hints["champs_douteux"].append(champ)
+    return hints
 
 
 def _format_rate(value: Any) -> str | None:
@@ -428,21 +571,256 @@ def _sirene_session_key(facture_id: int) -> str:
     return f"sirene_result_{facture_id}"
 
 
-def _format_client_validation_errors(detail: Any) -> str:
-    """Résume le détail 422 de la création client en un message global.
+def _sirene_errors_key(facture_id: int) -> str:
+    """Clé de session des erreurs de la fenêtre SIRENE, scopée par facture.
 
-    La fenêtre SIRENE n'est pas re-rendue avec des erreurs inline (choix
-    MVP) : les messages de l'API sont concaténés en une seule alerte.
+    Consommée en même temps que le résultat SIRENE au rendu du récap : la
+    fenêtre se rouvre avec les valeurs soumises et les erreurs rattachées aux
+    champs, au lieu de perdre la saisie sur une simple alerte globale.
     """
-    if isinstance(detail, list):
-        parts = [
-            str(item.get("msg") or item) if isinstance(item, dict) else str(item)
-            for item in detail
-        ]
-        summary = " ; ".join(part for part in parts if part)
+    return f"sirene_errors_{facture_id}"
+
+
+def _read_client_form(post: QueryDict) -> dict[str, str]:
+    """Relit les champs `client_*` de la fenêtre SIRENE.
+
+    Args:
+        post (QueryDict): Données POST du formulaire de création. Obligatoire.
+
+    Returns:
+        dict[str, str]: Valeurs saisies par champ du schéma ClientCreate
+        (chaîne vide si absent), SIRET normalisé sans espaces.
+    """
+    values = {
+        field: str(post.get(f"client_{field}") or "").strip()
+        for field in _CLIENT_FORM_FIELDS
+    }
+    values["siret"] = _normalize_siret(values["siret"])
+    return values
+
+
+def _reopen_sirene_modal(
+    request: HttpRequest,
+    facture_id: int,
+    values: dict[str, str],
+    field_errors: dict[str, str] | None = None,
+    global_error: str = "",
+) -> HttpResponse:
+    """Redépose la fenêtre SIRENE en session pour la rouvrir avec ses erreurs.
+
+    Toute création refusée repasse par ici : l'utilisateur retrouve sa saisie
+    telle quelle, avec le motif du refus rattaché au champ concerné. Sans
+    cela, un échec renvoie sur un récap dont le seul chemin proposé est la
+    recherche SIRENE qui vient d'échouer — l'utilisateur tourne en rond.
+
+    Args:
+        request (HttpRequest): Requête Django courante. Obligatoire.
+        facture_id (int): Identifiant du brouillon concerné. Obligatoire.
+        values (dict[str, str]): Valeurs à réafficher dans la fenêtre.
+            Obligatoire.
+        field_errors (dict[str, str] | None): Messages d'erreur par champ.
+            Optionnel.
+        global_error (str): Message d'erreur affiché en tête de fenêtre.
+            Optionnel.
+
+    Returns:
+        HttpResponse: Redirection vers le récap, fenêtre rouverte.
+    """
+    request.session[_sirene_session_key(facture_id)] = values
+    request.session[_sirene_errors_key(facture_id)] = {
+        "champs": field_errors or {},
+        "global": global_error,
+    }
+    return redirect("facture_recap", facture_id=facture_id)
+
+
+def _map_client_validation_errors(detail: Any) -> tuple[dict[str, str], str]:
+    """Traduit le détail 422 de POST /clients/ en erreurs de la fenêtre SIRENE.
+
+    Args:
+        detail (Any): Contenu du champ `detail` de la réponse 422 (liste
+            d'objets `{loc, msg}` FastAPI, ou chaîne). Obligatoire.
+
+    Returns:
+        tuple: (erreurs par champ du formulaire, message global regroupant ce
+        qui ne se rattache à aucun champ).
+    """
+    field_errors: dict[str, str] = {}
+    autres: list[str] = []
+    if not isinstance(detail, list):
+        return field_errors, str(detail) if detail else "Données invalides."
+    for item in detail:
+        if isinstance(item, dict):
+            loc = item.get("loc") or []
+            msg = str(item.get("msg") or "Valeur invalide.")
+        else:
+            loc = []
+            msg = str(item) if item else "Valeur invalide."
+        champ = loc[-1] if loc else None
+        if champ in _CLIENT_FORM_FIELDS:
+            field_errors[str(champ)] = msg
+        else:
+            context = " → ".join(str(part) for part in loc if part != "body")
+            autres.append(f"{context} : {msg}" if context else msg)
+    return field_errors, " ; ".join(autres)
+
+
+def _find_client_by_siret(request: HttpRequest, siret: str) -> dict | None:
+    """Cherche dans le référentiel un client dont le SIRET est strictement égal.
+
+    Le param `search` de GET /clients/ est flou (raison sociale, SIRET ou
+    email) et la recherche reste bornée au tenant : seule une égalité stricte
+    de SIRET normalisé est retenue.
+
+    Args:
+        request (HttpRequest): Requête Django courante. Obligatoire.
+        siret (str): SIRET normalisé recherché. Obligatoire.
+
+    Returns:
+        dict | None: Le client correspondant, ou `None` si aucun.
+
+    Raises:
+        TokenExpiredError: En cas de réponse 401.
+        APIClientError: Toute autre erreur API mappée.
+    """
+    result = ClientsClient(request).list_clients(search=siret)
+    items = result.get("items") if isinstance(result, dict) else []
+    return next(
+        (
+            item
+            for item in items or []
+            if isinstance(item, dict) and _normalize_siret(item.get("siret")) == siret
+        ),
+        None,
+    )
+
+
+def _attach_client(
+    request: HttpRequest, facture_id: int, client_id: int, succes: str
+) -> HttpResponse:
+    """Rattache un client au brouillon via PATCH `id_client` seul.
+
+    Surtout pas le payload complet du récap : l'appelant est un formulaire
+    qui ne porte pas les champs de la facture (les corrections ont déjà été
+    enregistrées lors de la recherche SIRENE).
+
+    Args:
+        request (HttpRequest): Requête Django courante. Obligatoire.
+        facture_id (int): Identifiant du brouillon concerné. Obligatoire.
+        client_id (int): Identifiant du client à rattacher. Obligatoire.
+        succes (str): Message de succès à afficher. Obligatoire.
+
+    Returns:
+        HttpResponse: Redirection vers le récap (ou le login si session
+        expirée).
+    """
+    try:
+        FacturesClient(request).update_invoice(facture_id, {"id_client": client_id})
+    except TokenExpiredError:
+        return redirect("login")
+    except APIClientError:
+        # La fiche existe désormais dans le référentiel : au rechargement,
+        # l'encart « client existant » permet de relancer le rattachement.
+        messages.error(
+            request,
+            "La fiche client est enregistrée, mais son rattachement à la "
+            "facture a échoué : relancez-le depuis l'encart « Client "
+            "destinataire ».",
+        )
     else:
-        summary = str(detail or "")
-    return "Création du client refusée : " + (summary or "données invalides.")
+        messages.success(request, succes)
+    return redirect("facture_recap", facture_id=facture_id)
+
+
+def _handle_client_conflict(
+    request: HttpRequest,
+    facture_id: int,
+    values: dict[str, str],
+    exc: ResourceConflictError,
+) -> HttpResponse:
+    """Rattrape un 409 de POST /clients/ (SIRET ou n° TVA déjà utilisé).
+
+    Le conflit d'unicité porte au-delà du périmètre visible : une fiche peut
+    bloquer le SIRET sans apparaître dans la recherche du référentiel
+    (désactivée, ou rattachée à une autre entreprise). Sans rattrapage,
+    l'utilisateur est en cul-de-sac — aucune fiche à rattacher et création
+    refusée. On retente donc la recherche par SIRET : si la fiche est bien
+    dans le référentiel, on la rattache (après réactivation si elle était
+    désactivée) ; sinon le conflit est hors de portée et la fenêtre se rouvre
+    avec le motif et la marche à suivre.
+
+    Args:
+        request (HttpRequest): Requête Django courante. Obligatoire.
+        facture_id (int): Identifiant du brouillon concerné. Obligatoire.
+        values (dict[str, str]): Valeurs soumises dans la fenêtre. Obligatoire.
+        exc (ResourceConflictError): Le conflit renvoyé par l'API. Obligatoire.
+
+    Returns:
+        HttpResponse: Redirection vers le récap (ou le login si session
+        expirée).
+    """
+    motif = str(exc.detail or "Ce SIRET est déjà utilisé par une autre fiche.")
+    siret = values["siret"]
+
+    existant: dict | None = None
+    if siret:
+        try:
+            existant = _find_client_by_siret(request, siret)
+        except TokenExpiredError:
+            return redirect("login")
+        except APIClientError:
+            existant = None
+
+    client_id = _to_int(existant.get("id")) if existant else None
+    if client_id is None:
+        # Conflit hors du référentiel : ni création ni rattachement possibles.
+        # Le SIRET étant optionnel côté ClientCreate, la fiche peut être créée
+        # sans lui — la facture, elle, conserve son SIRET destinataire.
+        return _reopen_sirene_modal(
+            request,
+            facture_id,
+            values,
+            field_errors={"siret": motif} if siret else {},
+            global_error=(
+                f"{motif} Cette fiche n'appartient pas à votre référentiel : "
+                "elle ne peut pas être réutilisée. Videz le champ SIRET pour "
+                "créer la fiche sans lui (la facture conserve son SIRET "
+                "destinataire), ou corrigez le SIRET et le n° de TVA."
+            ),
+        )
+
+    if existant is not None and existant.get("est_actif") is False:
+        # Fiche désactivée : invisible dans l'encart mais bloquante à la
+        # création. On la réactive avant de la rattacher.
+        try:
+            ClientsClient(request).update_client(client_id, {"est_actif": True})
+        except TokenExpiredError:
+            return redirect("login")
+        except APIClientError as e:
+            return _reopen_sirene_modal(
+                request,
+                facture_id,
+                values,
+                global_error=(
+                    "Une fiche client désactivée utilise déjà ce SIRET et sa "
+                    f"réactivation a échoué : {e.message}"
+                ),
+            )
+        return _attach_client(
+            request,
+            facture_id,
+            client_id,
+            "Une fiche client désactivée utilisait déjà ce SIRET : elle a été "
+            "réactivée et rattachée à la facture.",
+        )
+
+    return _attach_client(
+        request,
+        facture_id,
+        client_id,
+        "Ce client figurait déjà dans votre référentiel : il a été rattaché à "
+        "la facture.",
+    )
 
 
 def _handle_sirene_lookup_action(request: HttpRequest, facture_id: int) -> HttpResponse:
@@ -499,12 +877,11 @@ def _handle_create_attach_action(request: HttpRequest, facture_id: int) -> HttpR
     """Crée la fiche client depuis la fenêtre SIRENE puis la rattache au brouillon.
 
     POST /clients/ (schéma ClientCreate) depuis les champs `client_*` de la
-    fenêtre, puis PATCH /factures/{facture_id} avec `id_client` seul — surtout
-    pas le payload complet du récap : ce formulaire ne porte pas les champs de
-    la facture (les corrections ont déjà été enregistrées lors de la recherche
-    SIRENE). Si le rattachement échoue après la création, le client existe
-    désormais dans le référentiel : au rechargement, l'encart « client
-    existant » permet de relancer le rattachement seul.
+    fenêtre, puis PATCH /factures/{facture_id} avec `id_client` seul (voir
+    `_attach_client`). Aucun refus n'est avalé ni renvoyé sur un récap muet :
+    la fenêtre se rouvre avec la saisie et le motif du refus (champ manquant,
+    422 de l'API), et un 409 passe par `_handle_client_conflict` qui rattrape
+    la fiche existante quand elle est dans le référentiel.
 
     Args:
         request (HttpRequest): Requête Django courante (POST). Obligatoire.
@@ -514,67 +891,69 @@ def _handle_create_attach_action(request: HttpRequest, facture_id: int) -> HttpR
         HttpResponse: Redirection vers le récap (ou le login si session
         expirée).
     """
-    payload: dict[str, Any] = {
-        "raison_sociale": str(request.POST.get("client_raison_sociale") or "").strip(),
-        "code_postal": str(request.POST.get("client_code_postal") or "").strip(),
-        "ville": str(request.POST.get("client_ville") or "").strip(),
+    values = _read_client_form(request.POST)
+    manquants = {
+        field: "Ce champ est obligatoire."
+        for field in _CLIENT_REQUIRED
+        if not values[field]
     }
-    if not all(payload.values()):
-        messages.error(
+    if manquants:
+        return _reopen_sirene_modal(
             request,
-            "Raison sociale, code postal et ville sont obligatoires pour créer "
-            "le client : relancez la recherche SIRENE et complétez ces champs.",
+            facture_id,
+            values,
+            field_errors=manquants,
+            global_error=(
+                "Complétez les champs obligatoires pour créer la fiche client : "
+                "la base SIRENE ne les renseigne pas toujours."
+            ),
         )
-        return redirect("facture_recap", facture_id=facture_id)
+
+    payload: dict[str, Any] = {field: values[field] for field in _CLIENT_REQUIRED}
     for field in ("siret", "numero_tva", "adresse"):
-        value = _clean_optional(request.POST.get(f"client_{field}"))
-        if value:
-            payload[field] = value
-    if "siret" in payload:
-        payload["siret"] = payload["siret"].replace(" ", "")
+        if values[field]:
+            payload[field] = values[field]
 
     try:
         client = ClientsClient(request).create_client(payload)
     except TokenExpiredError:
         return redirect("login")
     except ResourceConflictError as e:
-        messages.error(
-            request,
-            str(e.detail or "Un client avec ce SIRET ou ce numéro de TVA existe déjà."),
-        )
-        return redirect("facture_recap", facture_id=facture_id)
+        return _handle_client_conflict(request, facture_id, values, e)
     except APIValidationError as e:
-        messages.error(request, _format_client_validation_errors(e.detail))
-        return redirect("facture_recap", facture_id=facture_id)
+        field_errors, global_error = _map_client_validation_errors(e.detail)
+        return _reopen_sirene_modal(
+            request,
+            facture_id,
+            values,
+            field_errors=field_errors,
+            global_error=(
+                f"Création du client refusée : {global_error}"
+                if global_error
+                else "Création du client refusée : corrigez les champs signalés."
+            ),
+        )
     except APIUnavailableError:
-        messages.error(request, _MSG_INDISPONIBLE)
-        return redirect("facture_recap", facture_id=facture_id)
+        return _reopen_sirene_modal(
+            request, facture_id, values, global_error=_MSG_INDISPONIBLE
+        )
     except APIClientError as e:
-        messages.error(request, str(e.message))
-        return redirect("facture_recap", facture_id=facture_id)
+        return _reopen_sirene_modal(
+            request, facture_id, values, global_error=str(e.message)
+        )
 
-    client_id = client.get("id") if isinstance(client, dict) else None
+    client_id = _to_int(client.get("id")) if isinstance(client, dict) else None
     if client_id is None:
         messages.error(
             request,
             "Le client a été créé mais son identifiant n'a pas pu être lu : "
-            "rechargez la page pour le rattacher.",
+            "rattachez-le depuis l'encart « Client destinataire ».",
         )
         return redirect("facture_recap", facture_id=facture_id)
 
-    try:
-        FacturesClient(request).update_invoice(facture_id, {"id_client": client_id})
-    except TokenExpiredError:
-        return redirect("login")
-    except APIClientError:
-        messages.error(
-            request,
-            "Le client a été créé, mais son rattachement à la facture a "
-            "échoué : rechargez la page pour le rattacher.",
-        )
-    else:
-        messages.success(request, "Client créé et rattaché à la facture.")
-    return redirect("facture_recap", facture_id=facture_id)
+    return _attach_client(
+        request, facture_id, client_id, "Client créé et rattaché à la facture."
+    )
 
 
 def factures_list_view(request: HttpRequest) -> HttpResponse:
@@ -585,7 +964,9 @@ def factures_list_view(request: HttpRequest) -> HttpResponse:
     recherche `q` (numéro, référence de commande ou raison sociale, déléguée
     à l'API) et les bornes `date_min`/`date_max` sur la date d'émission
     s'appliquent à l'onglet actif ; l'état complet est porté par l'URL, la
-    page est donc partageable et rechargeable. La pagination réutilise
+    page est donc partageable et rechargeable. Chaque item est enrichi du
+    libellé FR et du badge de son statut (`_STATUS_BADGES`), affichés en
+    colonne Statut sur l'onglet validées. La pagination réutilise
     `core.pagination` (les liens de page conservent onglet, recherche et
     filtres via `base_query`) ; les liens d'onglets conservent recherche et
     filtres mais repartent en première page (`tab_query`).
@@ -622,7 +1003,7 @@ def factures_list_view(request: HttpRequest) -> HttpResponse:
             limit=PAGE_SIZE,
         )
         if isinstance(result, dict):
-            items = result.get("items", [])
+            items = _with_status_badge(result.get("items") or [])
             total = result.get("total", 0)
     except TokenExpiredError:
         return redirect("login")
@@ -833,6 +1214,13 @@ def facture_recap_view(request: HttpRequest, facture_id: int) -> HttpResponse:
     référentiel correspondant au SIRET destinataire (bouton de rattachement),
     ou recherche SIRENE ouvrant une fenêtre de création pré-remplie.
 
+    Les métadonnées d'extraction OCR (`extraction` du contrat), si présentes,
+    guident la relecture : les champs dont le score de confiance est sous le
+    seuil sont surlignés (le score des lignes et des totaux alimente un
+    encart unique sur la section lignes), et le type de document détecté est
+    affiché (badge discret si facture, alerte si devis/avoir/inconnu).
+    Dégradation propre sans extraction : récap inchangé.
+
     POST : reconstruit le payload FactureUpdate depuis la convention de
     nommage (en-tête à plat, lignes en `ligne-N-champ` + `lignes_count`) et
     enregistre les corrections via PATCH. Selon l'action soumise :
@@ -843,7 +1231,8 @@ def facture_recap_view(request: HttpRequest, facture_id: int) -> HttpResponse:
     corrections d'un coup), « sirene_lookup » enchaîne la recherche SIRENE
     du SIRET destinataire. « create_attach » (fenêtre SIRENE, formulaire
     séparé) court-circuite le PATCH du récap : création du client puis
-    rattachement seul. Un 422 re-rend le formulaire avec les valeurs saisies
+    rattachement seul, tout refus rouvrant la fenêtre avec la saisie et son
+    motif. Un 422 re-rend le formulaire avec les valeurs saisies
     et les erreurs rattachées aux champs ; un 409 (facture plus en brouillon)
     est signalé clairement.
 
@@ -1001,6 +1390,9 @@ def facture_recap_view(request: HttpRequest, facture_id: int) -> HttpResponse:
     # l'action `sirene_lookup`, scopé par facture) est consommé à l'affichage
     # — pas de résidu en session, la fenêtre ne survit pas à un rechargement.
     sirene_result = request.session.pop(_sirene_session_key(facture_id), None)
+    # Erreurs d'une création refusée : consommées quoi qu'il arrive, pour ne
+    # jamais les rejouer sur une fenêtre rouverte plus tard.
+    sirene_errors = request.session.pop(_sirene_errors_key(facture_id), None) or {}
 
     attached_client: dict | None = None
     matching_client: dict | None = None
@@ -1019,27 +1411,17 @@ def facture_recap_view(request: HttpRequest, facture_id: int) -> HttpResponse:
         except APIClientError:
             attached_client = {}
     elif siret_destinataire_valide:
-        # Un client du référentiel correspond-il déjà à ce SIRET ? Le param
-        # `search` de GET /clients/ est flou (raison sociale, SIRET ou email) :
-        # seule une égalité stricte de SIRET normalisé est retenue.
+        # Un client du référentiel correspond-il déjà à ce SIRET ? La
+        # recherche reste bornée au tenant : une fiche d'une autre entreprise
+        # n'y apparaît pas, alors qu'elle bloque la création (409, rattrapé
+        # par `_handle_client_conflict`).
         try:
-            result = ClientsClient(request).list_clients(search=siret_destinataire)
+            matching_client = _find_client_by_siret(request, siret_destinataire)
         except TokenExpiredError:
             return redirect("login")
         except APIClientError:
             client_panel_error = (
                 "La recherche du client destinataire est indisponible pour le moment."
-            )
-        else:
-            items = result.get("items") if isinstance(result, dict) else []
-            matching_client = next(
-                (
-                    item
-                    for item in items or []
-                    if isinstance(item, dict)
-                    and _normalize_siret(item.get("siret")) == siret_destinataire
-                ),
-                None,
             )
 
     # Alerte de divergence : le SIRET émetteur extrait par l'OCR diffère de
@@ -1052,6 +1434,11 @@ def facture_recap_view(request: HttpRequest, facture_id: int) -> HttpResponse:
     siret_mismatch = bool(
         siret_emetteur and siret_entreprise and siret_emetteur != siret_entreprise
     )
+
+    # Indices de relecture issus de l'extraction OCR : champs sous le seuil
+    # de confiance surlignés, type de document détecté. Sans extraction
+    # (création manuelle, avoir généré), aucun indice — récap inchangé.
+    extraction_hints = _extraction_hints(facture.get("extraction"))
 
     contexte = {
         "facture": facture,
@@ -1069,6 +1456,9 @@ def facture_recap_view(request: HttpRequest, facture_id: int) -> HttpResponse:
         "client_panel_error": client_panel_error,
         "siret_destinataire_valide": siret_destinataire_valide,
         "sirene_result": sirene_result,
+        "sirene_erreurs": sirene_errors.get("champs") or {},
+        "sirene_erreur_globale": sirene_errors.get("global") or "",
+        **extraction_hints,
     }
     return render(request, "core/facture_recap.html", contexte)
 
