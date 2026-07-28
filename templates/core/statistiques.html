@@ -15,9 +15,12 @@ template n'effectue aucun calcul. Dégradation : API indisponible → message
 local, le sélecteur reste utilisable ; période sans document → zéros propres
 et invitation à élargir la période.
 
-Trois sections en bas réservent la place des visualisations détaillées
-(évolution mensuelle, répartition par statut, meilleurs clients) — tâche
-suivante, les données sont déjà dans la réponse de l'API.
+Les visualisations détaillées (évolution mensuelle, répartition par statut,
+meilleurs clients) sont des barres horizontales en CSS/daisyUI pur — aucune
+librairie de graphiques. Les proportions arrivent pré-calculées par la vue
+(`pct`, max de la série = 100 %) : le template ne pose que des largeurs. Les
+couleurs des barres de statut reprennent la famille du badge du statut
+(cohérence avec la liste des factures).
 
 Thème facturia (tokens daisyUI), lisible clair/sombre, responsive (grilles
 1 → 2 → 4 colonnes).
@@ -151,6 +154,83 @@ Thème facturia (tokens daisyUI), lisible clair/sombre, responsive (grilles
             </div>
         </section>
 
+        {# Rangée 3 — évolution mensuelle du CA TTC, une barre par mois. #}
+        <section aria-label="Évolution mensuelle"
+                 class="rounded-box border border-base-300 bg-base-100 p-5 shadow-sm">
+            <h2 class="text-sm font-semibold text-base-content/60">Évolution mensuelle</h2>
+            <p class="mt-1 text-xs text-base-content/50">Chiffre d'affaires TTC mois par mois, net des avoirs.</p>
+            {% if chart_mois %}
+                {# 36rem : les 12 mois de la période par défaut tiennent sans scroll ; seule une longue période personnalisée scrolle dans la carte. #}
+                <ul class="mt-4 max-h-[36rem] space-y-3 overflow-y-auto pr-1">
+                    {% for mois in chart_mois %}
+                        <li>
+                            <div class="flex items-baseline justify-between gap-2 text-sm">
+                                <span class="capitalize">{{ mois.label }}</span>
+                                <span class="font-medium whitespace-nowrap">{{ mois.montant }}</span>
+                            </div>
+                            <div class="mt-1 h-2.5 overflow-hidden rounded-full bg-base-200" aria-hidden="true">
+                                <div class="h-full rounded-full bg-primary" style="width: {{ mois.pct }}%"></div>
+                            </div>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="mt-4 text-sm text-base-content/50">Aucune donnée sur cette période.</p>
+            {% endif %}
+        </section>
+
+        {# Rangée 4 — répartition par statut et meilleurs clients, côte à côte. #}
+        <div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <section aria-label="Répartition par statut"
+                     class="rounded-box border border-base-300 bg-base-100 p-5 shadow-sm">
+                <h2 class="text-sm font-semibold text-base-content/60">Répartition par statut</h2>
+                <p class="mt-1 text-xs text-base-content/50">Documents émis sur la période, du statut le plus fréquent au moins fréquent.</p>
+                {% if chart_statuts %}
+                    <ul class="mt-4 space-y-3">
+                        {% for statut in chart_statuts %}
+                            <li>
+                                <div class="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-sm">
+                                    <span class="badge badge-sm {{ statut.badge }}">{{ statut.label }}</span>
+                                    <span class="whitespace-nowrap text-base-content/70">
+                                        {{ statut.nombre }} document{{ statut.nombre|pluralize }} · {{ statut.montant|default:"—" }}
+                                    </span>
+                                </div>
+                                <div class="mt-1.5 h-2.5 overflow-hidden rounded-full bg-base-200" aria-hidden="true">
+                                    <div class="h-full rounded-full {{ statut.bar }}" style="width: {{ statut.pct }}%"></div>
+                                </div>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="mt-4 text-sm text-base-content/50">Aucune donnée sur cette période.</p>
+                {% endif %}
+            </section>
+
+            <section aria-label="Meilleurs clients"
+                     class="rounded-box border border-base-300 bg-base-100 p-5 shadow-sm">
+                <h2 class="text-sm font-semibold text-base-content/60">Meilleurs clients</h2>
+                <p class="mt-1 text-xs text-base-content/50">Jusqu'à 5 clients, du chiffre d'affaires TTC le plus élevé au plus faible.</p>
+                {% if chart_clients %}
+                    <ul class="mt-4 space-y-3">
+                        {% for client in chart_clients %}
+                            <li>
+                                <div class="flex items-baseline justify-between gap-2 text-sm">
+                                    <span class="truncate">{{ client.nom }}</span>
+                                    <span class="whitespace-nowrap font-medium">{{ client.montant }}</span>
+                                </div>
+                                <div class="mt-1 h-2.5 overflow-hidden rounded-full bg-base-200" aria-hidden="true">
+                                    <div class="h-full rounded-full bg-primary" style="width: {{ client.pct }}%"></div>
+                                </div>
+                                <p class="mt-0.5 text-xs text-base-content/50">{{ client.nombre }} document{{ client.nombre|pluralize }} émis</p>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="mt-4 text-sm text-base-content/50">Aucune donnée sur cette période.</p>
+                {% endif %}
+            </section>
+        </div>
+
         {# Devises écartées des totaux : précision de lecture, pas une alerte. #}
         {% if devises_exclues %}
             <p role="note" class="flex items-start gap-2 text-xs text-base-content/60">
@@ -164,28 +244,6 @@ Thème facturia (tokens daisyUI), lisible clair/sombre, responsive (grilles
         {% endif %}
 
     {% endif %}
-
-    {# Sections réservées aux visualisations détaillées — tâche suivante. #}
-    <div class="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <div class="rounded-box border border-dashed border-base-300 p-5">
-            <h2 class="text-sm font-semibold text-base-content/70">
-                Évolution mensuelle <span class="badge badge-sm ml-1">Bientôt</span>
-            </h2>
-            <p class="mt-2 text-xs text-base-content/50">Le chiffre d'affaires mois par mois sur la période.</p>
-        </div>
-        <div class="rounded-box border border-dashed border-base-300 p-5">
-            <h2 class="text-sm font-semibold text-base-content/70">
-                Répartition par statut <span class="badge badge-sm ml-1">Bientôt</span>
-            </h2>
-            <p class="mt-2 text-xs text-base-content/50">Nombre et montants des factures selon leur statut.</p>
-        </div>
-        <div class="rounded-box border border-dashed border-base-300 p-5">
-            <h2 class="text-sm font-semibold text-base-content/70">
-                Meilleurs clients <span class="badge badge-sm ml-1">Bientôt</span>
-            </h2>
-            <p class="mt-2 text-xs text-base-content/50">Les clients qui contribuent le plus au chiffre d'affaires.</p>
-        </div>
-    </div>
 
     {# Précisions de lecture : replié par défaut, honnête sans être anxiogène. #}
     <div class="collapse-arrow collapse rounded-box border border-base-300 bg-base-100">

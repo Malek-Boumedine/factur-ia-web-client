@@ -12,14 +12,15 @@ l'API a réellement appliquée (champ `periode` de la réponse), jamais celle
 demandée.
 
 Un seul appel réseau, aucun calcul de montant côté front : les agrégations
-sont faites en SQL par l'API (chiffres exacts sans pagination). Les sections
-de visualisations détaillées (évolution mensuelle, répartition par statut,
-meilleurs clients) sont réservées dans le template — la réponse les contient
-déjà, elles seront branchées dans une tâche ultérieure sans appel
-supplémentaire.
+sont faites en SQL par l'API (chiffres exacts sans pagination). Les
+visualisations détaillées (évolution mensuelle, répartition par statut,
+meilleurs clients) sont des barres CSS pur : la vue pré-calcule les
+proportions (max de la série = 100 %) et le template ne fait que poser des
+largeurs — aucune librairie de graphiques, aucun appel supplémentaire.
 """
 
 from datetime import date, timedelta
+from decimal import Decimal
 from typing import Any
 
 from django.http import HttpRequest, HttpResponse
@@ -27,8 +28,15 @@ from django.shortcuts import redirect, render
 
 from clients.exceptions import APIClientError, TokenExpiredError
 from clients.factures_client import FacturesClient
-from core.formatting import format_amount, format_date_fr, parse_iso_date
+from core.formatting import (
+    MONTHS_FR,
+    format_amount,
+    format_date_fr,
+    parse_iso_date,
+    to_decimal,
+)
 from core.views.auth import _guard_entreprise
+from core.views.factures import _STATUS_BADGES
 
 # Clé du mode libre : les bornes viennent des champs date_min/date_max.
 _CUSTOM_PERIOD = "personnalise"
@@ -36,6 +44,193 @@ _CUSTOM_PERIOD = "personnalise"
 # Période par défaut : 12 mois glissants, la même fenêtre que le défaut de
 # l'API et que le tableau de bord — même chiffre des deux côtés à l'arrivée.
 _DEFAULT_PERIOD = "12-mois"
+
+# Couleur de remplissage des barres de la répartition par statut, dérivée de
+# la famille du badge (`_STATUS_BADGES`) : un statut garde la même couleur en
+# badge dans les listes et en barre dans les statistiques.
+_BADGE_TO_BAR = {
+    "badge-ghost": "bg-base-300",
+    "badge-neutral": "bg-neutral",
+    "badge-info": "bg-info",
+    "badge-success": "bg-success",
+    "badge-warning": "bg-warning",
+    "badge-error": "bg-error",
+}
+
+# Largeur minimale (en %) d'une barre de valeur positive : face au maximum de
+# la série, une petite valeur reste visible au lieu de disparaître.
+_MIN_BAR_PERCENT = 2
+
+# Nombre de clients affichés dans le classement des meilleurs clients.
+_TOP_CLIENTS_LIMIT = 5
+
+
+def _bar_percent(value: Decimal | int, maximum: Decimal | int) -> int:
+    """Largeur d'une barre en pourcentage du maximum de sa série.
+
+    Valeur nulle ou négative (un mois où les avoirs dépassent les factures) →
+    0, pas de barre : la valeur reste lisible en texte. Valeur positive → au
+    moins `_MIN_BAR_PERCENT`. Maximum nul ou négatif → 0 partout (série vide
+    de sens, aucune division par zéro).
+
+    Args:
+        value (Decimal | int): Valeur de l'élément courant. Obligatoire.
+        maximum (Decimal | int): Maximum de la série. Obligatoire.
+
+    Returns:
+        int: Largeur en pourcentage, entre 0 et 100.
+    """
+    if value <= 0 or maximum <= 0:
+        return 0
+    return max(_MIN_BAR_PERCENT, round(value * 100 / maximum))
+
+
+def _month_label(value: Any) -> str | None:
+    """Libellé FR d'un mois du contrat (« 2026-01 » → « janvier 2026 »).
+
+    Args:
+        value (Any): Champ `mois` du contrat (attendu « YYYY-MM »).
+            Obligatoire.
+
+    Returns:
+        str | None: Le libellé, ou `None` si le champ est illisible.
+    """
+    year, _, month = str(value or "").partition("-")
+    if not (year.isdigit() and month.isdigit() and 1 <= int(month) <= 12):
+        return None
+    return f"{MONTHS_FR[int(month) - 1]} {year}"
+
+
+def _build_monthly_chart(stats: dict[str, Any], devise: str) -> list[dict[str, Any]]:
+    """Prépare les barres d'évolution mensuelle du CA TTC.
+
+    L'API renvoie une série continue (mois vides à zéro) : si toute la série
+    est à zéro, la liste rendue est vide et le template affiche « aucune
+    donnée » plutôt que d'aligner des barres nulles. Lecture défensive : un
+    mois malformé est ignoré, jamais un plantage.
+
+    Args:
+        stats (dict[str, Any]): Réponse de GET /factures/statistiques.
+            Obligatoire.
+        devise (str): Devise des montants agrégés. Obligatoire.
+
+    Returns:
+        list[dict[str, Any]]: Un item par mois — libellé FR, montant formaté,
+        largeur de barre en pourcentage du meilleur mois.
+    """
+    source = stats.get("par_mois")
+    rows: list[dict[str, Any]] = []
+    for item in source if isinstance(source, list) else []:
+        if not isinstance(item, dict):
+            continue
+        label = _month_label(item.get("mois"))
+        montant = to_decimal(item.get("ca_ttc"))
+        if label is None or montant is None:
+            continue
+        nombre = item.get("nombre")
+        rows.append(
+            {
+                "label": label,
+                "value": montant,
+                "montant": format_amount(montant, devise),
+                "nombre": nombre if isinstance(nombre, int) else 0,
+            }
+        )
+    if not any(row["value"] or row["nombre"] for row in rows):
+        return []
+    maximum = max(row["value"] for row in rows)
+    for row in rows:
+        row["pct"] = _bar_percent(row.pop("value"), maximum)
+    return rows
+
+
+def _build_status_chart(stats: dict[str, Any], devise: str) -> list[dict[str, Any]]:
+    """Prépare les barres de répartition par statut.
+
+    La longueur est proportionnelle au nombre de documents, pas au montant :
+    c'est la lecture naturelle d'une répartition, et un montant peut être
+    négatif (statut neutralisé par ses avoirs) — il reste affiché en texte.
+    Tri du statut le plus fréquent au moins fréquent ; statut inconnu du
+    référentiel → libellé brut sur barre neutre, l'affichage ne casse jamais.
+
+    Args:
+        stats (dict[str, Any]): Réponse de GET /factures/statistiques.
+            Obligatoire.
+        devise (str): Devise des montants agrégés. Obligatoire.
+
+    Returns:
+        list[dict[str, Any]]: Un item par statut — libellé FR, classes du
+        badge et de la barre (couleurs cohérentes), nombre, montant formaté,
+        largeur en pourcentage du statut le plus fréquent.
+    """
+    source = stats.get("par_statut")
+    rows: list[dict[str, Any]] = []
+    for item in source if isinstance(source, list) else []:
+        if not isinstance(item, dict):
+            continue
+        raw = str(item.get("statut") or "").strip()
+        nombre = item.get("nombre")
+        if not raw or not isinstance(nombre, int):
+            continue
+        label, badge = _STATUS_BADGES.get(raw.lower(), (raw, "badge-ghost"))
+        rows.append(
+            {
+                "label": label,
+                "badge": badge,
+                "bar": _BADGE_TO_BAR.get(badge.split()[0], "bg-base-300"),
+                "nombre": nombre,
+                "montant": format_amount(item.get("montant_ttc"), devise),
+            }
+        )
+    if not rows:
+        return []
+    rows.sort(key=lambda row: row["nombre"], reverse=True)
+    maximum = max(row["nombre"] for row in rows)
+    for row in rows:
+        row["pct"] = _bar_percent(row["nombre"], maximum)
+    return rows
+
+
+def _build_top_clients(stats: dict[str, Any], devise: str) -> list[dict[str, Any]]:
+    """Prépare les barres des meilleurs clients (limitées à 5).
+
+    L'ordre du contrat (CA TTC décroissant) est conservé. Un client sans
+    fiche rattachée (`nom_client` null) est regroupé sous « Sans client
+    rattaché ». Lecture défensive : item malformé ignoré.
+
+    Args:
+        stats (dict[str, Any]): Réponse de GET /factures/statistiques.
+            Obligatoire.
+        devise (str): Devise des montants agrégés. Obligatoire.
+
+    Returns:
+        list[dict[str, Any]]: Un item par client — nom, montant formaté,
+        nombre de documents, largeur en pourcentage du meilleur client.
+    """
+    source = stats.get("top_clients")
+    rows: list[dict[str, Any]] = []
+    for item in (source if isinstance(source, list) else [])[:_TOP_CLIENTS_LIMIT]:
+        if not isinstance(item, dict):
+            continue
+        montant = to_decimal(item.get("ca_ttc"))
+        if montant is None:
+            continue
+        nombre = item.get("nombre")
+        rows.append(
+            {
+                "nom": str(item.get("nom_client") or "").strip()
+                or "Sans client rattaché",
+                "value": montant,
+                "montant": format_amount(montant, devise),
+                "nombre": nombre if isinstance(nombre, int) else 0,
+            }
+        )
+    if not rows:
+        return []
+    maximum = max(row["value"] for row in rows)
+    for row in rows:
+        row["pct"] = _bar_percent(row.pop("value"), maximum)
+    return rows
 
 
 def _month_start(day: date) -> date:
@@ -134,8 +329,9 @@ def _build_summary(stats: Any) -> dict[str, Any]:
             StatistiquesFactures). Obligatoire.
 
     Returns:
-        dict[str, Any]: Entrées de contexte des cartes de synthèse, de la
-        période appliquée et des notes de lecture.
+        dict[str, Any]: Entrées de contexte des cartes de synthèse, des
+        visualisations en barres, de la période appliquée et des notes de
+        lecture.
     """
     if not isinstance(stats, dict):
         stats = {}
@@ -190,6 +386,9 @@ def _build_summary(stats: Any) -> dict[str, Any]:
         "periode_debut": format_date_fr(periode_debut) if periode_debut else None,
         "periode_fin": format_date_fr(periode_fin) if periode_fin else None,
         "periode_vide": periode_vide,
+        "chart_mois": _build_monthly_chart(stats, devise),
+        "chart_statuts": _build_status_chart(stats, devise),
+        "chart_clients": _build_top_clients(stats, devise),
     }
 
 
