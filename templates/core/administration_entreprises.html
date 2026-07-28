@@ -76,7 +76,8 @@ jamais l'API directement.
                     {% for entreprise in items %}
                     <tr class="hover">
                         <td>
-                            <div class="font-medium">{{ entreprise.nom_entreprise }}</div>
+                            <a href="{% url 'admin_entreprise_detail' entreprise_id=entreprise.id %}"
+                               class="font-medium link link-hover">{{ entreprise.nom_entreprise }}</a>
                             {% if entreprise.forme_juridique %}
                                 <div class="text-xs text-base-content/60">{{ entreprise.forme_juridique }}</div>
                             {% endif %}
@@ -105,6 +106,10 @@ jamais l'API directement.
                         <td class="text-right">{{ entreprise.nombre_factures }}</td>
                         <td class="text-right">
                             <div class="flex justify-end items-center gap-1">
+                                <a href="{% url 'admin_entreprise_detail' entreprise_id=entreprise.id %}"
+                                   class="btn btn-ghost btn-sm btn-square" title="Consulter la fiche">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                                </a>
                                 {% if entreprise.est_actif %}
                                     <button type="button" class="btn btn-ghost btn-sm btn-square text-error"
                                             title="Suspendre"

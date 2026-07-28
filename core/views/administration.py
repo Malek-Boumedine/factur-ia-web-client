@@ -22,6 +22,9 @@ from typing import Any
 from django.contrib import messages
 from django.http import HttpRequest
 
+from core.formatting import format_iso_date_fr
+
+
 # Statuts de souscription (enum StatutSouscription du contrat OpenAPI) : les
 # clés sont les valeurs envoyées à l'API et ne doivent jamais être traduites,
 # les libellés sont l'affichage FR.
@@ -66,6 +69,30 @@ def with_display_souscription(entreprises: list) -> list:
         entreprise["statut_label"] = STATUT_LABELS.get(statut, statut)
         entreprise["statut_badge"] = STATUT_BADGES.get(statut, "badge-ghost")
     return entreprises
+
+
+def with_display_souscriptions(souscriptions: list) -> list:
+    """Enrichit chaque souscription de ses champs d'affichage.
+
+    Ajoute `statut_label`, `statut_badge` et les dates de début et de fin
+    formatées à la française. Destiné à l'historique des souscriptions d'une
+    entreprise (schéma SouscriptionAdminRead), du plus récent au plus ancien.
+
+    Args:
+        souscriptions (list): Souscriptions renvoyées par l'API. Obligatoire.
+
+    Returns:
+        list: La même liste, enrichie sur place.
+    """
+    for souscription in souscriptions:
+        statut = str(souscription.get("statut") or "")
+        souscription["statut_label"] = STATUT_LABELS.get(statut, statut)
+        souscription["statut_badge"] = STATUT_BADGES.get(statut, "badge-ghost")
+        souscription["date_debut_fr"] = format_iso_date_fr(
+            souscription.get("date_debut")
+        )
+        souscription["date_fin_fr"] = format_iso_date_fr(souscription.get("date_fin"))
+    return souscriptions
 
 
 def relay_guard_refusal(request: HttpRequest, detail: Any, fallback: str) -> None:

@@ -95,3 +95,24 @@ def parse_iso_date(value: Any) -> date | None:
         return date.fromisoformat(str(value).strip())
     except (TypeError, ValueError):
         return None
+
+
+def format_iso_date_fr(value: Any) -> str | None:
+    """Formate une date ou un horodatage ISO du contrat en date FR en toutes lettres.
+
+    Les champs `date-time` de l'API portent une heure (« 2026-07-28T10:12:33 »)
+    que `date.fromisoformat` refuse : seule la partie date est retenue, l'heure
+    n'apportant rien à la lecture d'une fiche.
+
+    Args:
+        value (Any): Date ou horodatage ISO renvoyé par l'API, possiblement
+            absent. Obligatoire.
+
+    Returns:
+        str | None: La date en toutes lettres, ou `None` si elle est absente ou
+        illisible (le template affiche alors « — »).
+    """
+    if not value:
+        return None
+    jour = parse_iso_date(str(value).split("T", 1)[0])
+    return format_date_fr(jour) if jour else None

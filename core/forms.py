@@ -426,6 +426,43 @@ class TauxTvaForm(forms.Form):
         return payload
 
 
+class EntrepriseAdminForm(forms.Form):
+    """Validation serveur de l'identité légale d'une entreprise (admin plateforme).
+
+    Champs alignés sur EntrepriseAdminUpdate du contrat OpenAPI (mêmes noms —
+    le mapping des erreurs 422 retombe dans les bons champs) : la raison sociale
+    est requise, le SIRET et la forme juridique sont optionnels. Vidés, ces deux
+    derniers sont envoyés à `None` : c'est le seul moyen d'effacer une donnée
+    erronée (schéma nullable).
+
+    La forme juridique est saisie par son identifiant numérique, faute de route
+    exposant le référentiel ; l'écran affiche en regard le libellé courant.
+    """
+
+    nom_entreprise = forms.CharField(max_length=255)
+    # Longueur et format vérifiés dans `clean_siret` : un SIRET copié depuis un
+    # extrait Kbis arrive souvent espacé, et serait rejeté par `min_length`
+    # avant d'avoir pu être normalisé.
+    siret = forms.CharField(required=False)
+    id_forme_juridique = forms.IntegerField(min_value=1, required=False)
+
+    def clean_siret(self):
+        """Normalise le SIRET : espaces retirés, 14 chiffres exigés."""
+        siret = (self.cleaned_data.get("siret") or "").replace(" ", "")
+        if siret and (len(siret) != 14 or not siret.isdigit()):
+            raise forms.ValidationError("Le SIRET doit comporter 14 chiffres.")
+        return siret
+
+    def to_api_payload(self):
+        """Construit le corps EntrepriseAdminUpdate depuis les données validées."""
+        cd = self.cleaned_data
+        return {
+            "nom_entreprise": cd["nom_entreprise"],
+            "siret": cd.get("siret") or None,
+            "id_forme_juridique": cd.get("id_forme_juridique"),
+        }
+
+
 class CatalogueForm(forms.Form):
     """Validation serveur de la création/édition d'un produit du catalogue.
 

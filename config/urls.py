@@ -36,8 +36,14 @@ from core.views.abonnements import (
 )
 from core.views.acces import acces_view
 from core.views.administration_entreprises import (
+    administration_entreprise_cancel_view,
+    administration_entreprise_change_plan_view,
+    administration_entreprise_delete_view,
+    administration_entreprise_detail_view,
+    administration_entreprise_extend_view,
     administration_entreprise_reactivate_view,
     administration_entreprise_suspend_view,
+    administration_entreprise_update_view,
     administration_entreprises_view,
 )
 from core.views.admins_plateforme import admins_plateforme_view
@@ -106,6 +112,36 @@ urlpatterns = [
         "administration/entreprises/",
         administration_entreprises_view,
         name="admin_entreprises",
+    ),
+    path(
+        "administration/entreprises/<int:entreprise_id>/",
+        administration_entreprise_detail_view,
+        name="admin_entreprise_detail",
+    ),
+    path(
+        "administration/entreprises/<int:entreprise_id>/modifier/",
+        administration_entreprise_update_view,
+        name="admin_entreprise_update",
+    ),
+    path(
+        "administration/entreprises/<int:entreprise_id>/abonnement/changer/",
+        administration_entreprise_change_plan_view,
+        name="admin_entreprise_change_plan",
+    ),
+    path(
+        "administration/entreprises/<int:entreprise_id>/abonnement/prolonger/",
+        administration_entreprise_extend_view,
+        name="admin_entreprise_extend",
+    ),
+    path(
+        "administration/entreprises/<int:entreprise_id>/abonnement/resilier/",
+        administration_entreprise_cancel_view,
+        name="admin_entreprise_cancel",
+    ),
+    path(
+        "administration/entreprises/<int:entreprise_id>/supprimer/",
+        administration_entreprise_delete_view,
+        name="admin_entreprise_delete",
     ),
     path(
         "administration/entreprises/<int:entreprise_id>/suspendre/",
