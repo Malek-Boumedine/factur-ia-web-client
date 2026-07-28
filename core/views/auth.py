@@ -1,15 +1,19 @@
+import re
+
 from django.conf import settings
 from django.contrib import messages
 from django.shortcuts import redirect, render
 
 from clients.abonnements_client import AbonnementsClient
 from clients.api_client import APIAuthClient
+from clients.clients_client import ClientsClient
 from clients.comptes_client import ComptesClient
 from clients.entreprises_client import EntreprisesClient
 from clients.exceptions import (
     APIClientError,
     APIUnavailableError,
     APIValidationError,
+    ResourceNotFoundError,
     TokenExpiredError,
 )
 from clients.utilisateurs_client import UtilisateursClient
@@ -36,6 +40,11 @@ _MSG_ONBOARDING_ADMIN = (
     "En tant qu'administrateur de la plateforme, vous n'avez pas "
     "d'espace de travail entreprise à créer."
 )
+
+# Clé de session du résultat SIRENE en attente à l'onboarding. Un utilisateur
+# ne crée qu'un premier espace de travail à la fois : pas de portée
+# supplémentaire (contrairement au récap, scopé par facture).
+_SIRENE_SESSION_KEY = "onboarding_sirene"
 
 # Rôles d'entreprise autorisés à gérer l'équipe, alignés sur la permission
 # `users:read` du seed API (attribuée au seul rôle PROPRIETAIRE). Seul endroit
@@ -368,6 +377,110 @@ def profile_lock_view(request):
     return render(request, "core/auth/profile-lock.html")
 
 
+def _normalize_identifiant(value):
+    """Normalise un SIREN/SIRET saisi : espaces et points retirés.
+
+    Les numéros sont couramment recopiés avec des séparateurs (« 123 456 789
+    00012 ») : on les retire avant de contrôler le format et d'appeler l'API.
+    """
+    text = str(value or "").strip()
+    # Espace simple, insécable (U+00A0), fine insécable (U+202F), point et
+    # tiret : les séparateurs courants d'un numéro copié-collé.
+    for separateur in (" ", " ", " ", ".", "-"):
+        text = text.replace(separateur, "")
+    return text
+
+
+def _sirene_initial(company, submitted):
+    """Fusionne le résultat SIRENE avec la saisie en cours de l'onboarding.
+
+    La donnée officielle prime (l'utilisateur a demandé la recherche), mais un
+    champ absent de SIRENE — tous les champs du schéma sont nullable — ne doit
+    jamais effacer ce qui était déjà saisi.
+
+    Args:
+        company (dict): Réponse de GET /clients/recherche-sirene/{identifiant}.
+            Obligatoire.
+        submitted (dict): Valeurs présentes dans le formulaire au moment de la
+            recherche. Obligatoire.
+
+    Returns:
+        dict: Valeurs `initial` du formulaire entreprise.
+    """
+    raison_sociale = str(company.get("raison_sociale") or "").strip()
+    siret = _normalize_identifiant(company.get("siret"))
+    return {
+        "nom_entreprise": raison_sociale or submitted["nom_entreprise"],
+        # Une recherche par SIREN (9 chiffres) renvoie le SIRET du siège :
+        # on récupère ainsi les 14 chiffres attendus par l'API entreprises.
+        "siret": siret or submitted["siret"],
+    }
+
+
+def _handle_onboarding_sirene_lookup(request):
+    """Recherche SIRENE du SIRET/SIREN saisi à l'onboarding (aide non bloquante).
+
+    Même mécanisme que la fenêtre SIRENE du récap de facture : la vue relaie
+    l'appel (le navigateur ne touche jamais l'API SIRENE), dépose le résultat
+    en session puis redirige (PRG). Le rendu suivant consomme la clé pour
+    pré-remplir le formulaire et afficher l'encart de vérification. Tous les
+    échecs sont non bloquants : avertissement, saisie conservée, création
+    manuelle toujours possible.
+
+    Args:
+        request (HttpRequest): Requête Django courante (POST). Obligatoire.
+
+    Returns:
+        HttpResponse: Redirection vers l'onboarding (ou le login si la session
+        a expiré).
+    """
+    submitted = {
+        "nom_entreprise": (request.POST.get("nom_entreprise") or "").strip(),
+        "siret": _normalize_identifiant(request.POST.get("siret")),
+    }
+    identifiant = submitted["siret"]
+    pending = {"initial": submitted}
+
+    if not re.fullmatch(r"\d{9}|\d{14}", identifiant):
+        messages.warning(
+            request,
+            "Renseignez un SIRET (14 chiffres) ou un SIREN (9 chiffres) pour "
+            "lancer la recherche, ou saisissez les informations manuellement.",
+        )
+    else:
+        try:
+            company = ClientsClient(request).search_sirene(identifiant)
+        except TokenExpiredError:
+            return redirect("login")
+        except (ResourceNotFoundError, APIValidationError):
+            messages.warning(
+                request,
+                f"Le numéro {identifiant} est introuvable dans la base SIRENE : "
+                "vérifiez-le, ou saisissez les informations manuellement.",
+            )
+        except APIClientError:
+            messages.warning(
+                request,
+                "La recherche SIRENE est indisponible pour le moment : réessayez "
+                "plus tard, ou saisissez les informations manuellement.",
+            )
+        else:
+            if isinstance(company, dict):
+                pending = {
+                    "result": company,
+                    "initial": _sirene_initial(company, submitted),
+                }
+            else:
+                messages.warning(
+                    request,
+                    "La recherche SIRENE n'a renvoyé aucune donnée exploitable : "
+                    "saisissez les informations manuellement.",
+                )
+
+    request.session[_SIRENE_SESSION_KEY] = pending
+    return redirect("onboarding")
+
+
 def onboarding_view(request):
     """Création du premier espace de travail (POST /entreprises/).
 
@@ -376,6 +489,12 @@ def onboarding_view(request):
     entreprises le réutilise, sans `x-entreprise-id` (pas encore d'entreprise).
     Après création, on initialise `entreprise_id` en session et on donne accès
     à l'application.
+
+    Le bouton « Rechercher » du champ SIRET (action `sirene_lookup`) est une
+    aide facultative : il pré-remplit le nom et le SIRET depuis la base SIRENE
+    et affiche les autres informations officielles (adresse, activité) pour
+    vérification — les champs restent éditables et la saisie manuelle reste
+    possible de bout en bout.
     """
     if not request.session.get("is_authenticated"):
         return redirect("login")
@@ -390,6 +509,12 @@ def onboarding_view(request):
         return redirect("plans_admin")
 
     if request.method == "POST":
+        # Recherche SIRENE : traitée avant toute validation (le formulaire peut
+        # être incomplet à ce stade) et sortie par redirection, la création
+        # d'entreprise n'est pas concernée.
+        if request.POST.get("action") == "sirene_lookup":
+            return _handle_onboarding_sirene_lookup(request)
+
         form = EntrepriseForm(request.POST)
         if form.is_valid():
             try:
@@ -424,4 +549,14 @@ def onboarding_view(request):
                 messages.error(request, "Impossible de créer l'espace de travail.")
         return render(request, "core/onboarding.html", {"form": form})
 
-    return render(request, "core/onboarding.html", {"form": EntrepriseForm()})
+    # Résultat d'une recherche SIRENE en attente : consommé une seule fois
+    # (pop) pour pré-remplir le formulaire et afficher l'encart de vérification.
+    pending = request.session.pop(_SIRENE_SESSION_KEY, None) or {}
+    return render(
+        request,
+        "core/onboarding.html",
+        {
+            "form": EntrepriseForm(initial=pending.get("initial") or {}),
+            "sirene_result": pending.get("result"),
+        },
+    )
