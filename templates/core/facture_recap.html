@@ -393,8 +393,10 @@ ne change. Thème facturia (daisyUI).
     {# --- Fenêtre SIRENE : création du client destinataire. Formulaire séparé #}
     {# (action `create_attach`), hors du formulaire récap. Champs éditables #}
     {# pré-remplis : SIRENE peut renvoyer CP/ville vides alors qu'ils sont #}
-    {# requis par ClientCreate. Fermeture par simple lien (résultat consommé, #}
-    {# la fenêtre ne se rouvre pas au rechargement). --- #}
+    {# requis par ClientCreate. Une création refusée rouvre la fenêtre avec la #}
+    {# saisie conservée et le motif du refus (global + par champ) plutôt que de #}
+    {# renvoyer sur un récap sans issue. Fermeture par simple lien (résultat #}
+    {# consommé, la fenêtre ne se rouvre pas au rechargement). --- #}
     {% if sirene_result %}
         <dialog class="modal modal-open">
             <div class="modal-box max-w-lg">
@@ -407,38 +409,52 @@ ne change. Thème facturia (daisyUI).
                     {% csrf_token %}
                     <input type="hidden" name="action" value="create_attach">
 
+                    {# Refus de la création : motif en tête de fenêtre, saisie #}
+                    {# conservée, erreurs rattachées aux champs concernés. #}
+                    {% if sirene_erreur_globale %}
+                        <div role="alert" class="alert alert-error alert-soft text-sm">
+                            <span>{{ sirene_erreur_globale }}</span>
+                        </div>
+                    {% endif %}
+
                     <div>
                         <label for="client_raison_sociale" class="block text-sm font-medium mb-1">Raison sociale</label>
                         <input type="text" id="client_raison_sociale" name="client_raison_sociale" required maxlength="255"
-                               value="{{ sirene_result.raison_sociale|default:'' }}" class="input w-full">
+                               value="{{ sirene_result.raison_sociale|default:'' }}" class="input w-full{% if sirene_erreurs.raison_sociale %} input-error{% endif %}">
+                        {% if sirene_erreurs.raison_sociale %}<p class="text-error text-xs mt-1">{{ sirene_erreurs.raison_sociale }}</p>{% endif %}
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label for="client_siret" class="block text-sm font-medium mb-1">SIRET</label>
+                            <label for="client_siret" class="block text-sm font-medium mb-1">SIRET <span class="text-base-content/50 font-normal">(optionnel)</span></label>
                             <input type="text" id="client_siret" name="client_siret" maxlength="14" inputmode="numeric"
-                                   value="{{ sirene_result.siret|default:'' }}" class="input w-full">
+                                   value="{{ sirene_result.siret|default:'' }}" class="input w-full{% if sirene_erreurs.siret %} input-error{% endif %}">
+                            {% if sirene_erreurs.siret %}<p class="text-error text-xs mt-1">{{ sirene_erreurs.siret }}</p>{% endif %}
                         </div>
                         <div>
                             <label for="client_numero_tva" class="block text-sm font-medium mb-1">N° TVA <span class="text-base-content/50 font-normal">(optionnel)</span></label>
                             <input type="text" id="client_numero_tva" name="client_numero_tva" maxlength="20"
-                                   value="{{ sirene_result.numero_tva|default:'' }}" class="input w-full">
+                                   value="{{ sirene_result.numero_tva|default:'' }}" class="input w-full{% if sirene_erreurs.numero_tva %} input-error{% endif %}">
+                            {% if sirene_erreurs.numero_tva %}<p class="text-error text-xs mt-1">{{ sirene_erreurs.numero_tva }}</p>{% endif %}
                         </div>
                     </div>
                     <div>
                         <label for="client_adresse" class="block text-sm font-medium mb-1">Adresse <span class="text-base-content/50 font-normal">(optionnel)</span></label>
                         <input type="text" id="client_adresse" name="client_adresse" maxlength="255"
-                               value="{{ sirene_result.adresse|default:'' }}" class="input w-full">
+                               value="{{ sirene_result.adresse|default:'' }}" class="input w-full{% if sirene_erreurs.adresse %} input-error{% endif %}">
+                        {% if sirene_erreurs.adresse %}<p class="text-error text-xs mt-1">{{ sirene_erreurs.adresse }}</p>{% endif %}
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
                             <label for="client_code_postal" class="block text-sm font-medium mb-1">Code postal</label>
                             <input type="text" id="client_code_postal" name="client_code_postal" required maxlength="10"
-                                   value="{{ sirene_result.code_postal|default:'' }}" class="input w-full">
+                                   value="{{ sirene_result.code_postal|default:'' }}" class="input w-full{% if sirene_erreurs.code_postal %} input-error{% endif %}">
+                            {% if sirene_erreurs.code_postal %}<p class="text-error text-xs mt-1">{{ sirene_erreurs.code_postal }}</p>{% endif %}
                         </div>
                         <div class="sm:col-span-2">
                             <label for="client_ville" class="block text-sm font-medium mb-1">Ville</label>
                             <input type="text" id="client_ville" name="client_ville" required maxlength="150"
-                                   value="{{ sirene_result.ville|default:'' }}" class="input w-full">
+                                   value="{{ sirene_result.ville|default:'' }}" class="input w-full{% if sirene_erreurs.ville %} input-error{% endif %}">
+                            {% if sirene_erreurs.ville %}<p class="text-error text-xs mt-1">{{ sirene_erreurs.ville }}</p>{% endif %}
                         </div>
                     </div>
 
