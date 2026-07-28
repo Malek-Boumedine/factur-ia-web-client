@@ -35,6 +35,11 @@ from core.views.abonnements import (
     plans_admin_view,
 )
 from core.views.acces import acces_view
+from core.views.administration_entreprises import (
+    administration_entreprise_reactivate_view,
+    administration_entreprise_suspend_view,
+    administration_entreprises_view,
+)
 from core.views.admins_plateforme import admins_plateforme_view
 from core.views.catalogue import (
     catalogue_create_view,
@@ -97,6 +102,21 @@ urlpatterns = [
     path("mes-acces/", acces_view, name="acces"),
     path("equipe/", equipe_view, name="equipe"),
     path("admins/", admins_plateforme_view, name="admins_plateforme"),
+    path(
+        "administration/entreprises/",
+        administration_entreprises_view,
+        name="admin_entreprises",
+    ),
+    path(
+        "administration/entreprises/<int:entreprise_id>/suspendre/",
+        administration_entreprise_suspend_view,
+        name="admin_entreprise_suspend",
+    ),
+    path(
+        "administration/entreprises/<int:entreprise_id>/reactiver/",
+        administration_entreprise_reactivate_view,
+        name="admin_entreprise_reactivate",
+    ),
     path("abonnements/", abonnements_view, name="abonnements"),
     path(
         "abonnements/prolonger/",

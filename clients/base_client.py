@@ -273,7 +273,8 @@ class BaseAPIClient:
             ResourceConflictError: Réponse 409 (message de conflit conservé).
             APIValidationError: Réponse 422 (détail de validation conservé).
             ServerError: Réponse 5xx (non transitoire).
-            APIClientError: Tout autre statut 4xx non spécifique (400, 403, ...).
+            APIClientError: Tout autre statut 4xx non spécifique (400, 403, ...),
+                avec le `detail` du corps conservé lorsqu'il est exploitable.
         """
         status = response.status_code
 
@@ -302,7 +303,14 @@ class BaseAPIClient:
             raise ServerError(status_code=status)
 
         # Autres 4xx (400, 403, ...) : erreur générique de la couche cliente.
-        raise APIClientError(f"Erreur API (HTTP {status}).", status_code=status)
+        # Le `detail` est conservé : sur les routes d'administration, un 403
+        # porte un message de garde-fou métier explicite (facture émise, compte
+        # protégé, auto-suppression) que les vues affichent tel quel.
+        raise APIClientError(
+            f"Erreur API (HTTP {status}).",
+            status_code=status,
+            detail=self._extract_detail(response),
+        )
 
     @staticmethod
     def _extract_detail(response: httpx.Response) -> Any:
