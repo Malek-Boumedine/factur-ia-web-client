@@ -37,9 +37,10 @@ en desktop comme en mobile.
             </a>
           {% endif %}
         {% else %}
-          <a href="#fonctionnalites" class="rounded-lg px-3 py-2 text-sm font-medium text-base-content/70 transition-colors hover:bg-base-content/5 hover:text-base-content">Fonctionnalités</a>
-          <a href="#conformite" class="rounded-lg px-3 py-2 text-sm font-medium text-base-content/70 transition-colors hover:bg-base-content/5 hover:text-base-content">Conformité</a>
-          <a href="#tarifs" class="rounded-lg px-3 py-2 text-sm font-medium text-base-content/70 transition-colors hover:bg-base-content/5 hover:text-base-content">Tarifs</a>
+          {# Ancres absolues vers l'accueil : depuis une autre page (connexion…), un « #tarifs » relatif viserait une section inexistante de la page courante. #}
+          <a href="{% url 'home' %}#fonctionnalites" class="rounded-lg px-3 py-2 text-sm font-medium text-base-content/70 transition-colors hover:bg-base-content/5 hover:text-base-content">Fonctionnalités</a>
+          <a href="{% url 'home' %}#conformite" class="rounded-lg px-3 py-2 text-sm font-medium text-base-content/70 transition-colors hover:bg-base-content/5 hover:text-base-content">Conformité</a>
+          <a href="{% url 'home' %}#tarifs" class="rounded-lg px-3 py-2 text-sm font-medium text-base-content/70 transition-colors hover:bg-base-content/5 hover:text-base-content">Tarifs</a>
         {% endif %}
       </nav>
 
@@ -166,9 +167,10 @@ en desktop comme en mobile.
             Tableau de bord
           </a>
         {% else %}
-          <a href="#fonctionnalites" class="block rounded-lg px-3 py-2 text-base font-medium text-base-content/70 transition-colors hover:bg-base-content/5 hover:text-base-content">Fonctionnalités</a>
-          <a href="#conformite" class="block rounded-lg px-3 py-2 text-base font-medium text-base-content/70 transition-colors hover:bg-base-content/5 hover:text-base-content">Conformité</a>
-          <a href="#tarifs" class="block rounded-lg px-3 py-2 text-base font-medium text-base-content/70 transition-colors hover:bg-base-content/5 hover:text-base-content">Tarifs</a>
+          {# Mêmes ancres absolues que la nav desktop. #}
+          <a href="{% url 'home' %}#fonctionnalites" class="block rounded-lg px-3 py-2 text-base font-medium text-base-content/70 transition-colors hover:bg-base-content/5 hover:text-base-content">Fonctionnalités</a>
+          <a href="{% url 'home' %}#conformite" class="block rounded-lg px-3 py-2 text-base font-medium text-base-content/70 transition-colors hover:bg-base-content/5 hover:text-base-content">Conformité</a>
+          <a href="{% url 'home' %}#tarifs" class="block rounded-lg px-3 py-2 text-base font-medium text-base-content/70 transition-colors hover:bg-base-content/5 hover:text-base-content">Tarifs</a>
           <div class="my-2 border-t border-base-300"></div>
           <a href="{% url 'login' %}" class="block rounded-lg px-3 py-2 text-base font-medium text-base-content/70 transition-colors hover:bg-base-content/5 hover:text-base-content">Connexion</a>
           <a href="{% url 'signup' %}" class="mt-1 block rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 px-3 py-2 text-center text-base font-semibold text-white">S'inscrire &rarr;</a>
