@@ -158,9 +158,11 @@ aria-current="page".
             {% endif %}
 
             {% if request.session.is_platform_admin %}
-                {# Groupe Administration : backoffice plateforme, indépendant
-                   d'une entreprise active (un admin plateforme n'en a pas
-                   forcément). Les vues gardent leur propre garde-fou. #}
+                {% comment %}
+                Groupe Administration : backoffice plateforme, indépendant
+                d'une entreprise active (un admin plateforme n'en a pas
+                forcément). Les vues gardent leur propre garde-fou.
+                {% endcomment %}
                 <li class="menu-title">Administration</li>
                 <li>
                     <a href="{% url 'plans_admin' %}"

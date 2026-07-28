@@ -50,10 +50,12 @@ Surcharge {% block content_full %} pour des sections pleine largeur.
             <div class="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 {% if request.session.is_authenticated %}
                     {% if request.session.entreprise_id %}
-                        {# TODO(tableau-de-bord) : rebrancher ce CTA vers le tableau de
-                           bord dédié quand il existera (le lien « Tableau de bord » de
-                           l'en-tête pointe encore vers la démo). En attendant, on entre
-                           dans l'espace de travail par une page existante (liste clients). #}
+                        {% comment %}
+                        TODO(tableau-de-bord) : rebrancher ce CTA vers le tableau de
+                        bord dédié quand il existera (le lien « Tableau de bord » de
+                        l'en-tête pointe encore vers la démo). En attendant, on entre
+                        dans l'espace de travail par une page existante (liste clients).
+                        {% endcomment %}
                         <a href="{% url 'clients' %}" class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 px-8 py-4 text-lg font-semibold text-white shadow-lg shadow-indigo-500/25 transition hover:-translate-y-0.5 hover:from-indigo-400 hover:to-purple-400 hover:shadow-xl hover:shadow-indigo-500/30 sm:w-auto">
                             Accéder à mon espace <span aria-hidden="true">&rarr;</span>
                         </a>
@@ -290,6 +292,9 @@ Surcharge {% block content_full %} pour des sections pleine largeur.
                         {% if request.session.is_authenticated %}
                             {% if request.session.entreprise_id %}
                                 <a href="{% url 'abonnements' %}" class="mt-8 inline-flex justify-center rounded-lg {% if plan.id == featured_plan_id %}bg-gradient-to-r from-indigo-500 to-purple-500 text-white transition hover:from-indigo-400 hover:to-purple-400{% else %}border border-primary text-primary transition hover:bg-primary/10{% endif %} px-5 py-2.5 text-sm font-semibold">Gérer mon abonnement</a>
+                            {% elif request.session.is_platform_admin %}
+                                {# Un admin plateforme n'a pas d'espace à créer : l'envoyer sur l'onboarding le ferait rebondir avec un message d'erreur. #}
+                                <a href="{% url 'plans_admin' %}" class="mt-8 inline-flex justify-center rounded-lg {% if plan.id == featured_plan_id %}bg-gradient-to-r from-indigo-500 to-purple-500 text-white transition hover:from-indigo-400 hover:to-purple-400{% else %}border border-primary text-primary transition hover:bg-primary/10{% endif %} px-5 py-2.5 text-sm font-semibold">Gérer les plans</a>
                             {% else %}
                                 <a href="{% url 'onboarding' %}" class="mt-8 inline-flex justify-center rounded-lg {% if plan.id == featured_plan_id %}bg-gradient-to-r from-indigo-500 to-purple-500 text-white transition hover:from-indigo-400 hover:to-purple-400{% else %}border border-primary text-primary transition hover:bg-primary/10{% endif %} px-5 py-2.5 text-sm font-semibold">Créer mon espace</a>
                             {% endif %}
@@ -312,6 +317,9 @@ Surcharge {% block content_full %} pour des sections pleine largeur.
                 {% if request.session.is_authenticated %}
                     {% if request.session.entreprise_id %}
                         <a href="{% url 'abonnements' %}" class="mt-6 inline-flex justify-center rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 px-6 py-3 text-sm font-semibold text-white transition hover:from-indigo-400 hover:to-purple-400">Voir mon abonnement</a>
+                    {% elif request.session.is_platform_admin %}
+                        {# Même garde que les autres CTA : pas d'onboarding pour un admin plateforme. #}
+                        <a href="{% url 'plans_admin' %}" class="mt-6 inline-flex justify-center rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 px-6 py-3 text-sm font-semibold text-white transition hover:from-indigo-400 hover:to-purple-400">Gérer les plans</a>
                     {% else %}
                         <a href="{% url 'onboarding' %}" class="mt-6 inline-flex justify-center rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 px-6 py-3 text-sm font-semibold text-white transition hover:from-indigo-400 hover:to-purple-400">Créer mon espace</a>
                     {% endif %}
