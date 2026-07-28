@@ -2,6 +2,94 @@
 
 <!-- version list -->
 
+## v0.9.0 (2026-07-28)
+
+### Bug Fixes
+
+- **factures**: Sort du cul-de-sac quand le SIRET du client est déjà pris
+  ([`65b36e8`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/65b36e8676126ed106f1b83b2a17704c5ce85d06))
+
+- **navigation**: Les liens du menu public ramènent à l'accueil
+  ([`58ac3a2`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/58ac3a294bf0ed4d19f552cc241049c817c93fa3))
+
+- **session**: Affiche l'état déconnecté dès que le JWT a expiré
+  ([`921528e`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/921528ea8d73c168d111b5c575698530fdfec6f3))
+
+### Features
+
+- **accueil**: Refonte de la vitrine avec prise en charge du thème sombre
+  ([`3ae0f8a`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/3ae0f8a153e952a39d3fd12d4d5754c1b6ec9ac9))
+
+- **administration**: Fiche détaillée d'une entreprise et actions de gestion
+  ([`86a7a24`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/86a7a24626194c558288ce944e64ca1f1e2c935d))
+
+- **administration**: Groupe Administration dans la sidebar et pages admin dans le layout dashboard
+  ([`f8afd52`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/f8afd5201cddd7bafac30c512193b36b45454f87))
+
+- **administration**: Liste des entreprises abonnées pour l'admin plateforme
+  ([`b858ddd`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/b858ddd82149b6ad6838c5ece3b84c09c15fa2cd))
+
+- **compte**: Remplace « Paramètres » par « Modifier mes accès » dans le menu profil
+  ([`2c8b14d`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/2c8b14d1470a82dd7e1ef4ee150db29ed08f41e9))
+
+- **compte**: Sépare les informations du compte et la gestion des accès
+  ([`dcb2667`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/dcb26677ee532da946737118a689dfcb55fedfed))
+
+- **documents**: Bouton vers la liste des documents sur l'écran de dépôt
+  ([`c5b333d`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/c5b333ddcb94b1f4330e40a4c8742fa05cc6dba1))
+
+- **documents**: Liste des documents uploadés et consultation des fichiers
+  ([`91a3dfb`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/91a3dfb3f341e41ca2d4618d9c770cb94cce52af))
+
+- **documents**: Suppression d'un document depuis la liste
+  ([`b5726c4`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/b5726c45dfca070c4772b294ee1b2f4927946f4a))
+
+- **factures**: Colonne Statut en badges colorés sur l'onglet validées
+  ([`6832c97`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/6832c974481a60b45b37507c76b19b3a7f6990db))
+
+- **factures**: Surlignage des champs à faible confiance et type détecté sur le récap
+  ([`43635df`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/43635df6b66c25b39bf3a3d5d836b97d7dfb1089))
+
+- **layout**: Migre les pages principales dans le layout dashboard
+  ([`f52fbb5`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/f52fbb584cb5ce511321f5248982f79fd2df1cf9))
+
+- **layout**: Squelette du layout dashboard avec barre latérale
+  ([`3bae345`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/3bae3459990dc8e58ea18573d2d8091291fa06b5))
+
+- **layout**: Étend la sidebar du dashboard à toutes les sous-pages connectées
+  ([`a499733`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/a4997332700462c8a51a9a646b3f191ca808ceb4))
+
+- **navigation**: Accès à l'administration plateforme depuis le header
+  ([`da392d9`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/da392d9f250c3000b1de38c73d3f9d0462bf6fe0))
+
+- **onboarding**: Permet à un admin plateforme de souscrire un abonnement
+  ([`3b72a2e`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/3b72a2e280d622b86a51db140b6cd904dc6ff315))
+
+- **onboarding**: Recherche SIRENE pour pré-remplir les informations de l'entreprise
+  ([`e03b8d7`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/e03b8d76af4c70a99df7c2403793c0c8cd4352bf))
+
+- **statistiques**: Page Statistiques avec sélecteur de période et chiffres de synthèse
+  ([`deb311f`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/deb311f6dcf70cf766e87c6ebf3a3eb53b1e8967))
+
+- **statistiques**: Visualisations en barres CSS — évolution mensuelle, statuts, meilleurs clients
+  ([`0da1454`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/0da1454b25d7af941cff03c0c544538f4b8cef6a))
+
+- **tableau-de-bord**: Vraie page d'accueil connectée en remplacement de la démo
+  ([`cc0c3e2`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/cc0c3e22e48df3102e3371ce90997f6cb03492da))
+
+- **ui**: Bascule clair/sombre sur toute l'application
+  ([`d594dff`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/d594dffa4eae3a87c8d9570aaf510a5c8cda6cdb))
+
+- **ui**: Peuple la barre latérale du dashboard
+  ([`a3cfefb`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/a3cfefba8169b90cbb0c2b611b568f7c0895bcad))
+
+- **ui**: Refonte du header public avec menu profil et thème adaptatif
+  ([`4c1eba1`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/4c1eba16240a617f16fc46513dc89eee0783ba9a))
+
+- **ui**: Épure le header public
+  ([`75f2c4c`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/75f2c4c5866a040c77d5c0fa1a0da689787be978))
+
+
 ## v0.8.0 (2026-07-27)
 
 ### Bug Fixes
