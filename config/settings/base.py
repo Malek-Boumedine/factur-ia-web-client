@@ -51,6 +51,10 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # Purge la session dès que le JWT qu'elle porte est expiré, pour que TOUTES
+    # les pages (accueil compris) reflètent l'état réel sans attendre un 401.
+    # Doit rester après MessageMiddleware : il dépose un message à la purge.
+    "core.middleware.SessionExpiryMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"

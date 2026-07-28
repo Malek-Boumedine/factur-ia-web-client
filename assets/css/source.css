@@ -52,3 +52,47 @@
   --depth: 1;
   --noise: 0;
 }
+
+/* Variante sombre du thème facturia : mêmes teintes indigo/purple, éclaircies
+   pour rester contrastées sur fond sombre ; bases en ardoise indigo, couleurs
+   *-content foncées sur les aplats vifs pour la lisibilité. Sélectionnée via
+   data-theme="facturia-dark" sur <html> (bascule clair/sombre, voir
+   base_root.html). */
+@plugin "daisyui/theme" {
+  name: "facturia-dark";
+  default: false;
+  prefersdark: true;
+  color-scheme: dark;
+
+  --color-base-100: oklch(25% 0.015 280);
+  --color-base-200: oklch(21% 0.012 280);
+  --color-base-300: oklch(31% 0.02 280);
+  --color-base-content: oklch(93% 0.01 286);
+
+  --color-primary: oklch(63% 0.21 277);          /* indigo éclairci */
+  --color-primary-content: oklch(15% 0.03 277);
+  --color-secondary: oklch(68% 0.2 303);         /* purple éclairci */
+  --color-secondary-content: oklch(16% 0.03 303);
+  --color-accent: oklch(68% 0.2 303);            /* purple (accent) */
+  --color-accent-content: oklch(16% 0.03 303);
+  --color-neutral: oklch(30% 0.02 280);
+  --color-neutral-content: oklch(93% 0.01 280);
+
+  --color-info: oklch(74% 0.14 233);
+  --color-info-content: oklch(20% 0.05 233);
+  --color-success: oklch(76% 0.177 163);
+  --color-success-content: oklch(22% 0.06 163);
+  --color-warning: oklch(82% 0.19 84);
+  --color-warning-content: oklch(23% 0.06 84);
+  --color-error: oklch(68% 0.2 25);
+  --color-error-content: oklch(16% 0.04 25);
+
+  --radius-selector: 0.5rem;
+  --radius-field: 0.5rem;
+  --radius-box: 0.75rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}

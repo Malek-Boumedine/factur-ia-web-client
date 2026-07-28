@@ -2,6 +2,58 @@
 
 <!-- version list -->
 
+## v0.8.0 (2026-07-27)
+
+### Bug Fixes
+
+- **factures**: Clarifie les actions du récap d'un brouillon
+  ([`c7560d9`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/c7560d96a38b514f6803a28f237a36a62fe268cf))
+
+- **factures**: Élargit l'écran d'édition d'un brouillon pour afficher toute la ligne
+  ([`10821d5`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/10821d5f8d3a1a25ef1b50ab82b8b70ad2c7670b))
+
+### Features
+
+- **documents**: Écran d'attente asynchrone pendant l'extraction
+  ([`a7c677b`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/a7c677baee62de74d1870ad3f24a53a16b5e8820))
+
+- **factures**: Ajout et suppression de lignes à l'édition d'un brouillon
+  ([`db7ee50`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/db7ee5053ff8c402e21cb0f9e45fbb9449dac2e3))
+
+- **factures**: Alerte de divergence du SIRET émetteur dans le récap
+  ([`a8e8703`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/a8e870354cf4c32670e0df4d228e8a4dace6169a))
+
+- **factures**: Aperçu mis en forme d'une facture validée
+  ([`3c84e08`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/3c84e08b4db8ec416322df40877d5798b03e10e7))
+
+- **factures**: Bouton Annuler sur l'écran d'édition d'un brouillon
+  ([`d6acf05`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/d6acf0506255c37480e4bce698fffcdf12b01ee7))
+
+- **factures**: Correction et validation des champs extraits dans le récap
+  ([`0f040ef`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/0f040efe7104c404564999c5ca97340ae32d5e84))
+
+- **factures**: Génération d'un avoir depuis une facture validée
+  ([`3b3585b`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/3b3585be5d6022bf21de917b5c6aad3b2fab05a9))
+
+- **factures**: Liste des factures en deux onglets (brouillons et validées)
+  ([`9190282`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/91902823928b92cc8dc6f81f6bb282f1ed3f28bf))
+
+- **factures**: Rattachement ou création du client destinataire dans le récap
+  ([`96e3703`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/96e37037b8723cac6ca84c2fbd0ebd2135b9e5d5))
+
+- **factures**: Saisie des SIRET émetteur et destinataire dans le récap
+  ([`497c4c4`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/497c4c4dac5e44a739db3e4f4915a6a5b28bdcd6))
+
+- **factures**: Suppression d'un brouillon depuis la liste
+  ([`363c2c9`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/363c2c9b01c836a9727f60e13129ec62e1e6850f))
+
+- **factures**: Écran de récap human-in-the-loop des données extraites
+  ([`d0eba01`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/d0eba015e5d3754f2aba83686cef5446baa8f0fd))
+
+- **profil**: Affiche les informations de l'entreprise sur la page de profil
+  ([`e7bcfbb`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/e7bcfbb2e836fe27a7bf2aa5bc8fe5191dfd08ef))
+
+
 ## v0.7.0 (2026-07-03)
 
 ### Features

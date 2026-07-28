@@ -1,18 +1,10 @@
-{% load tailwind_cli static %}
-<!DOCTYPE html>
-<html lang="fr" data-theme="facturia">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Factur-IA{% endblock %}</title>
-    {% tailwind_css %}
-    {# Alpine.js (vendored, chargé une seule fois pour toutes les pages). #}
-    <script defer src="{% static 'js/alpine.min.js' %}"></script>
-    {# Évite l'affichage des éléments Alpine avant l'initialisation du JS. #}
-    <style>[x-cloak]{display:none !important;}</style>
-    {% block extra_head %}{% endblock %}
-</head>
-<body class="flex min-h-screen flex-col bg-gray-100 font-sans text-gray-900">
+{% extends "base_root.html" %}
+{% comment %}
+Layout public : header horizontal + footer. Le head commun (Tailwind,
+Alpine, thème) vit dans base_root.html, partagé avec base_dashboard.html.
+{% endcomment %}
+
+{% block body %}<body class="flex min-h-screen flex-col bg-base-200 font-sans text-base-content">
 
     {% include "partials/header.html" %}
 
@@ -33,4 +25,4 @@
 
     {% block extra_js %}{% endblock %}
 </body>
-</html>
+{% endblock body %}

@@ -34,6 +34,18 @@ from core.views.abonnements import (
     plan_update_view,
     plans_admin_view,
 )
+from core.views.acces import acces_view
+from core.views.administration_entreprises import (
+    administration_entreprise_cancel_view,
+    administration_entreprise_change_plan_view,
+    administration_entreprise_delete_view,
+    administration_entreprise_detail_view,
+    administration_entreprise_extend_view,
+    administration_entreprise_reactivate_view,
+    administration_entreprise_suspend_view,
+    administration_entreprise_update_view,
+    administration_entreprises_view,
+)
 from core.views.admins_plateforme import admins_plateforme_view
 from core.views.catalogue import (
     catalogue_create_view,
@@ -51,9 +63,13 @@ from core.views.clients import (
     client_update_view,
     clients_list_view,
 )
+from core.views.dashboard import dashboard_view
 from core.views.documents import (
+    document_delete_view,
+    document_file_view,
     document_status_view,
     document_wait_view,
+    documents_list_view,
     upload_document_view,
 )
 from core.views.equipe import equipe_view
@@ -66,6 +82,7 @@ from core.views.factures import (
 )
 from core.views.home import home_view
 from core.views.profil import profil_view
+from core.views.statistiques import statistiques_view
 from core.views.taux_tva import (
     taux_tva_admin_view,
     taux_tva_create_view,
@@ -88,8 +105,54 @@ urlpatterns = [
     path("profile-lock/", profile_lock_view, name="profile_lock"),
     path("onboarding/", onboarding_view, name="onboarding"),
     path("profil/", profil_view, name="profil"),
+    path("mes-acces/", acces_view, name="acces"),
     path("equipe/", equipe_view, name="equipe"),
     path("admins/", admins_plateforme_view, name="admins_plateforme"),
+    path(
+        "administration/entreprises/",
+        administration_entreprises_view,
+        name="admin_entreprises",
+    ),
+    path(
+        "administration/entreprises/<int:entreprise_id>/",
+        administration_entreprise_detail_view,
+        name="admin_entreprise_detail",
+    ),
+    path(
+        "administration/entreprises/<int:entreprise_id>/modifier/",
+        administration_entreprise_update_view,
+        name="admin_entreprise_update",
+    ),
+    path(
+        "administration/entreprises/<int:entreprise_id>/abonnement/changer/",
+        administration_entreprise_change_plan_view,
+        name="admin_entreprise_change_plan",
+    ),
+    path(
+        "administration/entreprises/<int:entreprise_id>/abonnement/prolonger/",
+        administration_entreprise_extend_view,
+        name="admin_entreprise_extend",
+    ),
+    path(
+        "administration/entreprises/<int:entreprise_id>/abonnement/resilier/",
+        administration_entreprise_cancel_view,
+        name="admin_entreprise_cancel",
+    ),
+    path(
+        "administration/entreprises/<int:entreprise_id>/supprimer/",
+        administration_entreprise_delete_view,
+        name="admin_entreprise_delete",
+    ),
+    path(
+        "administration/entreprises/<int:entreprise_id>/suspendre/",
+        administration_entreprise_suspend_view,
+        name="admin_entreprise_suspend",
+    ),
+    path(
+        "administration/entreprises/<int:entreprise_id>/reactiver/",
+        administration_entreprise_reactivate_view,
+        name="admin_entreprise_reactivate",
+    ),
     path("abonnements/", abonnements_view, name="abonnements"),
     path(
         "abonnements/prolonger/",
@@ -170,7 +233,13 @@ urlpatterns = [
         catalogue_reactivate_view,
         name="catalogue_reactivate",
     ),
+    path("documents/", documents_list_view, name="documents"),
     path("documents/upload/", upload_document_view, name="upload_document"),
+    path(
+        "documents/<int:document_id>/fichier/",
+        document_file_view,
+        name="document_fichier",
+    ),
     path(
         "documents/<int:document_id>/attente/",
         document_wait_view,
@@ -180,6 +249,11 @@ urlpatterns = [
         "documents/<int:document_id>/statut/",
         document_status_view,
         name="document_statut",
+    ),
+    path(
+        "documents/<int:document_id>/supprimer/",
+        document_delete_view,
+        name="document_delete",
     ),
     path("factures/", factures_list_view, name="factures"),
     path(
@@ -202,5 +276,7 @@ urlpatterns = [
         facture_avoir_view,
         name="facture_avoir",
     ),
+    path("tableau-de-bord/", dashboard_view, name="dashboard"),
+    path("statistiques/", statistiques_view, name="statistiques"),
     path("", home_view, name="home"),
 ]

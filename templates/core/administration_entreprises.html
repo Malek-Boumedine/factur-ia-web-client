@@ -1,0 +1,196 @@
+{% extends "base_dashboard.html" %}
+
+{% comment %}
+Liste des entreprises abonnées, réservée aux administrateurs de plateforme
+(garde-fou en vue via le flag de session `is_platform_admin`).
+
+L'état est porté par les query params de l'URL (recherche `q`, filtres
+`statut` et `est_actif`, page `page`) — la page est donc partageable et
+rechargeable, et les actions y reviennent via le champ caché `retour`.
+
+Deux actions par ligne : suspendre (modal Alpine avec motif facultatif,
+conservé pour le support) et réactiver (POST + confirmation). Toutes deux
+passent par une vue Django POST-only avec CSRF ; le navigateur ne contacte
+jamais l'API directement.
+{% endcomment %}
+
+{% block title %}Entreprises — Factur-IA{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-6" x-data="suspensionEntreprise()">
+
+    <div class="flex justify-between items-center bg-base-100 rounded-t-lg shadow-sm p-4 border-b border-base-300">
+        <div class="flex items-center gap-3">
+            <h2 class="text-xl font-bold">Entreprises</h2>
+            <span class="text-sm text-base-content/60">{{ total }} entreprise{{ total|pluralize }}</span>
+        </div>
+    </div>
+
+    {# Barre de recherche et filtres — un seul formulaire GET. #}
+    <form method="get" class="bg-base-100 rounded-lg shadow-sm border border-base-200 p-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+        <div class="flex-1">
+            <label for="q" class="block text-sm font-medium mb-1">Recherche</label>
+            <input type="search" id="q" name="q" value="{{ search }}"
+                   placeholder="Raison sociale ou SIRET…"
+                   class="input w-full"
+                   x-on:input.debounce.400ms="$el.form.requestSubmit()">
+        </div>
+        <div class="sm:w-52">
+            <label for="statut" class="block text-sm font-medium mb-1">Abonnement</label>
+            <select id="statut" name="statut" class="select w-full"
+                    x-on:change="$el.form.requestSubmit()">
+                <option value="" {% if not statut %}selected{% endif %}>Tous</option>
+                {% for value, label in statuts %}
+                    <option value="{{ value }}" {% if statut == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="sm:w-52">
+            <label for="est_actif" class="block text-sm font-medium mb-1">État</label>
+            <select id="est_actif" name="est_actif" class="select w-full"
+                    x-on:change="$el.form.requestSubmit()">
+                <option value="" {% if est_actif == "" %}selected{% endif %}>Tous</option>
+                <option value="true" {% if est_actif == "true" %}selected{% endif %}>Actives</option>
+                <option value="false" {% if est_actif == "false" %}selected{% endif %}>Suspendues</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Rechercher</button>
+    </form>
+
+    <div class="bg-base-100 rounded-lg shadow-md border border-base-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Raison sociale</th>
+                        <th>SIRET</th>
+                        <th>Plan</th>
+                        <th>Abonnement</th>
+                        <th>État</th>
+                        <th class="text-right">Utilisateurs</th>
+                        <th class="text-right">Factures</th>
+                        <th class="text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entreprise in items %}
+                    <tr class="hover">
+                        <td>
+                            <a href="{% url 'admin_entreprise_detail' entreprise_id=entreprise.id %}"
+                               class="font-medium link link-hover">{{ entreprise.nom_entreprise }}</a>
+                            {% if entreprise.forme_juridique %}
+                                <div class="text-xs text-base-content/60">{{ entreprise.forme_juridique }}</div>
+                            {% endif %}
+                        </td>
+                        <td class="text-base-content/70 whitespace-nowrap">{{ entreprise.siret|default:"—" }}</td>
+                        <td class="text-base-content/70">{{ entreprise.plan_libelle|default:"—" }}</td>
+                        <td>
+                            {% if entreprise.statut_label %}
+                                <span class="badge {{ entreprise.statut_badge }} badge-soft">{{ entreprise.statut_label }}</span>
+                            {% else %}
+                                <span class="text-base-content/60">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if entreprise.est_actif %}
+                                <span class="badge badge-success badge-soft">Active</span>
+                            {% else %}
+                                <span class="badge badge-error badge-soft"
+                                      {% if entreprise.motif_suspension %}title="Motif : {{ entreprise.motif_suspension }}"{% endif %}>Suspendue</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-right whitespace-nowrap">
+                            {{ entreprise.nombre_utilisateurs_actifs }}
+                            <span class="text-base-content/50">/ {{ entreprise.nombre_utilisateurs }}</span>
+                        </td>
+                        <td class="text-right">{{ entreprise.nombre_factures }}</td>
+                        <td class="text-right">
+                            <div class="flex justify-end items-center gap-1">
+                                <a href="{% url 'admin_entreprise_detail' entreprise_id=entreprise.id %}"
+                                   class="btn btn-ghost btn-sm btn-square" title="Consulter la fiche">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                                </a>
+                                {% if entreprise.est_actif %}
+                                    <button type="button" class="btn btn-ghost btn-sm btn-square text-error"
+                                            title="Suspendre"
+                                            x-on:click="ask('{% url 'admin_entreprise_suspend' entreprise_id=entreprise.id %}', '{{ entreprise.nom_entreprise|escapejs }}')">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
+                                    </button>
+                                {% else %}
+                                    <form method="post" action="{% url 'admin_entreprise_reactivate' entreprise_id=entreprise.id %}" class="inline-block"
+                                          onsubmit="return confirm('Réactiver l\'entreprise {{ entreprise.nom_entreprise|escapejs }} ? Ses membres retrouveront l\'accès à leur espace de travail.');">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="retour" value="{{ base_query }}{% if base_query %}&{% endif %}page={{ page }}">
+                                        <button type="submit" class="btn btn-ghost btn-sm btn-square text-success" title="Réactiver">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                                        </button>
+                                    </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center text-base-content/60 py-8">Aucune entreprise trouvée.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% include "core/partials/pagination.html" %}
+
+    {# Modal de suspension : cible et motif facultatif, action posée par Alpine. #}
+    <div class="modal" :class="{ 'modal-open': open }" x-cloak role="dialog" aria-modal="true" aria-labelledby="suspension-title"
+         x-on:keydown.escape.window="close()">
+        <div class="modal-box w-11/12 max-w-lg">
+            <h3 class="text-lg font-semibold" id="suspension-title">Suspendre une entreprise</h3>
+            <p class="mt-2 text-sm text-base-content/70">
+                <span class="font-medium" x-text="nom"></span> perdra l'accès à son espace de travail
+                et son abonnement passera en « suspendu ». L'opération est réversible et ne supprime
+                aucune donnée.
+            </p>
+            <form method="post" :action="action" class="mt-4 space-y-4">
+                {% csrf_token %}
+                <input type="hidden" name="retour" value="{{ base_query }}{% if base_query %}&{% endif %}page={{ page }}">
+                <div>
+                    <label for="motif" class="block text-sm font-medium mb-1">Motif <span class="text-base-content/50">(facultatif)</span></label>
+                    <input type="text" id="motif" name="motif" maxlength="{{ motif_max_length }}"
+                           placeholder="Impayé, demande du client…" class="input w-full">
+                    <p class="mt-1 text-xs text-base-content/60">Conservé pour le support, non visible par l'entreprise.</p>
+                </div>
+                <div class="modal-action border-t border-base-300 pt-4">
+                    <button type="button" class="btn btn-ghost" x-on:click="close()">Annuler</button>
+                    <button type="submit" class="btn btn-error">Suspendre</button>
+                </div>
+            </form>
+        </div>
+        {# Fond cliquable pour fermer la modal. #}
+        <div class="modal-backdrop bg-black/40" x-on:click="close()"></div>
+    </div>
+</div>
+{% endblock content %}
+
+{% block extra_js %}
+<script>
+    // État de la modal de suspension : l'action du formulaire est posée depuis
+    // l'URL Django portée par le bouton de la ligne, pour ne dupliquer aucune
+    // route côté client.
+    function suspensionEntreprise() {
+        return {
+            open: false,
+            action: '',
+            nom: '',
+            ask(action, nom) {
+                this.action = action;
+                this.nom = nom;
+                this.open = true;
+            },
+            close() {
+                this.open = false;
+            },
+        };
+    }
+</script>
+{% endblock extra_js %}
