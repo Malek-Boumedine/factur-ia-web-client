@@ -7,20 +7,20 @@ pour préserver recherche et filtres dans les liens). Masqué s'il n'y a qu'une
 seule page.
 {% endcomment %}
 {% if total_pages > 1 %}
-<div class="flex items-center justify-between">
+<div class="flex flex-wrap items-center justify-between gap-3">
     <p class="text-sm text-base-content/60">Page {{ page }} sur {{ total_pages }}</p>
     <div class="join">
         {% if has_previous %}
             <a href="?page={{ previous_page }}{% if base_query %}&{{ base_query }}{% endif %}"
-               class="join-item btn btn-sm">« Précédent</a>
+               class="join-item btn h-11">« Précédent</a>
         {% else %}
-            <button class="join-item btn btn-sm btn-disabled" aria-disabled="true">« Précédent</button>
+            <button class="join-item btn h-11 btn-disabled" aria-disabled="true">« Précédent</button>
         {% endif %}
         {% if has_next %}
             <a href="?page={{ next_page }}{% if base_query %}&{{ base_query }}{% endif %}"
-               class="join-item btn btn-sm">Suivant »</a>
+               class="join-item btn h-11">Suivant »</a>
         {% else %}
-            <button class="join-item btn btn-sm btn-disabled" aria-disabled="true">Suivant »</button>
+            <button class="join-item btn h-11 btn-disabled" aria-disabled="true">Suivant »</button>
         {% endif %}
     </div>
 </div>

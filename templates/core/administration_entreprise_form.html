@@ -21,8 +21,8 @@ référentiel indisponible), pour éviter tout effacement involontaire.
 {% block content %}
 <div class="max-w-3xl mx-auto space-y-6">
 
-    <div class="flex justify-between items-center bg-base-100 rounded-t-lg shadow-sm p-4 border-b border-base-300">
-        <h2 class="text-xl font-bold">Modifier « {{ entreprise.nom_entreprise }} »</h2>
+    <div class="flex flex-wrap justify-between items-center gap-3 bg-base-100 rounded-box border border-base-300 shadow-sm p-4">
+        <h1 class="min-w-0 break-words text-2xl font-bold">Modifier « {{ entreprise.nom_entreprise }} »</h1>
         <a href="{% url 'admin_entreprise_detail' entreprise_id=entreprise.id %}" class="btn btn-ghost btn-sm">Retour</a>
     </div>
 
@@ -35,7 +35,7 @@ référentiel indisponible), pour éviter tout effacement involontaire.
         </span>
     </div>
 
-    <form method="post" class="bg-base-100 rounded-lg shadow-md border border-base-200 p-6 space-y-4">
+    <form method="post" class="bg-base-100 rounded-box shadow-sm border border-base-300 p-6 space-y-4">
         {% csrf_token %}
 
         {% if form.non_field_errors %}
@@ -79,7 +79,7 @@ référentiel indisponible), pour éviter tout effacement involontaire.
             </div>
         </div>
 
-        <div class="flex justify-end gap-2 border-t border-base-300 pt-4">
+        <div class="flex flex-wrap justify-end gap-2 border-t border-base-300 pt-4">
             <a href="{% url 'admin_entreprise_detail' entreprise_id=entreprise.id %}" class="btn btn-ghost">Annuler</a>
             <button type="submit" class="btn btn-primary">Enregistrer les modifications</button>
         </div>

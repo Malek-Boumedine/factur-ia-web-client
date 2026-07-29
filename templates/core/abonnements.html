@@ -32,8 +32,8 @@ rebasculée sur le gratuit dans /abonnements/me.
 {% block content %}
 <div class="max-w-5xl mx-auto space-y-6">
 
-    <div class="flex justify-between items-center bg-base-100 rounded-t-lg shadow-sm p-4 border-b border-base-300">
-        <h2 class="text-xl font-bold">Mon abonnement</h2>
+    <div class="flex flex-wrap justify-between items-center gap-3 bg-base-100 rounded-box border border-base-300 shadow-sm p-4">
+        <h1 class="text-2xl font-bold">Mon abonnement</h1>
         {% if request.session.is_platform_admin %}
             <a href="{% url 'plans_admin' %}" class="btn btn-ghost btn-sm">Gérer les plans</a>
         {% endif %}
@@ -51,11 +51,11 @@ rebasculée sur le gratuit dans /abonnements/me.
 
     {# Récapitulatif de la souscription en cours. #}
     {% if souscription_active %}
-        <div class="bg-base-100 rounded-lg shadow-md border border-primary p-6 space-y-5">
+        <div class="bg-base-100 rounded-box shadow-sm border border-primary p-6 space-y-5">
             <div class="flex flex-wrap items-start justify-between gap-3">
                 <div>
                     <p class="text-sm text-base-content/60">Formule en cours</p>
-                    <h3 class="text-2xl font-bold">{{ plan_actuel.libelle|default:"Abonnement en cours" }}</h3>
+                    <h3 class="text-xl font-bold">{{ plan_actuel.libelle|default:"Abonnement en cours" }}</h3>
                     {% if plan_actuel.description %}
                         <p class="text-sm text-base-content/70 mt-1">{{ plan_actuel.description }}</p>
                     {% endif %}
@@ -117,7 +117,7 @@ rebasculée sur le gratuit dans /abonnements/me.
             {% endif %}
         </div>
     {% else %}
-        <div class="bg-base-100 rounded-lg shadow-md border border-base-200 p-6">
+        <div class="bg-base-100 rounded-box shadow-sm border border-base-300 p-6">
             <h3 class="text-lg font-semibold mb-1">Aucun abonnement actif</h3>
             <p class="text-sm text-base-content/70">
                 Votre entreprise n'a pas d'abonnement actif. Choisissez une formule ci-dessous.
@@ -140,7 +140,7 @@ rebasculée sur le gratuit dans /abonnements/me.
 
         <div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             {% for plan in autres_plans %}
-                <div class="bg-base-100 rounded-lg shadow-md border border-base-200 p-6 flex flex-col gap-4">
+                <div class="bg-base-100 rounded-box shadow-sm border border-base-300 p-6 flex flex-col gap-4">
                     <h4 class="text-lg font-bold">{{ plan.libelle }}</h4>
 
                     <p class="text-3xl font-bold">
