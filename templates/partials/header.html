@@ -13,7 +13,7 @@ en desktop comme en mobile.
 
       {# Marque #}
       <a href="{% url 'home' %}" class="flex shrink-0 items-center gap-2">
-        <span class="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-secondary font-bold text-primary-content">F</span>
+        <span class="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-secondary font-bold text-white">F</span>
         <span class="text-lg font-bold tracking-tight">Factur<span class="text-primary">-IA</span></span>
       </a>
 
@@ -105,7 +105,7 @@ en desktop comme en mobile.
                     :aria-expanded="profilOpen" aria-haspopup="menu" aria-label="Ouvrir le menu du profil"
                     class="inline-flex h-11 w-11 items-center justify-center rounded-lg transition-colors hover:bg-base-content/5">
               {% if request.session.user_email %}
-                <span class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-primary to-secondary text-sm font-semibold text-primary-content">{{ request.session.user_email|first|upper }}</span>
+                <span class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-primary to-secondary text-sm font-semibold text-white">{{ request.session.user_email|first|upper }}</span>
               {% else %}
                 <svg class="h-6 w-6 text-base-content/70" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M17.982 18.725A7.488 7.488 0 0 0 12 15.75a7.488 7.488 0 0 0-5.982 2.975m11.963 0a9 9 0 1 0-11.963 0m11.963 0A8.966 8.966 0 0 1 12 21a8.966 8.966 0 0 1-5.982-2.275M15 9.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
