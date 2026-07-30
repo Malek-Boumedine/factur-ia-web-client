@@ -12,9 +12,9 @@ confirmation) ; la réactivation passe par l'édition (case « Produit actif »)
 <div class="max-w-3xl mx-auto space-y-6">
 
 
-    <div class="flex justify-between items-center bg-base-100 rounded-t-lg shadow-sm p-4 border-b border-base-300">
-        <div class="flex items-center gap-3">
-            <h2 class="text-xl font-bold">{{ produit.designation }}</h2>
+    <div class="flex flex-wrap justify-between items-center gap-3 bg-base-100 rounded-box border border-base-300 shadow-sm p-4">
+        <div class="flex min-w-0 flex-wrap items-center gap-3">
+            <h1 class="min-w-0 break-words text-2xl font-bold">{{ produit.designation }}</h1>
             {% if produit.est_actif %}
                 <span class="badge badge-success badge-soft">Actif</span>
             {% else %}
@@ -24,7 +24,7 @@ confirmation) ; la réactivation passe par l'édition (case « Produit actif »)
         <a href="{% url 'catalogue' %}" class="btn btn-ghost btn-sm">Retour à la liste</a>
     </div>
 
-    <div class="bg-base-100 rounded-lg shadow-md border border-base-200 p-6">
+    <div class="bg-base-100 rounded-box shadow-sm border border-base-300 p-6">
         <dl class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
             <div>
                 <dt class="text-xs font-semibold uppercase tracking-wider text-base-content/50">Type</dt>
@@ -52,7 +52,7 @@ confirmation) ; la réactivation passe par l'édition (case « Produit actif »)
             </div>
         </dl>
 
-        <div class="flex justify-end gap-2 border-t border-base-300 mt-6 pt-4">
+        <div class="flex flex-wrap justify-end gap-2 border-t border-base-300 mt-6 pt-4">
             <a href="{% url 'catalogue_update' produit_id=produit.id %}" class="btn btn-primary">Modifier</a>
             {% if produit.est_actif %}
                 <form method="post" action="{% url 'catalogue_deactivate' produit_id=produit.id %}" class="inline-block"

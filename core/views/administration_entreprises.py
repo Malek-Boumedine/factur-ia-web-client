@@ -35,6 +35,7 @@ from clients.exceptions import (
     ResourceNotFoundError,
     TokenExpiredError,
 )
+from clients.formes_juridiques_client import FormesJuridiquesClient
 from core.formatting import format_iso_date_fr
 from core.forms import EntrepriseAdminForm
 from core.pagination import (
@@ -241,6 +242,31 @@ def _blocage_suppression(compteurs: dict[str, Any]) -> str:
     )
 
 
+def _load_formes_juridiques_choices(request: HttpRequest) -> list[tuple[int, str]]:
+    """Charge les formes juridiques actives pour le menu déroulant du formulaire.
+
+    En cas d'échec de l'appel API (hors 401, qui se propage), on affiche un
+    message clair et on renvoie une liste vide : le formulaire reste affiché et
+    soumissible — la vue y réinjecte la forme courante de l'entreprise pour ne
+    pas l'effacer à son insu.
+    """
+    try:
+        formes = FormesJuridiquesClient(request).list_formes(est_actif=True)
+    except TokenExpiredError:
+        raise
+    except APIUnavailableError:
+        messages.error(request, _MSG_INDISPONIBLE)
+        return []
+    except APIClientError:
+        messages.error(
+            request,
+            "Impossible de charger le référentiel des formes juridiques. "
+            "Seule la forme juridique actuelle est proposée pour le moment.",
+        )
+        return []
+    return [(f["id"], f["libelle"]) for f in formes]
+
+
 def administration_entreprise_update_view(
     request: HttpRequest, entreprise_id: int
 ) -> HttpResponse:
@@ -259,6 +285,7 @@ def administration_entreprise_update_view(
 
     try:
         entreprise = client.get_entreprise(entreprise_id)
+        formes_choices = _load_formes_juridiques_choices(request)
     except TokenExpiredError:
         return redirect("login")
     except ResourceNotFoundError:
@@ -273,8 +300,17 @@ def administration_entreprise_update_view(
         messages.error(request, "Impossible de charger le détail de l'entreprise.")
         return redirect("admin_entreprises")
 
+    # La forme courante peut manquer dans les choix (désactivée, donc hors du
+    # filtre est_actif, ou référentiel indisponible) : on la réinjecte en tête
+    # pour que l'admin la voie et puisse la conserver — sans elle, soumettre le
+    # formulaire l'effacerait silencieusement.
+    id_forme = entreprise.get("id_forme_juridique")
+    if id_forme and all(value != id_forme for value, _ in formes_choices):
+        libelle = entreprise.get("forme_juridique") or f"Forme juridique n°{id_forme}"
+        formes_choices.insert(0, (id_forme, libelle))
+
     if request.method == "POST":
-        form = EntrepriseAdminForm(request.POST)
+        form = EntrepriseAdminForm(request.POST, forme_juridique_choices=formes_choices)
         if form.is_valid():
             try:
                 client.update_entreprise(entreprise_id, form.to_api_payload())
@@ -299,7 +335,9 @@ def administration_entreprise_update_view(
                 messages.success(request, "L'entreprise a été modifiée avec succès.")
                 return _redirect_detail(entreprise_id)
     else:
-        form = EntrepriseAdminForm(initial=entreprise)
+        form = EntrepriseAdminForm(
+            initial=entreprise, forme_juridique_choices=formes_choices
+        )
 
     return render(
         request,

@@ -16,12 +16,12 @@ Gestion des administrateurs de plateforme (réservée aux admins plateforme).
 {% block content %}
 <div class="max-w-5xl mx-auto space-y-6">
 
-    <div class="flex justify-between items-center bg-base-100 rounded-t-lg shadow-sm p-4 border-b border-base-300">
-        <h2 class="text-xl font-bold">Administrateurs de la plateforme</h2>
+    <div class="flex justify-between items-center bg-base-100 rounded-box border border-base-300 shadow-sm p-4">
+        <h1 class="text-2xl font-bold">Administrateurs de la plateforme</h1>
     </div>
 
     {# --- Promotion : recherche d'un utilisateur par email --- #}
-    <div class="bg-base-100 rounded-lg shadow-sm border border-base-200 p-4 space-y-4">
+    <div class="bg-base-100 rounded-box shadow-sm border border-base-300 p-4 space-y-4">
         <h3 class="text-base font-semibold">Promouvoir un utilisateur</h3>
         <form method="get" class="flex flex-col gap-3 sm:flex-row sm:items-end">
             <div class="flex-1">
@@ -56,7 +56,7 @@ Gestion des administrateurs de plateforme (réservée aux admins plateforme).
                                         {% csrf_token %}
                                         <input type="hidden" name="action" value="promote">
                                         <input type="hidden" name="utilisateur_id" value="{{ user.id }}">
-                                        <button type="submit" class="btn btn-sm btn-primary"
+                                        <button type="submit" class="btn btn-primary h-11"
                                                 onclick="return confirm('Promouvoir {{ user.email|escapejs }} administrateur de plateforme ?');">
                                             Promouvoir
                                         </button>
@@ -76,7 +76,7 @@ Gestion des administrateurs de plateforme (réservée aux admins plateforme).
     </div>
 
     {# --- Liste des administrateurs actuels --- #}
-    <div class="bg-base-100 rounded-lg shadow-md border border-base-200 overflow-hidden">
+    <div class="bg-base-100 rounded-box shadow-sm border border-base-300 overflow-hidden">
         <div class="overflow-x-auto">
             <table class="table">
                 <thead>
@@ -116,7 +116,7 @@ Gestion des administrateurs de plateforme (réservée aux admins plateforme).
                                     {% csrf_token %}
                                     <input type="hidden" name="action" value="revoke">
                                     <input type="hidden" name="utilisateur_id" value="{{ admin.id }}">
-                                    <button type="submit" class="btn btn-ghost btn-sm text-error"
+                                    <button type="submit" class="btn btn-ghost h-11 text-error"
                                             onclick="return confirm('Révoquer les droits d\'administrateur de plateforme de {{ admin.email|escapejs }} ?');">
                                         Révoquer
                                     </button>
