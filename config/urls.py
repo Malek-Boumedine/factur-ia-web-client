@@ -79,6 +79,7 @@ from core.views.factures import (
     facture_delete_view,
     facture_facturx_view,
     facture_recap_view,
+    facture_transmettre_choruspro_view,
     factures_list_view,
 )
 from core.views.home import home_view
@@ -281,6 +282,11 @@ urlpatterns = [
         "factures/<int:facture_id>/avoir/",
         facture_avoir_view,
         name="facture_avoir",
+    ),
+    path(
+        "factures/<int:facture_id>/transmettre-choruspro/",
+        facture_transmettre_choruspro_view,
+        name="facture_transmettre_choruspro",
     ),
     path("tableau-de-bord/", dashboard_view, name="dashboard"),
     path("statistiques/", statistiques_view, name="statistiques"),

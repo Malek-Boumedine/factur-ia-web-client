@@ -29,8 +29,15 @@ Enfin, la génération d'un avoir depuis une facture validée (POST relayant
 POST /factures/{facture_id}/avoir, confirmation en amont depuis l'aperçu ou
 la liste des validées) : l'avoir est créé en brouillon par l'API, l'utilisateur
 est redirigé vers son récap pour relecture avant validation.
+
+Et la transmission à Chorus Pro depuis l'aperçu (POST relayant
+POST /factures/{facture_id}/transmettre-choruspro, confirmation en amont
+nommant la facture et le destinataire) : l'API dépose le Factur-X sur
+Chorus Pro et renvoie la preuve de dépôt (numéro de flux, date), affichée
+en message de succès puis en encart permanent sur l'aperçu.
 """
 
+from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -53,6 +60,7 @@ from clients.exceptions import (
     APIValidationError,
     ResourceConflictError,
     ResourceNotFoundError,
+    ServerError,
     TokenExpiredError,
 )
 from clients.factures_client import FacturesClient
@@ -219,6 +227,59 @@ def _snapshot_items(snapshot: object) -> list[tuple[str, str]]:
         if value not in (None, ""):
             items.append((label, str(value)))
     return items
+
+
+def _format_date_fr(value: Any) -> str | None:
+    """Formate une date ISO du contrat en `JJ/MM/AAAA`.
+
+    Accepte une date simple (`AAAA-MM-JJ`) ou horodatée (date-time ISO) :
+    seuls les dix premiers caractères sont interprétés.
+
+    Args:
+        value (Any): Valeur de date du contrat, possiblement absente ou d'une
+            autre forme. Obligatoire.
+
+    Returns:
+        str | None: La date au format `JJ/MM/AAAA`, ou `None` si illisible.
+    """
+    if not isinstance(value, str):
+        return None
+    try:
+        return date.fromisoformat(value.strip()[:10]).strftime("%d/%m/%Y")
+    except ValueError:
+        return None
+
+
+def _relay_detail(detail: Any) -> str | None:
+    """Aplatit le `detail` d'un refus API en message affichable.
+
+    Les refus 409/502 de la transmission Chorus Pro portent un message
+    français explicite : chaîne simple, ou liste d'erreurs de conformité
+    (objets à `message`). Lecture défensive : `None` si inexploitable, les
+    vues affichent alors leur message de repli.
+
+    Args:
+        detail (Any): Contenu du champ `detail` du corps d'erreur,
+            possiblement absent ou d'une autre forme. Obligatoire.
+
+    Returns:
+        str | None: Le message (les messages joints par « ; » pour une
+        liste), ou `None`.
+    """
+    if isinstance(detail, str) and detail.strip():
+        return detail.strip()
+    if isinstance(detail, list):
+        parts = []
+        for item in detail:
+            if isinstance(item, dict):
+                message = item.get("message") or item.get("msg")
+                if isinstance(message, str) and message.strip():
+                    parts.append(message.strip())
+            elif isinstance(item, str) and item.strip():
+                parts.append(item.strip())
+        if parts:
+            return " ; ".join(parts)
+    return None
 
 
 def _parse_score(value: Any) -> Decimal | None:
@@ -1490,6 +1551,13 @@ def facture_apercu_view(request: HttpRequest, facture_id: int) -> HttpResponse:
     Factur-X pour prévenir avant de tenter le téléchargement (échec — API
     indisponible, 409 brouillon, 404 — : pas d'encart, boutons inchangés).
 
+    La page porte aussi l'action de transmission à Chorus Pro (formulaire
+    POST vers `facture_transmettre_choruspro`, confirmation nommant la
+    facture et le destinataire) et, si la facture a déjà été transmise avec
+    succès (`numero_flux_depot_chorus` non null, renseigné par l'API au dépôt
+    accepté uniquement), l'encart permanent de preuve de transmission —
+    aucun appel supplémentaire, tout vient du détail.
+
     Cette page est le socle du futur export PDF/Factur-X : structure balisée
     comme un document, impression via un style dédié — mais aucun PDF n'est
     généré ici.
@@ -1574,12 +1642,31 @@ def facture_apercu_view(request: HttpRequest, facture_id: int) -> HttpResponse:
             ligne["taux_tva"] = rates_by_id.get(ligne.get("id_taux_tva"))
             lignes.append(ligne)
 
+    snapshot_items = _snapshot_items(facture.get("snapshot_client"))
+
+    # Nom du destinataire pour la confirmation de transmission : première
+    # valeur du snapshot (la raison sociale), repli sur le SIRET destinataire,
+    # repli générique — la confirmation nomme toujours quelqu'un.
+    if snapshot_items:
+        destinataire_nom = snapshot_items[0][1]
+    elif facture.get("siret_destinataire"):
+        destinataire_nom = f"le SIRET {facture['siret_destinataire']}"
+    else:
+        destinataire_nom = "son destinataire"
+
     contexte = {
         "facture": facture,
         "lignes": lignes,
-        "snapshot_items": _snapshot_items(facture.get("snapshot_client")),
+        "snapshot_items": snapshot_items,
         "emetteur": emetteur,
         "rapport": rapport,
+        "destinataire_nom": destinataire_nom,
+        # Preuve de transmission (encart permanent et libellé du bouton) :
+        # date formatée ici, le filtre |date de Django ne parse pas les
+        # chaînes ISO du contrat.
+        "transmission_date_fr": _format_date_fr(
+            facture.get("date_transmission_chorus")
+        ),
     }
     return render(request, "core/facture_apercu.html", contexte)
 
@@ -1647,3 +1734,113 @@ def facture_facturx_view(request: HttpRequest, facture_id: int) -> HttpResponseB
     response = StreamingHttpResponse(chunks, content_type=content_type)
     response["Content-Disposition"] = content_disposition or "attachment"
     return response
+
+
+def facture_transmettre_choruspro_view(
+    request: HttpRequest, facture_id: int
+) -> HttpResponse:
+    """Transmet une facture validée à Chorus Pro (POST uniquement).
+
+    Relaie POST /factures/{facture_id}/transmettre-choruspro via la couche
+    `clients/` (pattern BFF : le navigateur ne touche jamais l'API). Le dépôt
+    est définitif : la confirmation est demandée en amont par le formulaire
+    de l'aperçu, qui nomme la facture et le destinataire. Un GET ne déclenche
+    rien. Toujours en PRG : succès comme refus redirigent vers l'aperçu (la
+    liste des validées si la facture est introuvable), jamais de page cassée.
+
+    Retours API :
+    - 200 : succès — message de succès portant le numéro de flux et la date
+      de dépôt (la preuve de transmission), que l'aperçu réaffiche ensuite en
+      encart permanent depuis le détail de la facture ;
+    - 409 : refus métier (brouillon, non conforme, déjà transmise avec
+      succès) — le détail français de l'API est relayé tel quel ;
+    - 502 : dépôt refusé côté Chorus Pro — le libellé explicatif du `detail`
+      est relayé, la facture passe en ``erreur_transmission`` et une nouvelle
+      tentative reste possible (le bouton de l'aperçu reste actif tant
+      qu'aucun numéro de flux n'est posé sur la facture) ;
+    - 503 : intégration Chorus Pro non configurée côté API ;
+    - 404 : facture absente ou hors tenant (indistinct).
+
+    Args:
+        request (HttpRequest): Requête Django courante. Obligatoire.
+        facture_id (int): Identifiant de la facture à transmettre.
+            Obligatoire.
+
+    Returns:
+        HttpResponse: Redirection vers l'aperçu (message de succès ou
+        d'erreur), vers la liste des validées si introuvable, ou vers le
+        login si session expirée.
+    """
+    refus = _guard_entreprise(request)
+    if refus:
+        return refus
+
+    apercu_url = reverse("facture_apercu", kwargs={"facture_id": facture_id})
+    if request.method != "POST":
+        return redirect(apercu_url)
+
+    try:
+        resultat = FacturesClient(request).transmit_to_choruspro(facture_id)
+    except TokenExpiredError:
+        return redirect("login")
+    except ResourceNotFoundError:
+        messages.error(request, "Facture introuvable.")
+        return redirect(reverse("factures") + "?onglet=validees")
+    except ResourceConflictError as e:
+        # Refus métier (brouillon, non conforme, déjà transmise) : le détail
+        # de l'API est en français et explicite, relayé tel quel.
+        messages.error(
+            request,
+            _relay_detail(e.detail)
+            or "Transmission refusée : la facture ne peut pas être transmise "
+            "en l'état.",
+        )
+        return redirect(apercu_url)
+    except ServerError as e:
+        if e.status_code == 503:
+            messages.error(request, "L'intégration Chorus Pro n'est pas configurée.")
+        elif e.status_code == 502:
+            # Le libellé de refus de Chorus Pro explique la cause : relayé
+            # tel quel, avec l'indication qu'une nouvelle tentative est
+            # possible (l'API a passé la facture en erreur_transmission).
+            detail = _relay_detail(e.detail)
+            debut = (
+                f"Dépôt refusé par Chorus Pro : {detail}"
+                if detail
+                else "Le dépôt a échoué côté Chorus Pro."
+            )
+            messages.error(
+                request,
+                f"{debut} La facture est en erreur de transmission — "
+                "vous pouvez réessayer.",
+            )
+        else:
+            messages.error(request, "Erreur lors de la transmission à Chorus Pro.")
+        return redirect(apercu_url)
+    except APIUnavailableError:
+        messages.error(request, _MSG_INDISPONIBLE)
+        return redirect(apercu_url)
+    except APIClientError as e:
+        messages.error(request, str(e.message))
+        return redirect(apercu_url)
+
+    numero_flux = (
+        resultat.get("numero_flux_depot") if isinstance(resultat, dict) else None
+    )
+    date_depot = (
+        _format_date_fr(resultat.get("date_depot"))
+        if isinstance(resultat, dict)
+        else None
+    )
+    if numero_flux:
+        messages.success(
+            request,
+            "Facture transmise à Chorus Pro"
+            + (f" le {date_depot}" if date_depot else "")
+            + f" — flux n° {numero_flux}.",
+        )
+    else:
+        # Réponse illisible (défensif) : le dépôt a bien eu lieu, l'encart
+        # permanent de l'aperçu portera la preuve au rechargement.
+        messages.success(request, "Facture transmise à Chorus Pro.")
+    return redirect(apercu_url)

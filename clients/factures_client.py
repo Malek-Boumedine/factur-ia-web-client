@@ -18,6 +18,8 @@ Couvre le domaine `factures` de l'API :
   (PDF/A-3 + XML CII) d'une facture validée, en streaming.
 - GET /factures/{facture_id}/facturx/conformite : rapport de conformité
   Factur-X (schéma RapportConformiteFacturX), sans génération de fichier.
+- POST /factures/{facture_id}/transmettre-choruspro : dépôt du Factur-X sur
+  Chorus Pro (schéma TransmissionChorusPro en retour).
 """
 
 from collections.abc import Iterator
@@ -348,3 +350,36 @@ class FacturesClient(BaseAPIClient):
                 5xx serveur) ou API injoignable (APIUnavailableError).
         """
         return self.get(f"/factures/{facture_id}/facturx/conformite")
+
+    def transmit_to_choruspro(self, facture_id: int) -> Any:
+        """Transmet la facture à Chorus Pro (environnement de qualification).
+
+        Appelle POST /factures/{facture_id}/transmettre-choruspro (sans corps
+        de requête) : l'API vérifie la conformité Factur-X, génère le fichier,
+        le dépose en base64 sur Chorus Pro et trace le résultat sur la facture
+        (numéro de flux, date, statut ``deposee_pdp``). POST non idempotent :
+        jamais rejoué — un dépôt ne doit pas être émis deux fois.
+
+        Args:
+            facture_id (int): Identifiant de la facture à transmettre.
+                Obligatoire.
+
+        Returns:
+            dict: Le résultat du dépôt (schéma TransmissionChorusPro) :
+            `numero_flux_depot`, `date_depot` (AAAA-MM-JJ), `syntaxe_flux`
+            et `statut`.
+
+        Raises:
+            TokenExpiredError: En cas de réponse 401.
+            ResourceNotFoundError: Facture absente ou hors du tenant (404).
+            ResourceConflictError: Refus métier (409) — brouillon, facture non
+                conforme, ou déjà transmise avec succès (la re-transmission
+                n'est possible qu'après un échec). Détail de l'API conservé.
+            ServerError: Échec du dépôt côté Chorus Pro (502, le libellé
+                explicatif est dans `detail` et la facture passe en
+                ``erreur_transmission``) ou intégration Chorus Pro non
+                configurée côté API (503).
+            APIClientError: Toute autre erreur API mappée (422 validation)
+                ou API injoignable (APIUnavailableError).
+        """
+        return self.post(f"/factures/{facture_id}/transmettre-choruspro")
