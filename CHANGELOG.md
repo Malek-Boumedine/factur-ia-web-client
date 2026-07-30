@@ -2,6 +2,26 @@
 
 <!-- version list -->
 
+## v0.9.1 (2026-07-30)
+
+### Bug Fixes
+
+- **administration**: Sélection de la forme juridique par libellé sur la modification
+  ([`cad8083`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/cad8083f61de910be00fd76f1095b7a82ba50c18))
+
+- **pagination**: Boutons désactivés réellement inactifs au clavier
+  ([`cd08b58`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/cd08b58e1c70834ca1b33713e154c9e6c3dd00c8))
+
+- **sidebar**: Comparaison exacte des noms d'URL pour l'état actif
+  ([`029c47a`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/029c47a886b763536975d49bc1ef4e9e8c5d589d))
+
+- **ui**: Lisibilité des pastilles de marque et d'avatar en mode sombre
+  ([`0797ad6`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/0797ad69d927456ff2cbbd2092da786c6406f6f0))
+
+- **ui**: Passe responsive mobile et harmonisation visuelle des écrans
+  ([`bc3dbe8`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/bc3dbe82138e7ebe5f59d29483a72dfc379c83dc))
+
+
 ## v0.9.0 (2026-07-28)
 
 ### Bug Fixes
