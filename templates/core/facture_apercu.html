@@ -11,11 +11,38 @@ indisponible), totaux avec le TTC mis en évidence, pied de page paiement
 (mode, IBAN) et notes. Chaque champ optionnel n'est affiché que s'il est
 présent.
 
-La barre d'actions (hors document, `no-print`) porte la navigation,
-l'impression et la génération d'un avoir : form POST vers `facture_avoir`
-avec confirmation navigateur (acte comptable), affiché uniquement si la
-facture n'est pas déjà un avoir — on ne génère pas d'avoir d'un avoir. La
-feuille, elle, reste en lecture seule stricte.
+La barre d'actions (hors document, `no-print`) porte la navigation, le
+téléchargement du Factur-X, la transmission à Chorus Pro, l'impression et la
+génération d'un avoir : form POST vers `facture_avoir` avec confirmation
+navigateur (acte comptable), affiché uniquement si la facture n'est pas déjà
+un avoir — on ne génère pas d'avoir d'un avoir. La transmission à Chorus Pro
+est l'action primaire (l'aboutissement du parcours de facturation
+électronique) : form POST vers `facture_transmettre_choruspro` avec
+confirmation nommant la facture et le destinataire (acte définitif). Trois
+états, par priorité : déjà transmise avec succès (`numero_flux_depot_chorus`
+posé) → vrai `button disabled` libellé « Transmise le … » ; non conforme
+selon le rapport → `button disabled` + tooltip ; sinon actif — une facture
+en erreur de transmission garde son numéro de flux null, le bouton reste
+donc naturellement actif pour réessayer. Le Factur-X, rétrogradé en outline,
+reste un simple lien GET vers `facture_facturx`, le BFF relaie le fichier en
+streaming ; un refus API (409 non conforme, 404) redirige ici avec un
+message, jamais un téléchargement cassé. Toujours affiché, avoirs compris :
+l'API arbitre. La feuille, elle, reste en lecture seule stricte.
+
+L'encart de preuve de transmission (hors document, `no-print`, au-dessus de
+la conformité) s'affiche à chaque consultation dès que la facture porte son
+numéro de flux Chorus Pro (renseigné par l'API au dépôt accepté uniquement) :
+date de dépôt et numéro de flux, sans appel supplémentaire — tout vient du
+détail de la facture.
+
+L'encart de conformité Factur-X (`rapport`, hors document, `no-print`)
+prévient avant de tenter le téléchargement ou la transmission : vert si la
+facture est prête (avertissements éventuels listés en dessous, informatifs),
+rouge avec la liste des erreurs (champ + message API relayé tel quel, jamais
+les `code`) si elle ne l'est pas — le bouton Factur-X devient alors un vrai
+`button disabled` (non focusable) avec tooltip, puisqu'on sait que l'API
+refuserait en 409. Rapport absent (échec de l'appel, brouillon) : pas
+d'encart, bouton actif, l'API arbitre — la page reste fonctionnelle.
 
 Socle du futur export PDF/Factur-X : la feuille est balisée comme un document
 (article/header/footer) et un style d'impression masque le layout applicatif
@@ -105,12 +132,109 @@ aucun PDF n'est généré ici. Thème facturia (daisyUI).
                     </button>
                 </form>
             {% endif %}
-            <button type="button" class="btn btn-primary btn-sm" onclick="window.print()">
+            {% if rapport and not rapport.conforme %}
+                {# Non conforme : l'API refuserait en 409, on désactive plutôt que de laisser échouer. Vrai button disabled (un lien btn-disabled resterait focusable au clavier). #}
+                <span class="tooltip tooltip-bottom" data-tip="Facture non conforme — voir le rapport ci-dessous">
+                    <button type="button" class="btn btn-outline btn-primary btn-sm" disabled>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"></path></svg>
+                        Télécharger la facture électronique (Factur-X)
+                    </button>
+                </span>
+            {% else %}
+                <a href="{% url 'facture_facturx' facture_id=facture.id %}" class="btn btn-outline btn-primary btn-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"></path></svg>
+                    Télécharger la facture électronique (Factur-X)
+                </a>
+            {% endif %}
+            {# Transmission à Chorus Pro : action primaire, définitive. Trois états par priorité — déjà transmise (numéro de flux posé = succès), non conforme (409 certain), sinon actif (y compris après un échec : le flux reste null, on peut réessayer). Vrais button disabled, comme le Factur-X. #}
+            {% if facture.numero_flux_depot_chorus %}
+                <span class="tooltip tooltip-bottom" data-tip="Cette facture a déjà été transmise avec succès à Chorus Pro">
+                    <button type="button" class="btn btn-primary btn-sm" disabled>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"></path></svg>
+                        {% if transmission_date_fr %}Transmise le {{ transmission_date_fr }}{% else %}Déjà transmise{% endif %}
+                    </button>
+                </span>
+            {% elif rapport and not rapport.conforme %}
+                <span class="tooltip tooltip-bottom" data-tip="Facture non conforme — voir le rapport ci-dessous">
+                    <button type="button" class="btn btn-primary btn-sm" disabled>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"></path></svg>
+                        Transmettre à Chorus Pro
+                    </button>
+                </span>
+            {% else %}
+                <form method="post" action="{% url 'facture_transmettre_choruspro' facture_id=facture.id %}" class="inline-block"
+                      onsubmit="return confirm('Transmettre la facture {{ facture.numero_facture|escapejs }} à Chorus Pro pour {{ destinataire_nom|escapejs }} ? Cette action dépose officiellement la facture — elle est définitive.');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-primary btn-sm">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"></path></svg>
+                        Transmettre à Chorus Pro
+                    </button>
+                </form>
+            {% endif %}
+            <button type="button" class="btn btn-outline btn-sm" onclick="window.print()">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
                 Imprimer
             </button>
         </div>
     </div>
+
+    {# Preuve de transmission, hors document : encart permanent dès que la facture porte son numéro de flux Chorus Pro (posé par l'API au dépôt accepté uniquement), sans appel supplémentaire. #}
+    {% if facture.numero_flux_depot_chorus %}
+        <div role="alert" class="alert alert-success no-print">
+            <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <div>
+                <p class="font-medium">
+                    Transmise à Chorus Pro{% if transmission_date_fr %} le {{ transmission_date_fr }}{% endif %} — flux n° {{ facture.numero_flux_depot_chorus }}.
+                </p>
+                <p class="text-sm mt-1">Ce numéro de flux est votre preuve de dépôt : il permet le suivi du traitement côté Chorus Pro.</p>
+            </div>
+        </div>
+    {% endif %}
+
+    {# Encart de conformité Factur-X, hors document : vert prêt / rouge bloquée. Rapport absent = pas d'encart, la page reste fonctionnelle. #}
+    {% if rapport %}
+        {% if rapport.conforme %}
+            <div role="alert" class="alert alert-success no-print">
+                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <div>
+                    <p class="font-medium">Cette facture est prête pour la transmission électronique.</p>
+                    {% if rapport.avertissements %}
+                        <p class="text-sm mt-1">Points d'attention (n'empêchent pas la transmission) :</p>
+                        <ul class="text-sm list-disc list-inside space-y-0.5">
+                            {% for probleme in rapport.avertissements %}
+                                <li><span class="font-semibold">{{ probleme.champ }}</span> — {{ probleme.message }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+                </div>
+            </div>
+        {% else %}
+            <div role="alert" class="alert alert-error no-print">
+                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                <div>
+                    <p class="font-medium">Cette facture ne peut pas être transmise en l'état.</p>
+                    <ul class="text-sm mt-1 list-disc list-inside space-y-0.5">
+                        {% for probleme in rapport.erreurs %}
+                            <li><span class="font-semibold">{{ probleme.champ }}</span> — {{ probleme.message }}</li>
+                        {% endfor %}
+                    </ul>
+                    {# Une facture validée est immuable (SIRET et client figés à la validation) : la seule voie sûre est l'avoir + refacturation. Seules les infos lues en direct à la génération (raison sociale) se corrigent dans la fiche entreprise. #}
+                    <p class="text-sm mt-2">
+                        Une facture validée est immuable : pour corriger ces données, générez un avoir puis créez une facture corrigée.
+                        Seules les informations générales de votre entreprise (comme la raison sociale) peuvent être mises à jour dans les paramètres de l'entreprise.
+                    </p>
+                    {% if rapport.avertissements %}
+                        <p class="text-sm mt-2">Points d'attention (n'empêchent pas la transmission) :</p>
+                        <ul class="text-sm list-disc list-inside space-y-0.5">
+                            {% for probleme in rapport.avertissements %}
+                                <li><span class="font-semibold">{{ probleme.champ }}</span> — {{ probleme.message }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+                </div>
+            </div>
+        {% endif %}
+    {% endif %}
 
     {# La feuille : tout ce qui suit constitue le document imprimable. #}
     <article class="invoice-sheet bg-base-100 rounded-box shadow-sm border border-base-300 p-8 space-y-8">

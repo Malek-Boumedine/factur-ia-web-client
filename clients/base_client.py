@@ -300,7 +300,10 @@ class BaseAPIClient:
         if status == 422:
             raise APIValidationError(detail=self._extract_detail(response))
         if status >= 500:
-            raise ServerError(status_code=status)
+            # Le `detail` est conservé : sur un POST non idempotent, un 502
+            # peut porter un libellé métier explicatif (ex. refus Chorus Pro)
+            # que les vues affichent tel quel.
+            raise ServerError(status_code=status, detail=self._extract_detail(response))
 
         # Autres 4xx (400, 403, ...) : erreur générique de la couche cliente.
         # Le `detail` est conservé : sur les routes d'administration, un 403

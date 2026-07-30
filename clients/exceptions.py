@@ -107,7 +107,15 @@ class ServerError(APIClientError):
 
     Les codes transitoires 502/503/504 ne remontent PAS ici lorsqu'ils
     concernent une requête idempotente : ils sont rejoués puis, en cas d'échec
-    persistant, convertis en `APIUnavailableError`.
+    persistant, convertis en `APIUnavailableError`. Pour une requête NON
+    idempotente (POST/PATCH), un 502/503 remonte ici directement, avec son
+    `status_code` et son `detail` : certaines routes (ex. transmission
+    Chorus Pro) portent dans le corps du 502 un libellé métier explicatif
+    destiné à l'utilisateur.
+
+    Attributes:
+        detail (Any): Contenu du champ `detail` du corps d'erreur 5xx, ou
+            `None` si le corps est absent ou inexploitable.
     """
 
     def __init__(
@@ -115,8 +123,9 @@ class ServerError(APIClientError):
         message: str = "Erreur interne du serveur API.",
         *,
         status_code: int | None = 500,
+        detail: Any = None,
     ) -> None:
-        super().__init__(message, status_code=status_code)
+        super().__init__(message, status_code=status_code, detail=detail)
 
 
 class APIUnavailableError(APIClientError):
