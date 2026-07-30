@@ -31,5 +31,5 @@ dev = [
 
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]
-allow_zero_version = true
-major_on_zero = false
+allow_zero_version = false
+major_on_zero = true

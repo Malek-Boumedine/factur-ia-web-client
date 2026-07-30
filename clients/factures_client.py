@@ -14,8 +14,15 @@ Couvre le domaine `factures` de l'API :
 - DELETE /factures/{facture_id} : suppression définitive d'un brouillon.
 - POST /factures/{facture_id}/valider : validation d'un brouillon.
 - POST /factures/{facture_id}/avoir : génération d'un avoir.
+- GET /factures/{facture_id}/facturx : téléchargement du fichier Factur-X
+  (PDF/A-3 + XML CII) d'une facture validée, en streaming.
+- GET /factures/{facture_id}/facturx/conformite : rapport de conformité
+  Factur-X (schéma RapportConformiteFacturX), sans génération de fichier.
+- POST /factures/{facture_id}/transmettre-choruspro : dépôt du Factur-X sur
+  Chorus Pro (schéma TransmissionChorusPro en retour).
 """
 
+from collections.abc import Iterator
 from typing import Any
 
 from .base_client import BaseAPIClient
@@ -284,3 +291,95 @@ class FacturesClient(BaseAPIClient):
                 (APIUnavailableError).
         """
         return self.post(f"/factures/{facture_id}/avoir")
+
+    def download_facturx(
+        self, facture_id: int
+    ) -> tuple[Iterator[bytes], str, str | None]:
+        """Télécharge le fichier Factur-X d'une facture validée, en streaming.
+
+        Relais de GET /factures/{facture_id}/facturx : le PDF/A-3 (XML CII
+        embarqué, profil MINIMUM) n'est jamais chargé en mémoire, il est
+        consommé par morceaux pour être renvoyé au navigateur par la vue BFF.
+        La génération est idempotente côté API : le fichier est reconstruit à
+        chaque appel depuis les données figées à la validation.
+
+        Args:
+            facture_id (int): Identifiant de la facture. Obligatoire.
+
+        Returns:
+            tuple: Le triplet `(chunks, content_type, content_disposition)`
+            renvoyé par `get_stream` (générateur de morceaux binaires, type
+            MIME, en-tête `Content-Disposition` de l'API ou `None`).
+
+        Raises:
+            TokenExpiredError: En cas de réponse 401.
+            ResourceNotFoundError: Facture absente ou hors du tenant
+                (404 indistinct).
+            ResourceConflictError: Facture en brouillon ou donnée obligatoire
+                du XML manquante, ex. SIRET émetteur absent (409, détail de
+                l'API conservé).
+            APIClientError: Toute autre erreur API mappée (422 validation,
+                5xx serveur) ou API injoignable (APIUnavailableError).
+        """
+        return self.get_stream(f"/factures/{facture_id}/facturx")
+
+    def get_conformity_report(self, facture_id: int) -> Any:
+        """Récupère le rapport de conformité Factur-X d'une facture validée.
+
+        Appelle GET /factures/{facture_id}/facturx/conformite : l'API vérifie
+        les règles du profil MINIMUM (données obligatoires, cohérence des
+        totaux, validité des SIRET) sans générer de fichier. Les erreurs
+        bloquent la génération/transmission ; les avertissements sont
+        informatifs et laissent `conforme` à vrai.
+
+        Args:
+            facture_id (int): Identifiant de la facture. Obligatoire.
+
+        Returns:
+            dict: Le rapport (schéma RapportConformiteFacturX) : `conforme`
+            (bool), `erreurs` et `avertissements` (listes de problèmes
+            portant `champ`, `code` et `message` en français).
+
+        Raises:
+            TokenExpiredError: En cas de réponse 401.
+            ResourceNotFoundError: Facture absente ou hors du tenant
+                (404 indistinct).
+            ResourceConflictError: Facture en brouillon (409) — le rapport
+                n'a de sens que sur des données figées à la validation.
+            APIClientError: Toute autre erreur API mappée (422 validation,
+                5xx serveur) ou API injoignable (APIUnavailableError).
+        """
+        return self.get(f"/factures/{facture_id}/facturx/conformite")
+
+    def transmit_to_choruspro(self, facture_id: int) -> Any:
+        """Transmet la facture à Chorus Pro (environnement de qualification).
+
+        Appelle POST /factures/{facture_id}/transmettre-choruspro (sans corps
+        de requête) : l'API vérifie la conformité Factur-X, génère le fichier,
+        le dépose en base64 sur Chorus Pro et trace le résultat sur la facture
+        (numéro de flux, date, statut ``deposee_pdp``). POST non idempotent :
+        jamais rejoué — un dépôt ne doit pas être émis deux fois.
+
+        Args:
+            facture_id (int): Identifiant de la facture à transmettre.
+                Obligatoire.
+
+        Returns:
+            dict: Le résultat du dépôt (schéma TransmissionChorusPro) :
+            `numero_flux_depot`, `date_depot` (AAAA-MM-JJ), `syntaxe_flux`
+            et `statut`.
+
+        Raises:
+            TokenExpiredError: En cas de réponse 401.
+            ResourceNotFoundError: Facture absente ou hors du tenant (404).
+            ResourceConflictError: Refus métier (409) — brouillon, facture non
+                conforme, ou déjà transmise avec succès (la re-transmission
+                n'est possible qu'après un échec). Détail de l'API conservé.
+            ServerError: Échec du dépôt côté Chorus Pro (502, le libellé
+                explicatif est dans `detail` et la facture passe en
+                ``erreur_transmission``) ou intégration Chorus Pro non
+                configurée côté API (503).
+            APIClientError: Toute autre erreur API mappée (422 validation)
+                ou API injoignable (APIUnavailableError).
+        """
+        return self.post(f"/factures/{facture_id}/transmettre-choruspro")
