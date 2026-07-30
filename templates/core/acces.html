@@ -19,8 +19,8 @@ ré-affiché après une erreur.
 {% block content %}
 <div class="max-w-3xl mx-auto space-y-6">
 
-    <div class="bg-base-100 rounded-t-lg shadow-sm p-4 border-b border-base-300">
-        <h2 class="text-xl font-bold">Modifier mes accès</h2>
+    <div class="bg-base-100 rounded-box border border-base-300 shadow-sm p-4">
+        <h1 class="text-2xl font-bold">Modifier mes accès</h1>
     </div>
 
     <div role="alert" class="alert">
@@ -34,7 +34,7 @@ ré-affiché après une erreur.
     </div>
 
     {# Section 1 — Changer mon email (mot de passe actuel exigé, token renouvelé au succès). #}
-    <div class="bg-base-100 rounded-lg shadow-md border border-base-200 p-6">
+    <div class="bg-base-100 rounded-box shadow-sm border border-base-300 p-6">
         <h3 class="text-lg font-semibold mb-1">Changer mon email</h3>
         <p class="text-sm text-base-content/60 mb-4">
             Email actuel : <span class="font-medium break-all">{{ current_email }}</span>
@@ -73,7 +73,7 @@ ré-affiché après une erreur.
     </div>
 
     {# Section 2 — Changer mon mot de passe. #}
-    <div class="bg-base-100 rounded-lg shadow-md border border-base-200 p-6">
+    <div class="bg-base-100 rounded-box shadow-sm border border-base-300 p-6">
         <h3 class="text-lg font-semibold mb-4">Changer mon mot de passe</h3>
 
         <form method="POST" action="{% url 'acces' %}" class="space-y-4">

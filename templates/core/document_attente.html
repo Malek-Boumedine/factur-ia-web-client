@@ -24,8 +24,8 @@ Thème facturia (daisyUI).
       <h1 class="mt-4 text-2xl font-bold text-base-content">Analyse en cours</h1>
       <p class="mt-2 text-sm text-base-content/60" x-text="libelle" aria-live="polite"></p>
       {% if nom_original %}
-        <p class="mt-4 inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-          {{ nom_original }}
+        <p class="mt-4 inline-flex max-w-full items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+          <span class="truncate">{{ nom_original }}</span>
         </p>
       {% endif %}
       <p class="mt-6 text-xs text-base-content/40">

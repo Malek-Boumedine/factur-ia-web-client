@@ -19,9 +19,9 @@ relayés tels quels par la vue.
 {% block content %}
 <div class="max-w-5xl mx-auto space-y-6" x-data="actionsEntreprise()">
 
-    <div class="flex flex-wrap justify-between items-center gap-3 bg-base-100 rounded-t-lg shadow-sm p-4 border-b border-base-300">
+    <div class="flex flex-wrap justify-between items-center gap-3 bg-base-100 rounded-box border border-base-300 shadow-sm p-4">
         <div class="flex flex-wrap items-center gap-3">
-            <h2 class="text-xl font-bold">{{ entreprise.nom_entreprise }}</h2>
+            <h1 class="min-w-0 break-words text-2xl font-bold">{{ entreprise.nom_entreprise }}</h1>
             {% if entreprise.est_actif %}
                 <span class="badge badge-success badge-soft">Active</span>
             {% else %}
@@ -51,7 +51,7 @@ relayés tels quels par la vue.
     {% endif %}
 
     {# --- Identité ---------------------------------------------------- #}
-    <div class="bg-base-100 rounded-lg shadow-md border border-base-200 p-6">
+    <div class="bg-base-100 rounded-box shadow-sm border border-base-300 p-6">
         <h3 class="text-base font-semibold mb-4">Identité</h3>
         <dl class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
             <div>
@@ -79,7 +79,7 @@ relayés tels quels par la vue.
     </div>
 
     {# --- Abonnement --------------------------------------------------- #}
-    <div class="bg-base-100 rounded-lg shadow-md border border-base-200 p-6">
+    <div class="bg-base-100 rounded-box shadow-sm border border-base-300 p-6">
         <h3 class="text-base font-semibold mb-4">Abonnement</h3>
 
         {% if souscription %}
@@ -167,30 +167,30 @@ relayés tels quels par la vue.
     </div>
 
     {# --- Compteurs de données ----------------------------------------- #}
-    <div class="bg-base-100 rounded-lg shadow-md border border-base-200 p-6">
+    <div class="bg-base-100 rounded-box shadow-sm border border-base-300 p-6">
         <h3 class="text-base font-semibold mb-4">Données de l'entreprise</h3>
         <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            <div class="rounded-lg border border-base-200 p-3">
+            <div class="rounded-lg border border-base-300 p-3">
                 <p class="text-xs uppercase tracking-wider text-base-content/50">Factures</p>
                 <p class="mt-1 text-2xl font-semibold">{{ compteurs.factures_total|default:"0" }}</p>
             </div>
-            <div class="rounded-lg border border-base-200 p-3">
+            <div class="rounded-lg border border-base-300 p-3">
                 <p class="text-xs uppercase tracking-wider text-base-content/50">Brouillons</p>
                 <p class="mt-1 text-2xl font-semibold">{{ compteurs.factures_brouillon|default:"0" }}</p>
             </div>
-            <div class="rounded-lg border border-base-200 p-3">
+            <div class="rounded-lg border border-base-300 p-3">
                 <p class="text-xs uppercase tracking-wider text-base-content/50">Scellées</p>
                 <p class="mt-1 text-2xl font-semibold">{{ compteurs.factures_scellees|default:"0" }}</p>
             </div>
-            <div class="rounded-lg border border-base-200 p-3">
+            <div class="rounded-lg border border-base-300 p-3">
                 <p class="text-xs uppercase tracking-wider text-base-content/50">Clients</p>
                 <p class="mt-1 text-2xl font-semibold">{{ compteurs.clients|default:"0" }}</p>
             </div>
-            <div class="rounded-lg border border-base-200 p-3">
+            <div class="rounded-lg border border-base-300 p-3">
                 <p class="text-xs uppercase tracking-wider text-base-content/50">Produits</p>
                 <p class="mt-1 text-2xl font-semibold">{{ compteurs.produits|default:"0" }}</p>
             </div>
-            <div class="rounded-lg border border-base-200 p-3">
+            <div class="rounded-lg border border-base-300 p-3">
                 <p class="text-xs uppercase tracking-wider text-base-content/50">Documents</p>
                 <p class="mt-1 text-2xl font-semibold">{{ compteurs.documents|default:"0" }}</p>
             </div>
@@ -202,7 +202,7 @@ relayés tels quels par la vue.
     </div>
 
     {# --- Membres ------------------------------------------------------- #}
-    <div class="bg-base-100 rounded-lg shadow-md border border-base-200 overflow-hidden">
+    <div class="bg-base-100 rounded-box shadow-sm border border-base-300 overflow-hidden">
         <div class="flex justify-between items-center p-4 border-b border-base-300">
             <h3 class="text-base font-semibold">Membres</h3>
             <span class="text-sm text-base-content/60">
@@ -260,7 +260,7 @@ relayés tels quels par la vue.
     </div>
 
     {# --- Actions sur l'entreprise -------------------------------------- #}
-    <div class="bg-base-100 rounded-lg shadow-md border border-base-200 p-6">
+    <div class="bg-base-100 rounded-box shadow-sm border border-base-300 p-6">
         <h3 class="text-base font-semibold mb-1">Actions</h3>
         <p class="text-sm text-base-content/60 mb-4">
             La suspension est réversible et ne supprime aucune donnée : c'est la mesure
@@ -323,7 +323,7 @@ relayés tels quels par la vue.
             </form>
         </div>
         {# Fond cliquable pour fermer la modal. #}
-        <div class="modal-backdrop bg-black/40" x-on:click="fermer()"></div>
+        <div class="modal-backdrop bg-neutral/40" x-on:click="fermer()"></div>
     </div>
 </div>
 {% endblock content %}

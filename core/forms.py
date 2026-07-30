@@ -435,8 +435,10 @@ class EntrepriseAdminForm(forms.Form):
     derniers sont envoyés à `None` : c'est le seul moyen d'effacer une donnée
     erronée (schéma nullable).
 
-    La forme juridique est saisie par son identifiant numérique, faute de route
-    exposant le référentiel ; l'écran affiche en regard le libellé courant.
+    Les formes juridiques sont injectées par la vue (choices depuis
+    GET /formes-juridiques/?est_actif=true) : id en valeur, libellé affiché.
+    L'option vide est légitime (schéma nullable) — soumise vide, la forme
+    juridique est effacée.
     """
 
     nom_entreprise = forms.CharField(max_length=255)
@@ -444,7 +446,15 @@ class EntrepriseAdminForm(forms.Form):
     # extrait Kbis arrive souvent espacé, et serait rejeté par `min_length`
     # avant d'avoir pu être normalisé.
     siret = forms.CharField(required=False)
-    id_forme_juridique = forms.IntegerField(min_value=1, required=False)
+    id_forme_juridique = forms.TypedChoiceField(
+        choices=(), coerce=int, required=False, empty_value=None
+    )
+
+    def __init__(self, *args, forme_juridique_choices=(), **kwargs):
+        super().__init__(*args, **kwargs)
+        # L'option vide « — » est rendue par le template ; `required=False`
+        # suffit à ce que la validation accepte la valeur vide soumise.
+        self.fields["id_forme_juridique"].choices = list(forme_juridique_choices)
 
     def clean_siret(self):
         """Normalise le SIRET : espaces retirés, 14 chiffres exigés."""

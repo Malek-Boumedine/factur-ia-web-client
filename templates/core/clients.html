@@ -15,9 +15,9 @@ et soumission automatique des filtres au changement.
 {% block content %}
 <div class="max-w-6xl mx-auto space-y-6">
 
-    <div class="flex justify-between items-center bg-base-100 rounded-t-lg shadow-sm p-4 border-b border-base-300">
-        <div class="flex items-center gap-3">
-            <h2 class="text-xl font-bold">Clients</h2>
+    <div class="flex flex-wrap justify-between items-center gap-3 bg-base-100 rounded-box border border-base-300 shadow-sm p-4">
+        <div class="flex flex-wrap items-center gap-3">
+            <h1 class="text-2xl font-bold">Clients</h1>
             <span class="text-sm text-base-content/60">{{ total }} client{{ total|pluralize }}</span>
         </div>
         <a href="{% url 'client_create' %}" class="btn btn-primary">
@@ -27,7 +27,7 @@ et soumission automatique des filtres au changement.
     </div>
 
     {# Barre de recherche et filtres — un seul formulaire GET. #}
-    <form method="get" class="bg-base-100 rounded-lg shadow-sm border border-base-200 p-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+    <form method="get" class="bg-base-100 rounded-box shadow-sm border border-base-300 p-4 flex flex-col gap-3 sm:flex-row sm:items-end">
         <div class="flex-1">
             <label for="q" class="block text-sm font-medium mb-1">Recherche</label>
             <input type="search" id="q" name="q" value="{{ search }}"
@@ -35,7 +35,7 @@ et soumission automatique des filtres au changement.
                    class="input w-full"
                    x-on:input.debounce.400ms="$el.form.requestSubmit()">
         </div>
-        <div class="sm:w-52">
+        <div class="sm:w-48">
             <label for="est_actif" class="block text-sm font-medium mb-1">Statut</label>
             <select id="est_actif" name="est_actif" class="select w-full"
                     x-on:change="$el.form.requestSubmit()">
@@ -47,7 +47,7 @@ et soumission automatique des filtres au changement.
         <button type="submit" class="btn btn-primary">Rechercher</button>
     </form>
 
-    <div class="bg-base-100 rounded-lg shadow-md border border-base-200 overflow-hidden">
+    <div class="bg-base-100 rounded-box shadow-sm border border-base-300 overflow-hidden">
         <div class="overflow-x-auto">
             <table class="table">
                 <thead>
@@ -78,17 +78,17 @@ et soumission automatique des filtres au changement.
                         </td>
                         <td class="text-right">
                             <div class="flex justify-end items-center gap-1">
-                                <a href="{% url 'client_detail' client_id=client.id %}" class="btn btn-ghost btn-sm btn-square" title="Voir">
+                                <a href="{% url 'client_detail' client_id=client.id %}" class="btn btn-ghost btn-square h-11 w-11" title="Voir">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
                                 </a>
-                                <a href="{% url 'client_update' client_id=client.id %}" class="btn btn-ghost btn-sm btn-square text-info" title="Modifier">
+                                <a href="{% url 'client_update' client_id=client.id %}" class="btn btn-ghost btn-square h-11 w-11 text-info" title="Modifier">
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                                 </a>
                                 {% if client.est_actif %}
                                 <form method="post" action="{% url 'client_deactivate' client_id=client.id %}" class="inline-block"
                                       onsubmit="return confirm('Désactiver le client {{ client.raison_sociale|escapejs }} ?');">
                                     {% csrf_token %}
-                                    <button type="submit" class="btn btn-ghost btn-sm btn-square text-error" title="Désactiver">
+                                    <button type="submit" class="btn btn-ghost btn-square h-11 w-11 text-error" title="Désactiver">
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
                                     </button>
                                 </form>
@@ -96,7 +96,7 @@ et soumission automatique des filtres au changement.
                                 <form method="post" action="{% url 'client_reactivate' client_id=client.id %}" class="inline-block"
                                       onsubmit="return confirm('Réactiver le client {{ client.raison_sociale|escapejs }} ?');">
                                     {% csrf_token %}
-                                    <button type="submit" class="btn btn-ghost btn-sm btn-square text-success" title="Réactiver">
+                                    <button type="submit" class="btn btn-ghost btn-square h-11 w-11 text-success" title="Réactiver">
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                                     </button>
                                 </form>
