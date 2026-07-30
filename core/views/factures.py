@@ -35,7 +35,13 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from django.contrib import messages
-from django.http import HttpRequest, HttpResponse, QueryDict
+from django.http import (
+    HttpRequest,
+    HttpResponse,
+    HttpResponseBase,
+    QueryDict,
+    StreamingHttpResponse,
+)
 from django.shortcuts import redirect, render
 from django.urls import reverse
 
@@ -1559,3 +1565,68 @@ def facture_apercu_view(request: HttpRequest, facture_id: int) -> HttpResponse:
         "emetteur": emetteur,
     }
     return render(request, "core/facture_apercu.html", contexte)
+
+
+def facture_facturx_view(request: HttpRequest, facture_id: int) -> HttpResponseBase:
+    """Relaie le fichier Factur-X d'une facture validée vers le navigateur (BFF).
+
+    Le navigateur ne tape jamais l'API Data : cette vue récupère le flux de
+    GET /factures/{facture_id}/facturx via la couche `clients/` (JWT
+    serveur-side) et le renvoie tel quel en `StreamingHttpResponse` — rien
+    n'est chargé en mémoire ni stocké côté Django. Le type MIME et le
+    `Content-Disposition` de l'API (`attachment`, nom de fichier
+    `{numero}-facturx.pdf`) sont relayés au navigateur.
+
+    Les refus de l'API arrivent avant le premier octet (`get_stream` lit le
+    corps d'erreur avant de retourner le générateur) : un 409 (brouillon ou
+    donnée obligatoire manquante) ou un 404 ne produisent jamais un
+    téléchargement cassé, mais un message et une redirection.
+
+    Args:
+        request (HttpRequest): Requête Django courante. Obligatoire.
+        facture_id (int): Identifiant de la facture. Obligatoire.
+
+    Returns:
+        HttpResponseBase: Le flux du fichier (streaming), ou une redirection
+        avec un message (aperçu si refus 409 ou erreur API, liste des validées
+        si introuvable), ou vers le login si session expirée.
+    """
+    refus = _guard_entreprise(request)
+    if refus:
+        return refus
+
+    apercu_url = reverse("facture_apercu", kwargs={"facture_id": facture_id})
+    try:
+        chunks, content_type, content_disposition = FacturesClient(
+            request
+        ).download_facturx(facture_id)
+    except TokenExpiredError:
+        return redirect("login")
+    except ResourceConflictError as e:
+        # Refus métier (brouillon ou donnée obligatoire manquante) : le
+        # détail de l'API est en français et actionnable, il est relayé tel
+        # quel ; repli générique si le corps n'était pas exploitable.
+        detail = e.detail if isinstance(e.detail, str) and e.detail.strip() else None
+        messages.error(
+            request,
+            detail
+            or (
+                "Impossible de générer le Factur-X : la facture n'est pas "
+                "conforme. Corrigez les données puis réessayez."
+            ),
+        )
+        return redirect(apercu_url)
+    except ResourceNotFoundError:
+        # 404 indistinct côté API (facture absente ou hors tenant).
+        messages.error(request, "Facture introuvable.")
+        return redirect(reverse("factures") + "?onglet=validees")
+    except APIUnavailableError:
+        messages.error(request, _MSG_INDISPONIBLE)
+        return redirect(apercu_url)
+    except APIClientError:
+        messages.error(request, "Erreur lors du téléchargement du Factur-X.")
+        return redirect(apercu_url)
+
+    response = StreamingHttpResponse(chunks, content_type=content_type)
+    response["Content-Disposition"] = content_disposition or "attachment"
+    return response

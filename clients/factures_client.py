@@ -14,8 +14,11 @@ Couvre le domaine `factures` de l'API :
 - DELETE /factures/{facture_id} : suppression définitive d'un brouillon.
 - POST /factures/{facture_id}/valider : validation d'un brouillon.
 - POST /factures/{facture_id}/avoir : génération d'un avoir.
+- GET /factures/{facture_id}/facturx : téléchargement du fichier Factur-X
+  (PDF/A-3 + XML CII) d'une facture validée, en streaming.
 """
 
+from collections.abc import Iterator
 from typing import Any
 
 from .base_client import BaseAPIClient
@@ -284,3 +287,34 @@ class FacturesClient(BaseAPIClient):
                 (APIUnavailableError).
         """
         return self.post(f"/factures/{facture_id}/avoir")
+
+    def download_facturx(
+        self, facture_id: int
+    ) -> tuple[Iterator[bytes], str, str | None]:
+        """Télécharge le fichier Factur-X d'une facture validée, en streaming.
+
+        Relais de GET /factures/{facture_id}/facturx : le PDF/A-3 (XML CII
+        embarqué, profil MINIMUM) n'est jamais chargé en mémoire, il est
+        consommé par morceaux pour être renvoyé au navigateur par la vue BFF.
+        La génération est idempotente côté API : le fichier est reconstruit à
+        chaque appel depuis les données figées à la validation.
+
+        Args:
+            facture_id (int): Identifiant de la facture. Obligatoire.
+
+        Returns:
+            tuple: Le triplet `(chunks, content_type, content_disposition)`
+            renvoyé par `get_stream` (générateur de morceaux binaires, type
+            MIME, en-tête `Content-Disposition` de l'API ou `None`).
+
+        Raises:
+            TokenExpiredError: En cas de réponse 401.
+            ResourceNotFoundError: Facture absente ou hors du tenant
+                (404 indistinct).
+            ResourceConflictError: Facture en brouillon ou donnée obligatoire
+                du XML manquante, ex. SIRET émetteur absent (409, détail de
+                l'API conservé).
+            APIClientError: Toute autre erreur API mappée (422 validation,
+                5xx serveur) ou API injoignable (APIUnavailableError).
+        """
+        return self.get_stream(f"/factures/{facture_id}/facturx")
