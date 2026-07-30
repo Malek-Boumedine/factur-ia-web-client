@@ -22,6 +22,15 @@ redirige ici avec un message, jamais un téléchargement cassé. Toujours
 affiché, avoirs compris : l'API arbitre. La feuille, elle, reste en lecture
 seule stricte.
 
+L'encart de conformité Factur-X (`rapport`, hors document, `no-print`)
+prévient avant de tenter le téléchargement ou la transmission : vert si la
+facture est prête (avertissements éventuels listés en dessous, informatifs),
+rouge avec la liste des erreurs (champ + message API relayé tel quel, jamais
+les `code`) si elle ne l'est pas — le bouton Factur-X devient alors un vrai
+`button disabled` (non focusable) avec tooltip, puisqu'on sait que l'API
+refuserait en 409. Rapport absent (échec de l'appel, brouillon) : pas
+d'encart, bouton actif, l'API arbitre — la page reste fonctionnelle.
+
 Socle du futur export PDF/Factur-X : la feuille est balisée comme un document
 (article/header/footer) et un style d'impression masque le layout applicatif
 (sidebar et topbar du dashboard, messages et barre d'actions marqués
@@ -110,16 +119,71 @@ aucun PDF n'est généré ici. Thème facturia (daisyUI).
                     </button>
                 </form>
             {% endif %}
-            <a href="{% url 'facture_facturx' facture_id=facture.id %}" class="btn btn-primary btn-sm">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"></path></svg>
-                Télécharger la facture électronique (Factur-X)
-            </a>
+            {% if rapport and not rapport.conforme %}
+                {# Non conforme : l'API refuserait en 409, on désactive plutôt que de laisser échouer. Vrai button disabled (un lien btn-disabled resterait focusable au clavier). #}
+                <span class="tooltip tooltip-bottom" data-tip="Facture non conforme — voir le rapport ci-dessous">
+                    <button type="button" class="btn btn-primary btn-sm" disabled>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"></path></svg>
+                        Télécharger la facture électronique (Factur-X)
+                    </button>
+                </span>
+            {% else %}
+                <a href="{% url 'facture_facturx' facture_id=facture.id %}" class="btn btn-primary btn-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"></path></svg>
+                    Télécharger la facture électronique (Factur-X)
+                </a>
+            {% endif %}
             <button type="button" class="btn btn-outline btn-sm" onclick="window.print()">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
                 Imprimer
             </button>
         </div>
     </div>
+
+    {# Encart de conformité Factur-X, hors document : vert prêt / rouge bloquée. Rapport absent = pas d'encart, la page reste fonctionnelle. #}
+    {% if rapport %}
+        {% if rapport.conforme %}
+            <div role="alert" class="alert alert-success no-print">
+                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <div>
+                    <p class="font-medium">Cette facture est prête pour la transmission électronique.</p>
+                    {% if rapport.avertissements %}
+                        <p class="text-sm mt-1">Points d'attention (n'empêchent pas la transmission) :</p>
+                        <ul class="text-sm list-disc list-inside space-y-0.5">
+                            {% for probleme in rapport.avertissements %}
+                                <li><span class="font-semibold">{{ probleme.champ }}</span> — {{ probleme.message }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+                </div>
+            </div>
+        {% else %}
+            <div role="alert" class="alert alert-error no-print">
+                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                <div>
+                    <p class="font-medium">Cette facture ne peut pas être transmise en l'état.</p>
+                    <ul class="text-sm mt-1 list-disc list-inside space-y-0.5">
+                        {% for probleme in rapport.erreurs %}
+                            <li><span class="font-semibold">{{ probleme.champ }}</span> — {{ probleme.message }}</li>
+                        {% endfor %}
+                    </ul>
+                    {# Une facture validée est immuable (SIRET et client figés à la validation) : la seule voie sûre est l'avoir + refacturation. Seules les infos lues en direct à la génération (raison sociale) se corrigent dans la fiche entreprise. #}
+                    <p class="text-sm mt-2">
+                        Une facture validée est immuable : pour corriger ces données, générez un avoir puis créez une facture corrigée.
+                        Seules les informations générales de votre entreprise (comme la raison sociale) peuvent être mises à jour dans les paramètres de l'entreprise.
+                    </p>
+                    {% if rapport.avertissements %}
+                        <p class="text-sm mt-2">Points d'attention (n'empêchent pas la transmission) :</p>
+                        <ul class="text-sm list-disc list-inside space-y-0.5">
+                            {% for probleme in rapport.avertissements %}
+                                <li><span class="font-semibold">{{ probleme.champ }}</span> — {{ probleme.message }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+                </div>
+            </div>
+        {% endif %}
+    {% endif %}
 
     {# La feuille : tout ce qui suit constitue le document imprimable. #}
     <article class="invoice-sheet bg-base-100 rounded-box shadow-sm border border-base-300 p-8 space-y-8">

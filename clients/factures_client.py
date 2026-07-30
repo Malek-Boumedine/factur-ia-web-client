@@ -16,6 +16,8 @@ Couvre le domaine `factures` de l'API :
 - POST /factures/{facture_id}/avoir : génération d'un avoir.
 - GET /factures/{facture_id}/facturx : téléchargement du fichier Factur-X
   (PDF/A-3 + XML CII) d'une facture validée, en streaming.
+- GET /factures/{facture_id}/facturx/conformite : rapport de conformité
+  Factur-X (schéma RapportConformiteFacturX), sans génération de fichier.
 """
 
 from collections.abc import Iterator
@@ -318,3 +320,31 @@ class FacturesClient(BaseAPIClient):
                 5xx serveur) ou API injoignable (APIUnavailableError).
         """
         return self.get_stream(f"/factures/{facture_id}/facturx")
+
+    def get_conformity_report(self, facture_id: int) -> Any:
+        """Récupère le rapport de conformité Factur-X d'une facture validée.
+
+        Appelle GET /factures/{facture_id}/facturx/conformite : l'API vérifie
+        les règles du profil MINIMUM (données obligatoires, cohérence des
+        totaux, validité des SIRET) sans générer de fichier. Les erreurs
+        bloquent la génération/transmission ; les avertissements sont
+        informatifs et laissent `conforme` à vrai.
+
+        Args:
+            facture_id (int): Identifiant de la facture. Obligatoire.
+
+        Returns:
+            dict: Le rapport (schéma RapportConformiteFacturX) : `conforme`
+            (bool), `erreurs` et `avertissements` (listes de problèmes
+            portant `champ`, `code` et `message` en français).
+
+        Raises:
+            TokenExpiredError: En cas de réponse 401.
+            ResourceNotFoundError: Facture absente ou hors du tenant
+                (404 indistinct).
+            ResourceConflictError: Facture en brouillon (409) — le rapport
+                n'a de sens que sur des données figées à la validation.
+            APIClientError: Toute autre erreur API mappée (422 validation,
+                5xx serveur) ou API injoignable (APIUnavailableError).
+        """
+        return self.get(f"/factures/{facture_id}/facturx/conformite")

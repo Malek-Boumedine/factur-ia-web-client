@@ -1482,11 +1482,13 @@ def facture_apercu_view(request: HttpRequest, facture_id: int) -> HttpResponse:
     factures validées : la lecture seule est le garde-fou, et la liste n'y
     pointe que depuis l'onglet validées.
 
-    Deux appels complémentaires en best-effort (la page se dégrade sans
+    Trois appels complémentaires en best-effort (la page se dégrade sans
     planter) : l'entreprise active pour la raison sociale de l'émetteur (le
-    SIRET affiché reste `siret_emetteur`, figé sur la facture) et le
+    SIRET affiché reste `siret_emetteur`, figé sur la facture), le
     référentiel des taux de TVA pour afficher le taux de chaque ligne (le
-    contrat ne porte que `id_taux_tva`).
+    contrat ne porte que `id_taux_tva`), et le rapport de conformité
+    Factur-X pour prévenir avant de tenter le téléchargement (échec — API
+    indisponible, 409 brouillon, 404 — : pas d'encart, boutons inchangés).
 
     Cette page est le socle du futur export PDF/Factur-X : structure balisée
     comme un document, impression via un style dédié — mais aucun PDF n'est
@@ -1547,6 +1549,20 @@ def facture_apercu_view(request: HttpRequest, facture_id: int) -> HttpResponse:
         if isinstance(taux, dict)
     }
 
+    # Rapport de conformité Factur-X, en best-effort : sans lui, pas
+    # d'encart et le bouton de téléchargement reste actif (l'API arbitrera
+    # via son 409, comme aujourd'hui).
+    rapport: dict | None = None
+    try:
+        result = FacturesClient(request).get_conformity_report(facture_id)
+    except TokenExpiredError:
+        return redirect("login")
+    except APIClientError:
+        pass
+    else:
+        if isinstance(result, dict) and isinstance(result.get("conforme"), bool):
+            rapport = result
+
     # Lignes triées par ordre, enrichies du taux résolu (le template ne peut
     # pas indexer un dict par une clé variable).
     lignes = []
@@ -1563,6 +1579,7 @@ def facture_apercu_view(request: HttpRequest, facture_id: int) -> HttpResponse:
         "lignes": lignes,
         "snapshot_items": _snapshot_items(facture.get("snapshot_client")),
         "emetteur": emetteur,
+        "rapport": rapport,
     }
     return render(request, "core/facture_apercu.html", contexte)
 
