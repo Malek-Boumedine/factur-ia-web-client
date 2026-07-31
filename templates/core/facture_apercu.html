@@ -23,7 +23,10 @@ confirmation nommant la facture et le destinataire (acte définitif). Trois
 posé) → vrai `button disabled` libellé « Transmise le … » ; non conforme
 selon le rapport → `button disabled` + tooltip ; sinon actif — une facture
 en erreur de transmission garde son numéro de flux null, le bouton reste
-donc naturellement actif pour réessayer. Le Factur-X, rétrogradé en outline,
+donc naturellement actif pour réessayer, libellé « Réessayer la
+transmission » quand le statut est `erreur_transmission`
+(`transmission_failed`, normalisé par la vue ; libellé par défaut si le
+statut est absent). Le Factur-X, rétrogradé en outline,
 reste un simple lien GET vers `facture_facturx`, le BFF relaie le fichier en
 streaming ; un refus API (409 non conforme, 404) redirige ici avec un
 message, jamais un téléchargement cassé. Toujours affiché, avoirs compris :
@@ -33,7 +36,14 @@ L'encart de preuve de transmission (hors document, `no-print`, au-dessus de
 la conformité) s'affiche à chaque consultation dès que la facture porte son
 numéro de flux Chorus Pro (renseigné par l'API au dépôt accepté uniquement) :
 date de dépôt et numéro de flux, sans appel supplémentaire — tout vient du
-détail de la facture.
+détail de la facture. Symétriquement, un encart d'avertissement signale un
+échec de transmission (statut `erreur_transmission` sans numéro de flux — la
+preuve de succès prime en cas d'incohérence) : factuel seulement, le motif
+de l'échec n'est pas exposé par le contrat, on ne l'invente pas.
+
+Le badge de statut à côté du titre reprend `statut_libelle`/`statut_badge`
+préparés par la vue via le mapping partagé avec la liste ; statut absent →
+aucun badge.
 
 L'encart de conformité Factur-X (`rapport`, hors document, `no-print`)
 prévient avant de tenter le téléchargement ou la transmission : vert si la
@@ -113,7 +123,12 @@ aucun PDF n'est généré ici. Thème facturia (daisyUI).
     {# Barre d'actions hors document : navigation et impression uniquement. #}
     <div class="flex flex-wrap items-center justify-between gap-3 no-print">
         <div>
-            <h1 class="text-2xl font-bold">Aperçu de la facture</h1>
+            <h1 class="text-2xl font-bold">
+                Aperçu de la facture
+                {% if statut_libelle %}
+                    <span class="badge {{ statut_badge }} whitespace-nowrap align-middle">{{ statut_libelle }}</span>
+                {% endif %}
+            </h1>
             <p class="text-sm text-base-content/60">Document en lecture seule — une facture validée est immuable.</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
@@ -146,7 +161,7 @@ aucun PDF n'est généré ici. Thème facturia (daisyUI).
                     Télécharger la facture électronique (Factur-X)
                 </a>
             {% endif %}
-            {# Transmission à Chorus Pro : action primaire, définitive. Trois états par priorité — déjà transmise (numéro de flux posé = succès), non conforme (409 certain), sinon actif (y compris après un échec : le flux reste null, on peut réessayer). Vrais button disabled, comme le Factur-X. #}
+            {# Transmission à Chorus Pro : action primaire, définitive. Trois états par priorité — déjà transmise (numéro de flux posé = succès), non conforme (409 certain), sinon actif (y compris après un échec : le flux reste null, on peut réessayer — le libellé devient alors « Réessayer la transmission »). Vrais button disabled, comme le Factur-X. #}
             {% if facture.numero_flux_depot_chorus %}
                 <span class="tooltip tooltip-bottom" data-tip="Cette facture a déjà été transmise avec succès à Chorus Pro">
                     <button type="button" class="btn btn-primary btn-sm" disabled>
@@ -167,7 +182,7 @@ aucun PDF n'est généré ici. Thème facturia (daisyUI).
                     {% csrf_token %}
                     <button type="submit" class="btn btn-primary btn-sm">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"></path></svg>
-                        Transmettre à Chorus Pro
+                        {% if transmission_failed %}Réessayer la transmission{% else %}Transmettre à Chorus Pro{% endif %}
                     </button>
                 </form>
             {% endif %}
@@ -187,6 +202,24 @@ aucun PDF n'est généré ici. Thème facturia (daisyUI).
                     Transmise à Chorus Pro{% if transmission_date_fr %} le {{ transmission_date_fr }}{% endif %} — flux n° {{ facture.numero_flux_depot_chorus }}.
                 </p>
                 <p class="text-sm mt-1">Ce numéro de flux est votre preuve de dépôt : il permet le suivi du traitement côté Chorus Pro.</p>
+            </div>
+        </div>
+    {% endif %}
+
+    {# Échec de transmission précédent, hors document : statut erreur_transmission sans numéro de flux (si les deux étaient posés par incohérence, la preuve de succès ci-dessus prime). Le motif de l'échec n'est pas exposé par le contrat : on signale le fait, sans inventer de détail. #}
+    {% if transmission_failed and not facture.numero_flux_depot_chorus %}
+        <div role="alert" class="alert alert-warning no-print">
+            <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+            <div>
+                <p class="font-medium">La dernière tentative de transmission à Chorus Pro a échoué.</p>
+                <p class="text-sm mt-1">
+                    Le motif détaillé n'est pas disponible sur cette page.
+                    {% if rapport and not rapport.conforme %}
+                        La transmission pourra être relancée une fois la facture conforme (voir le rapport ci-dessous).
+                    {% else %}
+                        Vous pouvez relancer la transmission avec le bouton « Réessayer la transmission ».
+                    {% endif %}
+                </p>
             </div>
         </div>
     {% endif %}

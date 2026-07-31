@@ -1538,10 +1538,17 @@ def facture_apercu_view(request: HttpRequest, facture_id: int) -> HttpResponse:
     et la présente comme une vraie facture : en-tête émetteur / « Facturé à »
     (snapshot client figé à la validation — jamais la fiche client actuelle,
     inaltérabilité oblige), tableau des prestations, totaux, pied de page
-    paiement. Aucun champ éditable, aucune action de modification. Le contrat
-    ne fournissant pas le libellé du statut, la page ne restreint pas aux
-    factures validées : la lecture seule est le garde-fou, et la liste n'y
-    pointe que depuis l'onglet validées.
+    paiement. Aucun champ éditable, aucune action de modification. La page ne
+    restreint pas aux factures validées : la lecture seule est le garde-fou,
+    et la liste n'y pointe que depuis l'onglet validées.
+
+    Le statut réel (`libelle_statut`, résolu par l'API sur cette route
+    uniquement, nullable) est normalisé comme sur la liste puis résolu via
+    `_STATUS_BADGES` : badge de statut à côté du titre (aucun badge si le
+    statut est absent), et libellé adaptatif du bouton de transmission —
+    « Réessayer la transmission » si la facture est en `erreur_transmission`,
+    avec un encart signalant l'échec précédent (sans motif : le contrat ne
+    l'expose pas). Statut absent ou inconnu → comportement par défaut.
 
     Trois appels complémentaires en best-effort (la page se dégrade sans
     planter) : l'entreprise active pour la raison sociale de l'émetteur (le
@@ -1644,6 +1651,17 @@ def facture_apercu_view(request: HttpRequest, facture_id: int) -> HttpResponse:
 
     snapshot_items = _snapshot_items(facture.get("snapshot_client"))
 
+    # Statut réel de la facture : même normalisation que la liste (espaces,
+    # casse), badge résolu via `_STATUS_BADGES` (statut inconnu → libellé
+    # brut sur badge neutre, absent → pas de badge). L'échec de transmission
+    # ne se déduit que du statut : le numéro de flux reste null en cas
+    # d'échec, il ne discrimine que le succès.
+    raw_status = str(facture.get("libelle_statut") or "").strip()
+    status_label, status_badge = _STATUS_BADGES.get(
+        raw_status.lower(), (raw_status, "badge-ghost")
+    )
+    transmission_failed = raw_status.lower() == "erreur_transmission"
+
     # Nom du destinataire pour la confirmation de transmission : première
     # valeur du snapshot (la raison sociale), repli sur le SIRET destinataire,
     # repli générique — la confirmation nomme toujours quelqu'un.
@@ -1661,6 +1679,9 @@ def facture_apercu_view(request: HttpRequest, facture_id: int) -> HttpResponse:
         "emetteur": emetteur,
         "rapport": rapport,
         "destinataire_nom": destinataire_nom,
+        "statut_libelle": status_label or None,
+        "statut_badge": status_badge,
+        "transmission_failed": transmission_failed,
         # Preuve de transmission (encart permanent et libellé du bouton) :
         # date formatée ici, le filtre |date de Django ne parse pas les
         # chaînes ISO du contrat.
