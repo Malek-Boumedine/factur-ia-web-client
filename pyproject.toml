@@ -11,6 +11,12 @@ dependencies = [
     "django-tailwind-cli>=4.6.2",
     "dotenv>=0.9.9",
     "httpx>=0.28.1",
+    "opentelemetry-exporter-otlp-proto-http>=1.44.0",
+    "opentelemetry-exporter-prometheus>=0.65b0",
+    "opentelemetry-instrumentation-django>=0.65b0",
+    "opentelemetry-instrumentation-httpx>=0.65b0",
+    "opentelemetry-sdk>=1.44.0",
+    "prometheus-client>=0.26.0",
     "python-dotenv>=1.2.2",
     "redis>=8.0.0",
 ]

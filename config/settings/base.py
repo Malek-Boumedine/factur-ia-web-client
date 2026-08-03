@@ -201,20 +201,41 @@ DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS = [".pdf", ".png", ".jpg", ".jpeg"]
 
 
 # ==============================================================================
-# LOGGING (monitoring des erreurs de communication avec l'API)
+# LOGGING (journalisation lisible + monitoring des erreurs de communication API)
 # ==============================================================================
+# Niveau global ajustable sans toucher au code : INFO par défaut en local,
+# WARNING conseillé en production.
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
-    "handlers": {
-        "console": {"class": "logging.StreamHandler"},
+    "formatters": {
+        # Texte lisible (pas de JSON) : horodatage, niveau, logger, message.
+        # Ex. : « 2026-08-03 19:38:16 WARNING [clients.base_client] Rejeu 1/2 … »
+        "lisible": {
+            "format": "{asctime} {levelname} [{name}] {message}",
+            "style": "{",
+        },
     },
+    "handlers": {
+        "console": {"class": "logging.StreamHandler", "formatter": "lisible"},
+    },
+    # Logger racine : tout module non configuré explicitement hérite de ce
+    # niveau et de la sortie console formatée.
+    "root": {"handlers": ["console"], "level": LOG_LEVEL},
     "loggers": {
-        # Retries et échecs définitifs de la couche cliente API.
+        # Canal dédié aux échanges avec l'API data : rejeux réseau en WARNING,
+        # échecs définitifs (API injoignable) en ERROR. Voir clients/base_client.py.
         "clients": {
             "handlers": ["console"],
             "level": "INFO",
             "propagate": False,
         },
+        # httpx journalise chaque requête en INFO avec l'URL complète, query
+        # string incluse (un SIRET de recherche SIRENE s'y trouverait) : on ne
+        # garde que ses avertissements. La couche clients/ journalise déjà
+        # l'essentiel, sans query string.
+        "httpx": {"level": "WARNING"},
     },
 }

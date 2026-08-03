@@ -275,3 +275,49 @@ class TestPolitiqueDeRejeu:
         assert headers["Authorization"] == "Bearer jeton-jwt"
         assert headers["x-entreprise-id"] == "42"
         assert calls[0]["url"].endswith("/clients/")
+
+
+class TestCompteurTelemetrie:
+    """Le compteur d'API injoignable est tenu par la couche cliente elle-même.
+
+    L'instrumentation httpx n'enregistre aucune métrique quand la connexion
+    échoue : `BaseAPIClient` appelle `count_api_unavailable` à chaque échec
+    définitif (voir `config/telemetry.py`). On vérifie ici le branchement,
+    pas le pipeline OpenTelemetry.
+    """
+
+    @pytest.fixture
+    def compteur_espion(self, monkeypatch: pytest.MonkeyPatch) -> list[int]:
+        """Remplace le compteur du module télémétrie par un espion."""
+        from config import telemetry
+
+        appels: list[int] = []
+
+        class FauxCompteur:
+            def add(self, valeur: int) -> None:
+                appels.append(valeur)
+
+        monkeypatch.setattr(telemetry, "_api_unavailable_counter", FauxCompteur())
+        return appels
+
+    def test_echec_reseau_definitif_compte_une_fois(
+        self, api_client: BaseAPIClient, httpx_mock: Any, compteur_espion: list[int]
+    ) -> None:
+        # 3 tentatives (1 + 2 rejeux), toutes en erreur réseau : un seul
+        # échec définitif doit être compté, pas un par tentative.
+        httpx_mock([httpx.ConnectError("refusée")] * 3)
+
+        with pytest.raises(APIUnavailableError):
+            api_client.get("/clients/")
+        assert compteur_espion == [1]
+
+    def test_reponse_obtenue_ne_compte_rien(
+        self, api_client: BaseAPIClient, httpx_mock: Any, compteur_espion: list[int]
+    ) -> None:
+        # Une réponse 5xx N'EST PAS un échec de connexion : elle est déjà
+        # visible dans les métriques standard de l'instrumentation httpx.
+        httpx_mock([httpx.Response(500, json={"detail": "boom"})])
+
+        with pytest.raises(ServerError):
+            api_client.get("/clients/")
+        assert compteur_espion == []

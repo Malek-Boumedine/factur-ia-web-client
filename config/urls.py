@@ -16,6 +16,7 @@ Including another URLconf
 """
 
 from django.urls import path
+from config.telemetry import metrics_view
 from core.views.auth import (
     forgot_password_view,
     login_view,
@@ -95,6 +96,9 @@ from core.views.taux_tva import (
 
 
 urlpatterns = [
+    # Métriques Prometheus (404 si OTEL_METRICS_ENABLED est absent). Réservé
+    # au scrape local : ne jamais exposer publiquement en production.
+    path("metrics", metrics_view, name="metrics"),
     path("login/", login_view, name="login"),
     path("logout/", logout_view, name="logout"),
     path("inscription/", signup_view, name="signup"),

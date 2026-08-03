@@ -1,0 +1,10 @@
+# Provisioning des dashboards : Grafana charge au démarrage tous les JSON
+# du dossier monté /var/lib/grafana/dashboards (observability/grafana/dashboards).
+apiVersion: 1
+
+providers:
+  - name: factur-ia-web
+    type: file
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards

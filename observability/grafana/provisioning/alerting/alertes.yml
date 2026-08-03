@@ -1,0 +1,158 @@
+# Alertes provisionnées au démarrage de Grafana (alerting unifié, sans
+# Alertmanager : une brique de moins, l'état Normal/Pending/Firing est
+# visible dans l'interface, et les règles sont versionnées ici).
+#
+# Chaque règle suit le même schéma en deux nœuds :
+#   A = requête Prometheus instantanée (la valeur mesurée)
+#   B = seuil sur A (la condition d'alerte)
+# La règle passe en Pending quand la condition est vraie, puis en Firing si
+# elle le reste pendant la durée `for`.
+#
+# Seuils (documentés aussi dans le README) :
+#   - pages : > 5 % de réponses 5xx pendant 2 min ;
+#   - API data : > 20 % d'appels sortants en échec (5xx + connexions) 2 min ;
+#   - API data : latence p95 > 2 s pendant 2 min ;
+#   - client web : cible Prometheus down pendant 2 min.
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: factur-ia-web
+    folder: Factur-IA Web
+    interval: 1m
+    rules:
+      - uid: pages-taux-5xx
+        title: "Pages — taux de 5xx élevé (> 5 %)"
+        condition: B
+        for: 2m
+        # Pas de trafic ou aucune 5xx => pas de donnée : état Normal.
+        noDataState: OK
+        execErrState: OK
+        labels:
+          severity: warning
+        annotations:
+          summary: >-
+            Plus de 5 % des pages servies par le client web répondent en
+            erreur serveur (5xx) sur les 5 dernières minutes.
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: >-
+                sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~"5.."}[5m]))
+                /
+                sum(rate(http_server_request_duration_seconds_count[5m]))
+          - refId: B
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0.05] }
+
+      - uid: api-data-erreurs
+        title: "API data — appels en erreur (> 20 %)"
+        condition: B
+        for: 2m
+        noDataState: OK
+        execErrState: OK
+        labels:
+          severity: critical
+        annotations:
+          summary: >-
+            Plus de 20 % des appels sortants vers l'API data échouent
+            (réponses 5xx ou échecs de connexion après rejeux) sur les
+            5 dernières minutes. Le compteur api_data_unavailable_total
+            couvre le cas « API éteinte », invisible pour l'instrumentation
+            httpx standard.
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: >-
+                ((sum(rate(http_client_request_duration_seconds_count{error_type=~"5.."}[5m])) or vector(0))
+                 + (sum(rate(api_data_unavailable_total[5m])) or vector(0)))
+                /
+                ((sum(rate(http_client_request_duration_seconds_count[5m])) or vector(0))
+                 + (sum(rate(api_data_unavailable_total[5m])) or vector(0)))
+          - refId: B
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [0.2] }
+
+      - uid: api-data-latence
+        title: "API data — latence p95 dégradée (> 2 s)"
+        condition: B
+        for: 2m
+        noDataState: OK
+        execErrState: OK
+        labels:
+          severity: warning
+        annotations:
+          summary: >-
+            La latence p95 des appels sortants vers l'API data dépasse
+            2 secondes sur les 5 dernières minutes.
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: >-
+                histogram_quantile(0.95, sum by (le)
+                (rate(http_client_request_duration_seconds_bucket[5m])))
+          - refId: B
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: gt, params: [2] }
+
+      - uid: client-web-down
+        title: "Client web hors ligne (cible Prometheus down)"
+        condition: B
+        for: 2m
+        # Ici l'absence de donnée est elle-même suspecte (la série `up`
+        # existe tant que la cible est configurée) : on alerte aussi.
+        noDataState: Alerting
+        execErrState: OK
+        labels:
+          severity: critical
+        annotations:
+          summary: >-
+            Prometheus ne parvient plus à scruter /metrics du client web
+            (application arrêtée, ou lancée sans OTEL_METRICS_ENABLED=True).
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              refId: A
+              instant: true
+              expr: up{job="factur-ia-web"}
+          - refId: B
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: threshold
+              expression: A
+              conditions:
+                - evaluator: { type: lt, params: [1] }
