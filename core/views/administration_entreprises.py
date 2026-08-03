@@ -578,7 +578,7 @@ def _redirect_apres_action(request: HttpRequest, entreprise_id: int) -> HttpResp
     """
     if request.POST.get("origine") == "detail":
         return _redirect_detail(entreprise_id)
-    return _redirect_apres_action(request, entreprise_id)
+    return _redirect_liste(request)
 
 
 def _redirect_liste(request: HttpRequest) -> HttpResponse:
