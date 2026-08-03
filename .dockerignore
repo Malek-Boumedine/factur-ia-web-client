@@ -1,0 +1,24 @@
+# Fichiers exclus de l'image Docker (jamais copiés par `COPY . .`).
+
+# Secrets et données locales : le .env est fourni au conteneur à l'exécution
+# via `env_file` dans le compose, jamais figé dans l'image.
+.env
+db.sqlite3
+
+# Environnement virtuel et caches Python : recréés dans l'image, inutiles ici.
+.venv/
+__pycache__/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+
+# Git et outillage local.
+.git/
+.github/
+.claude/
+
+# Binaire Tailwind téléchargé localement (retéléchargé au premier lancement).
+static/css/tailwind/
+.django_tailwind_cli/
