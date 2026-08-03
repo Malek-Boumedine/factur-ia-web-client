@@ -33,3 +33,19 @@ dev = [
 version_toml = ["pyproject.toml:project.version"]
 allow_zero_version = false
 major_on_zero = true
+
+[tool.coverage.run]
+# Le dénominateur de couverture ne compte que le code applicatif : on exclut
+# les points d'entrée, le client généré, les migrations et les tests eux-mêmes.
+omit = [
+    "main.py",
+    "manage.py",
+    "conftest.py",
+    "config/asgi.py",
+    "config/wsgi.py",
+    "*/migrations/*",
+    "*/tests/*",
+    "clients/generated/*",
+    "apps/*",
+    ".venv/*",
+]
