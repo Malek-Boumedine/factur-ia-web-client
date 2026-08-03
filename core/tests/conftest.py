@@ -21,7 +21,18 @@ from collections.abc import Callable
 from typing import Any
 
 import pytest
+from django.contrib.messages import get_messages
 from django.test import Client
+
+
+def messages_of(response: Any) -> list[str]:
+    """Extrait les messages Django déposés pendant le traitement de la requête.
+
+    Le paramètre est typé `Any` : le client de test renvoie un type de réponse
+    interne à django-stubs, non importable proprement.
+    """
+    return [str(m) for m in get_messages(response.wsgi_request)]
+
 
 # Alias du journal d'appels renvoyé par `api_mock` : une entrée par appel,
 # sous la forme `(args, kwargs)` tels que reçus par la méthode mockée.
