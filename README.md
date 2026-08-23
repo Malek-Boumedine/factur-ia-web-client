@@ -146,7 +146,7 @@ Trois services : **web** (le client Django, lancé avec `manage.py tailwind runs
 Deux conditions côté hôte :
 
 - l'API data doit écouter sur `0.0.0.0:8080` (et pas seulement `127.0.0.1`), sinon les conteneurs ne la joignent pas via `host.docker.internal` ;
-- il n'y a volontairement **ni base de données ni reverse proxy** dans ce compose (le client n'en a pas besoin) ; l'observabilité a son propre compose séparé (voir plus bas).
+- il n'y a volontairement **ni base de données ni reverse proxy** dans ce compose (le client n'en a pas besoin) ; la stack d'observabilité (Prometheus + Grafana) vit dans le dépôt d'infrastructure [`factur-ia-infra`](https://github.com/Malek-Boumedine/factur-ia-infra) (voir la section Observabilité).
 
 **Note Tailwind** : `django-tailwind-cli` télécharge un binaire Tailwind autonome (pas de Node) au premier lancement, dans `static/css/tailwind/` — monté depuis l'hôte, donc téléchargé une seule fois. En cas d'échec réseau au premier démarrage, le CSS compilé et versionné (`static/css/tailwind.css`) prend le relais ; `docker compose restart web` une fois le réseau revenu.
 
@@ -203,7 +203,7 @@ DJANGO_ENV=test uv run pytest
 
 Organisation : `core/tests/` (vues, formulaires, gardes d'accès, middleware, télémétrie) et `clients/tests/` (socle HTTP de la couche cliente : en-têtes, mapping d'erreurs, politique de rejeu). Les tests ne dépendent d'aucun service externe : l'API est mockée au niveau des clients, les sessions passent en cache mémoire, le backoff de rejeu est neutralisé.
 
-## Observabilité (OpenTelemetry / Prometheus / Grafana)
+## Observabilité (OpenTelemetry)
 
 Le client est instrumenté avec OpenTelemetry, sur le même schéma que l'API data (`config/telemetry.py`) : requêtes entrantes (les pages du BFF) et surtout **appels sortants vers l'API data** — latence, taux d'erreur, indisponibilités — qui sont le point fragile d'un BFF sans données propres.
 
@@ -211,39 +211,15 @@ Le client est instrumenté avec OpenTelemetry, sur le même schéma que l'API da
 
 ### Activer
 
-Deux interrupteurs indépendants, à poser dans `.env` ou l'environnement : `OTEL_METRICS_ENABLED` (métriques + `/metrics`, aucun collector requis) et `OTEL_ENABLED` (traces OTLP/HTTP ; `OTEL_TRACES_EXPORTER=console` pour vérifier sans collector). Un collector injoignable ne casse jamais l'application : l'export se fait en tâche de fond et échoue en silence.
+Deux interrupteurs indépendants, à poser dans `.env` ou l'environnement : `OTEL_METRICS_ENABLED` (métriques + endpoint `/metrics` au format Prometheus, aucun collector requis) et `OTEL_ENABLED` (traces OTLP/HTTP ; `OTEL_TRACES_EXPORTER=console` pour vérifier sans collector). Un collector injoignable ne casse jamais l'application : l'export se fait en tâche de fond et échoue en silence.
 
 ⚠️ **`/metrics` ne doit jamais être public en production** : réservé au scrape Prometheus (réseau interne, ou protection par ingress).
 
-### Lancer la stack locale (Prometheus + Grafana)
+### Visualisation : dépôt d'infrastructure
 
-```bash
-# 1. le client, avec les métriques activées (ici hors Docker ; en Docker,
-#    ajouter OTEL_METRICS_ENABLED=True au .env)
-OTEL_METRICS_ENABLED=True uv run python manage.py tailwind runserver 0.0.0.0:8000
+Ce dépôt ne fait qu'**exposer** les métriques sur `/metrics`. La stack de visualisation (Prometheus, Grafana, dashboards et règles d'alerte) est centralisée dans le dépôt [`factur-ia-infra`](https://github.com/Malek-Boumedine/factur-ia-infra), qui scrape les trois services (client web, API data, API IA) avec une stack unique. Voir son README pour la lancer et pour le détail des alertes.
 
-# 2. la stack (compose séparé : l'application reste lançable seule)
-docker compose -f docker-compose.observability.yml up -d
-```
-
-- **Grafana** : <http://localhost:3000> (accès anonyme, tout est provisionné depuis `observability/grafana/` — datasource, dashboard, alertes).
-- **Prometheus** : <http://localhost:9090> (scrape de `host.docker.internal:8000` toutes les 15 s).
-- Mêmes ports que la stack d'observabilité de l'API data : ne pas lancer les deux en même temps.
-
-Le dashboard **« Factur-IA Web »** montre en moitié haute les pages (débit par route, latence p50/p95/p99, taux 4xx/5xx, requêtes en vol) et en moitié basse la **santé de l'API data vue du client** (débit sortant par statut, latence p95, échecs de connexion, part des appels en erreur).
-
-### Alertes et seuils
-
-Provisionnées dans Grafana (`observability/grafana/provisioning/alerting/alertes.yml`), sans Alertmanager : l'état Normal / Pending / Firing est visible dans **Alerting → Alert rules**. Démonstration : couper l'API data et naviguer dans le client — « API data — appels en erreur » passe en Firing en ~3 minutes.
-
-| Alerte | Seuil | Durée avant Firing |
-| --- | --- | --- |
-| Pages — taux de 5xx élevé | > 5 % des réponses sur 5 min | 2 min |
-| API data — appels en erreur (5xx + échecs de connexion) | > 20 % des appels sur 5 min | 2 min |
-| API data — latence p95 dégradée | > 2 s sur 5 min | 2 min |
-| Client web hors ligne | cible Prometheus down | 2 min |
-
-Particularité à connaître : l'instrumentation httpx standard n'enregistre **aucune métrique quand la connexion échoue** — le compteur maison `api_data_unavailable_total` (incrémenté par `clients/base_client.py` à chaque échec définitif après rejeux) comble ce trou ; c'est lui qui rend une API data éteinte visible dans le dashboard et les alertes.
+Particularité à connaître côté client : l'instrumentation httpx standard n'enregistre **aucune métrique quand la connexion échoue** — le compteur maison `api_data_unavailable_total` (incrémenté par `clients/base_client.py` à chaque échec définitif après rejeux) comble ce trou ; c'est lui qui rend une API data éteinte visible dans les dashboards et les alertes.
 
 ### Ce que la télémétrie contient — et surtout pas
 
