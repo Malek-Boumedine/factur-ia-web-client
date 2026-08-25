@@ -124,6 +124,10 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 
+# Destination de `collectstatic` (exécuté au build de l'image de production).
+# En dev, runserver sert directement depuis STATICFILES_DIRS : dossier inutilisé.
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
 TAILWIND_CLI_PATH = BASE_DIR / "static" / "css" / "tailwind"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 

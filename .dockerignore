@@ -22,3 +22,9 @@ coverage.xml
 # Binaire Tailwind téléchargé localement (retéléchargé au premier lancement).
 static/css/tailwind/
 .django_tailwind_cli/
+
+# Statiques collectés localement (régénérés par collectstatic au build prod)
+# et fichiers Docker eux-mêmes, inutiles dans l'image.
+staticfiles/
+Dockerfile*
+docker-compose*.yml
