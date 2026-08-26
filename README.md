@@ -234,3 +234,86 @@ Format texte lisible (`horodatage NIVEAU [logger] message`), configuré dans `co
 - **Contrat OpenAPI** : ce client consomme le schéma exporté par l'API data, versionné dans `contracts/openapi.json` — jamais édité à la main. Mise à jour et régénération du client typé : `docs/openapi-client-setup.md`.
 - **Versioning** : automatisé par python-semantic-release à partir des messages de commit (Conventional Commits), version dans `pyproject.toml`, historique dans `CHANGELOG.md`.
 - **Conventions de contribution** (commits, langue, git flow) : voir `CLAUDE.md`.
+
+## Livraison continue (`.github/workflows/deploy.yml`)
+
+Workflow transposé de celui de `factur-ia-api-data` (conçu pour l'être — voir sa section « Livraison continue ») : mêmes décisions, seules les spécificités de ce dépôt changent.
+
+**Partage des responsabilités** : Terraform (dépôt `factur-ia-infra`) possède la *forme* du service Cloud Run — configuration, secrets, compte de service runtime, IAM — et pose un `ignore_changes` sur l'image (déjà en place) ; la chaîne de livraison possède son *contenu* : elle construit l'image de production, la pousse dans Artifact Registry et déploie une nouvelle révision en ne passant que `--image`. Elle ne touche jamais à l'infrastructure.
+
+**Déroulé** : à la publication d'une release GitHub (créée par le workflow Semantic Release au merge sur `main`), le workflow checkout le tag `vX.Y.Z` (le `pyproject.toml` y est déjà bumpé — l'image annonce la bonne version), construit l'image **depuis `Dockerfile.prod`** (Gunicorn + WhiteNoise — jamais l'image de dev) avec deux tags (`X.Y.Z` + `sha-<commit>`, pas de `latest`), la pousse, met à jour puis exécute le job de migration `factur-ia-migrate-web` (échec du job = arrêt du workflow, l'ancienne révision continue de servir), déploie la révision **par digest**, puis interroge `/health` — échec du workflow si la sonde ne répond pas. Un `workflow_dispatch` permet de (re)déployer n'importe quel tag existant sans créer de release (retour arrière compris).
+
+**Ce qui diffère de l'API data** :
+
+- **Sonde `/health` sans jeton d'identité** : ce service est le seul exposé publiquement (`run.invoker` accordé à `allUsers`), l'ingress n'exige pas d'authentification IAM — un simple `curl` suffit, et le compte de déploiement n'a pas besoin du rôle `run.invoker`.
+- **Migration Django, pas Alembic** : le job `factur-ia-migrate-web` exécute `python manage.py migrate` — il ne crée que la table des sessions Django sur Cloud SQL (ce BFF ne détient aucune donnée métier). Même logique que l'API data : mise à jour de l'image du job, exécution avec `--wait`, échec bloquant avant la bascule.
+- **`collectstatic` au build** : exécuté par le `Dockerfile.prod` lui-même, avec une `SECRET_KEY` factice posée en dur dans son `RUN` (elle ne sert qu'à charger les settings, la vraie clé n'entre jamais dans l'image). Le workflow n'a donc **rien à passer au build** — aucun `--build-arg`, aucun risque d'oubli.
+
+### Variables GitHub à configurer
+
+Aucun secret : avec la fédération d'identité, rien de confidentiel n'est stocké. Tout va dans les **variables de dépôt** (Settings → Secrets and variables → Actions → Variables) :
+
+| Variable | Contenu | Exemple |
+|---|---|---|
+| `GCP_WORKLOAD_IDENTITY_PROVIDER` | Nom complet du provider WIF (sortie Terraform `wif_provider_name`) | `projects/1234567890/locations/global/workloadIdentityPools/github-actions/providers/github-oidc` |
+| `GCP_DEPLOY_SA` | Email du compte de service de déploiement de **ce** dépôt | `github-deployer-web@<projet>.iam.gserviceaccount.com` |
+| `GCP_PROJECT_ID` | ID du projet GCP | `factur-ia-prod` |
+| `GCP_REGION` | Région Cloud Run / Artifact Registry | `europe-west9` |
+| `ARTIFACT_REGISTRY_REPO` | Nom du dépôt Artifact Registry | `factur-ia` |
+| `CLOUD_RUN_SERVICE` | Nom du service Cloud Run (aussi utilisé comme nom d'image) | `factur-ia-web` |
+| `CLOUD_RUN_MIGRATE_JOB` | Nom du job de migration | `factur-ia-migrate-web` |
+
+### Prérequis côté infrastructure (Terraform, dépôt `factur-ia-infra`)
+
+Le pool et le provider WIF sont **partagés par les trois dépôts** et déjà décrits pour l'API data — ne pas les recréer. Ce dépôt n'apporte que son compte de service de déploiement, sa liaison restreinte à lui seul, et ses rôles sur *son* service et *son* job de migration (sans `run.invoker` : le service est public, la sonde n'en a pas besoin) :
+
+```hcl
+# ── Compte de service de déploiement de factur-ia-web-client ─────────────────
+
+resource "google_service_account" "github_deployer_web" {
+  account_id   = "github-deployer-web"
+  display_name = "CD GitHub Actions — factur-ia-web-client"
+}
+
+# Seul le dépôt factur-ia-web-client peut emprunter ce compte de service.
+resource "google_service_account_iam_member" "deployer_web_wif" {
+  service_account_id = google_service_account.github_deployer_web.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/Malek-Boumedine/factur-ia-web-client"
+}
+
+# ── Rôles du compte de déploiement (moindre privilège) ───────────────────────
+
+# Pousser l'image.
+resource "google_artifact_registry_repository_iam_member" "deployer_web_push" {
+  location   = var.region
+  repository = google_artifact_registry_repository.images.repository_id
+  role       = "roles/artifactregistry.writer"
+  member     = "serviceAccount:${google_service_account.github_deployer_web.email}"
+}
+
+# Déployer une révision — pas run.admin : le workflow ne doit pas pouvoir
+# modifier l'IAM du service.
+resource "google_cloud_run_v2_service_iam_member" "deployer_web_developer" {
+  location = var.region
+  name     = google_cloud_run_v2_service.web.name
+  role     = "roles/run.developer"
+  member   = "serviceAccount:${google_service_account.github_deployer_web.email}"
+}
+
+# Mettre à jour l'image du job de migration et l'exécuter.
+resource "google_cloud_run_v2_job_iam_member" "deployer_web_migrate" {
+  location = var.region
+  name     = google_cloud_run_v2_job.migrate_web.name
+  role     = "roles/run.developer"
+  member   = "serviceAccount:${google_service_account.github_deployer_web.email}"
+}
+
+# Déployer une révision qui s'exécute sous l'identité du SA runtime du service
+# (le job de migration tourne sous le même SA : la liaison couvre les deux).
+resource "google_service_account_iam_member" "deployer_web_actas_runtime" {
+  service_account_id = google_service_account.web.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.github_deployer_web.email}"
+}
+```
