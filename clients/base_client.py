@@ -28,6 +28,8 @@ from django.conf import settings
 from django.contrib import messages
 from django.http import HttpRequest
 
+from config.telemetry import count_api_unavailable
+
 from .exceptions import (
     APIClientError,
     APIUnavailableError,
@@ -202,6 +204,9 @@ class BaseAPIClient:
                     url,
                     exc.__class__.__name__,
                 )
+                # Métrique : l'instrumentation httpx ne compte pas les échecs
+                # de connexion, on tient ce compteur nous-mêmes.
+                count_api_unavailable()
                 raise APIUnavailableError() from exc
 
             # Statuts serveur transitoires : mêmes règles de rejeu.
@@ -221,6 +226,7 @@ class BaseAPIClient:
                         url,
                         response.status_code,
                     )
+                    count_api_unavailable()
                     raise APIUnavailableError(status_code=response.status_code)
                 # Non idempotent : pas de rejeu ; `_map_response` lèvera ServerError.
 
@@ -407,6 +413,7 @@ class BaseAPIClient:
                     url,
                     exc.__class__.__name__,
                 )
+                count_api_unavailable()
                 raise APIUnavailableError() from exc
 
             if response.status_code in _RETRYABLE_STATUS:
@@ -423,6 +430,7 @@ class BaseAPIClient:
                     url,
                     response.status_code,
                 )
+                count_api_unavailable()
                 raise APIUnavailableError(status_code=response.status_code)
 
             if response.status_code >= 400:

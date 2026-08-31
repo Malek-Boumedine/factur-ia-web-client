@@ -66,6 +66,7 @@ from clients.exceptions import (
 from clients.factures_client import FacturesClient
 from clients.produits_client import ProduitsClient
 from clients.taux_tva_client import TauxTvaClient
+from core.normalization import normalize_siret
 from core.pagination import (
     PAGE_SIZE,
     base_querystring,
@@ -105,7 +106,7 @@ _EDITABLE_HEADER_FIELDS = (
     "notes",
 )
 
-# Champs SIRET du formulaire : la saisie usuelle avec espaces
+# Champs SIRET du formulaire : la saisie usuelle avec séparateurs
 # (« 123 456 789 00012 ») est normalisée avant envoi, l'API n'acceptant que
 # des chiffres (14 max, incomplet accepté, vide = effacement).
 _SIRET_FIELDS = ("siret_emetteur", "siret_destinataire")
@@ -369,11 +370,6 @@ def _clean_optional(value: Any) -> str | None:
     return text or None
 
 
-def _normalize_siret(value: Any) -> str:
-    """Normalise un SIRET pour comparaison : espaces retirés, chaîne vide si absent."""
-    return str(value or "").strip().replace(" ", "")
-
-
 def _normalize_decimal(value: Any) -> str:
     """Normalise un montant saisi en chaîne décimale (virgule → point, espaces retirés)."""
     text = str(value or "").strip()
@@ -407,7 +403,7 @@ def _build_update_payload(post: QueryDict) -> dict[str, Any]:
     }
     for field in _SIRET_FIELDS:
         if payload[field]:
-            payload[field] = payload[field].replace(" ", "")
+            payload[field] = normalize_siret(payload[field]) or None
     count = _to_int(post.get("lignes_count")) or 0
     lines = []
     for index in range(count):
@@ -542,7 +538,7 @@ def _verify_recipient_sirene(request: HttpRequest, siret: Any) -> None:
     Raises:
         TokenExpiredError: Session expirée (seule exception propagée).
     """
-    cleaned = _normalize_siret(siret)
+    cleaned = normalize_siret(siret)
     if not cleaned:
         messages.warning(
             request,
@@ -656,13 +652,13 @@ def _read_client_form(post: QueryDict) -> dict[str, str]:
 
     Returns:
         dict[str, str]: Valeurs saisies par champ du schéma ClientCreate
-        (chaîne vide si absent), SIRET normalisé sans espaces.
+        (chaîne vide si absent), SIRET normalisé sans séparateurs.
     """
     values = {
         field: str(post.get(f"client_{field}") or "").strip()
         for field in _CLIENT_FORM_FIELDS
     }
-    values["siret"] = _normalize_siret(values["siret"])
+    values["siret"] = normalize_siret(values["siret"])
     return values
 
 
@@ -756,7 +752,7 @@ def _find_client_by_siret(request: HttpRequest, siret: str) -> dict | None:
         (
             item
             for item in items or []
-            if isinstance(item, dict) and _normalize_siret(item.get("siret")) == siret
+            if isinstance(item, dict) and normalize_siret(item.get("siret")) == siret
         ),
         None,
     )
@@ -907,7 +903,7 @@ def _handle_sirene_lookup_action(request: HttpRequest, facture_id: int) -> HttpR
         HttpResponse: Redirection vers le récap (ou le login si session
         expirée).
     """
-    siret = _normalize_siret(request.POST.get("siret_destinataire"))
+    siret = normalize_siret(request.POST.get("siret_destinataire"))
     if len(siret) != 14 or not siret.isdigit():
         messages.warning(
             request,
@@ -1464,7 +1460,7 @@ def facture_recap_view(request: HttpRequest, facture_id: int) -> HttpResponse:
     attached_client: dict | None = None
     matching_client: dict | None = None
     client_panel_error: str | None = None
-    siret_destinataire = _normalize_siret(facture.get("siret_destinataire"))
+    siret_destinataire = normalize_siret(facture.get("siret_destinataire"))
     siret_destinataire_valide = (
         len(siret_destinataire) == 14 and siret_destinataire.isdigit()
     )
@@ -1496,8 +1492,8 @@ def facture_recap_view(request: HttpRequest, facture_id: int) -> HttpResponse:
     # d'alerte si l'un des deux est absent : un émetteur vide sera de toute
     # façon remplacé par celui de l'entreprise à la validation, et sans SIRET
     # entreprise en session la comparaison n'a pas de référence fiable.
-    siret_emetteur = _normalize_siret(facture.get("siret_emetteur"))
-    siret_entreprise = _normalize_siret(request.session.get("entreprise_siret"))
+    siret_emetteur = normalize_siret(facture.get("siret_emetteur"))
+    siret_entreprise = normalize_siret(request.session.get("entreprise_siret"))
     siret_mismatch = bool(
         siret_emetteur and siret_entreprise and siret_emetteur != siret_entreprise
     )
@@ -1538,10 +1534,17 @@ def facture_apercu_view(request: HttpRequest, facture_id: int) -> HttpResponse:
     et la présente comme une vraie facture : en-tête émetteur / « Facturé à »
     (snapshot client figé à la validation — jamais la fiche client actuelle,
     inaltérabilité oblige), tableau des prestations, totaux, pied de page
-    paiement. Aucun champ éditable, aucune action de modification. Le contrat
-    ne fournissant pas le libellé du statut, la page ne restreint pas aux
-    factures validées : la lecture seule est le garde-fou, et la liste n'y
-    pointe que depuis l'onglet validées.
+    paiement. Aucun champ éditable, aucune action de modification. La page ne
+    restreint pas aux factures validées : la lecture seule est le garde-fou,
+    et la liste n'y pointe que depuis l'onglet validées.
+
+    Le statut réel (`libelle_statut`, résolu par l'API sur cette route
+    uniquement, nullable) est normalisé comme sur la liste puis résolu via
+    `_STATUS_BADGES` : badge de statut à côté du titre (aucun badge si le
+    statut est absent), et libellé adaptatif du bouton de transmission —
+    « Réessayer la transmission » si la facture est en `erreur_transmission`,
+    avec un encart signalant l'échec précédent (sans motif : le contrat ne
+    l'expose pas). Statut absent ou inconnu → comportement par défaut.
 
     Trois appels complémentaires en best-effort (la page se dégrade sans
     planter) : l'entreprise active pour la raison sociale de l'émetteur (le
@@ -1644,6 +1647,17 @@ def facture_apercu_view(request: HttpRequest, facture_id: int) -> HttpResponse:
 
     snapshot_items = _snapshot_items(facture.get("snapshot_client"))
 
+    # Statut réel de la facture : même normalisation que la liste (espaces,
+    # casse), badge résolu via `_STATUS_BADGES` (statut inconnu → libellé
+    # brut sur badge neutre, absent → pas de badge). L'échec de transmission
+    # ne se déduit que du statut : le numéro de flux reste null en cas
+    # d'échec, il ne discrimine que le succès.
+    raw_status = str(facture.get("libelle_statut") or "").strip()
+    status_label, status_badge = _STATUS_BADGES.get(
+        raw_status.lower(), (raw_status, "badge-ghost")
+    )
+    transmission_failed = raw_status.lower() == "erreur_transmission"
+
     # Nom du destinataire pour la confirmation de transmission : première
     # valeur du snapshot (la raison sociale), repli sur le SIRET destinataire,
     # repli générique — la confirmation nomme toujours quelqu'un.
@@ -1661,6 +1675,9 @@ def facture_apercu_view(request: HttpRequest, facture_id: int) -> HttpResponse:
         "emetteur": emetteur,
         "rapport": rapport,
         "destinataire_nom": destinataire_nom,
+        "statut_libelle": status_label or None,
+        "statut_badge": status_badge,
+        "transmission_failed": transmission_failed,
         # Preuve de transmission (encart permanent et libellé du bouton) :
         # date formatée ici, le filtre |date de Django ne parse pas les
         # chaînes ISO du contrat.

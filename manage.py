@@ -13,6 +13,13 @@ def main():
     """Run administrative tasks."""
     env = os.getenv("DJANGO_ENV", "dev")
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", f"config.settings.{env}")
+
+    # Télémétrie (no-op si OTEL_ENABLED/OTEL_METRICS_ENABLED sont absents) :
+    # couvre le runserver de dev, comme wsgi/asgi couvrent le déploiement.
+    from config.telemetry import setup_telemetry
+
+    setup_telemetry()
+
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:

@@ -1,0 +1,65 @@
+# ==============================================================================
+# Image de PRODUCTION du client web Factur-IA, destinée à Cloud Run.
+# (L'image de développement local reste dans ./Dockerfile — deux fichiers,
+# deux usages : ici pas de volume monté, pas de runserver, pas de watcher.)
+#
+# Principes :
+# - le code est figé dans l'image, servie par Gunicorn (serveur WSGI) ;
+# - écoute sur $PORT, imposé par Cloud Run (8080 par défaut) ;
+# - statiques collectés au build et servis par WhiteNoise (CSS Tailwind
+#   versionné dans le repo : aucune compilation d'assets ici) ;
+# - AUCUN secret dans l'image : SECRET_KEY, DB_*, etc. sont fournis à
+#   l'exécution par Cloud Run (Secret Manager / variables d'environnement).
+#
+# Les migrations (table django_session sur Cloud SQL) ne sont exécutées ni au
+# build ni au démarrage : le job Cloud Run dédié `factur-ia-migrate-web` lance
+#   python manage.py migrate --noinput
+# avec les mêmes variables d'environnement que le service.
+# ==============================================================================
+
+# Même base que l'image de dev : Python officiel, variante légère.
+FROM python:3.13-slim
+
+# uv copié depuis son image officielle, version épinglée (pas de `curl | sh`).
+COPY --from=ghcr.io/astral-sh/uv:0.8 /uv /uvx /bin/
+
+# PYTHONUNBUFFERED : logs visibles immédiatement dans Cloud Logging.
+# Venv dans /opt/venv, placé en tête du PATH : `python` et `gunicorn`
+# désignent ceux du venv, sans préfixe `uv run` au démarrage.
+ENV PYTHONUNBUFFERED=1 \
+    UV_PROJECT_ENVIRONMENT=/opt/venv \
+    PATH=/opt/venv/bin:$PATH
+
+WORKDIR /app
+
+# Dépendances d'abord (couche cachée tant que le lock ne change pas), sans le
+# groupe dev : ni pytest, ni mypy, ni ruff dans l'image de production.
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev
+
+# Code de l'application (filtré par .dockerignore : ni .env, ni .git, ni venv).
+COPY . .
+
+# Collecte des statiques vers STATIC_ROOT avec les réglages de production
+# (fichiers hashés + compressés par WhiteNoise). La SECRET_KEY factice ne sert
+# qu'à charger les settings pendant le build : la vraie n'entre jamais ici.
+RUN DJANGO_ENV=prod SECRET_KEY=build-collectstatic-uniquement \
+    python manage.py collectstatic --noinput
+
+# Exécution sans privilèges : l'application n'écrit rien sur le disque.
+RUN useradd --create-home appuser
+USER appuser
+
+# Port par défaut de Cloud Run — documentaire : c'est $PORT qui fait foi.
+EXPOSE 8080
+
+# Forme shell requise pour interpoler $PORT ; `exec` fait de Gunicorn le PID 1,
+# qui reçoit donc directement le SIGTERM d'arrêt de Cloud Run.
+# 2 workers × 4 threads : adapté à 1 vCPU, les threads couvrent l'attente
+# réseau vers l'API data (dominante pour un BFF). Ajustable sans rebuild.
+CMD exec gunicorn config.wsgi:application \
+    --bind ":${PORT:-8080}" \
+    --workers "${WEB_CONCURRENCY:-2}" \
+    --threads "${GUNICORN_THREADS:-4}" \
+    --access-logfile - \
+    --error-logfile -

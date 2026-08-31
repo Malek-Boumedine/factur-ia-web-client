@@ -17,6 +17,7 @@ from clients.exceptions import (
     TokenExpiredError,
 )
 from clients.utilisateurs_client import UtilisateursClient
+from core.normalization import normalize_siret
 from core.forms import (
     EntrepriseForm,
     ForgotPasswordForm,
@@ -374,20 +375,6 @@ def profile_lock_view(request):
     return render(request, "core/auth/profile-lock.html")
 
 
-def _normalize_identifiant(value):
-    """Normalise un SIREN/SIRET saisi : espaces et points retirés.
-
-    Les numéros sont couramment recopiés avec des séparateurs (« 123 456 789
-    00012 ») : on les retire avant de contrôler le format et d'appeler l'API.
-    """
-    text = str(value or "").strip()
-    # Espace simple, insécable (U+00A0), fine insécable (U+202F), point et
-    # tiret : les séparateurs courants d'un numéro copié-collé.
-    for separateur in (" ", " ", " ", ".", "-"):
-        text = text.replace(separateur, "")
-    return text
-
-
 def _sirene_initial(company, submitted):
     """Fusionne le résultat SIRENE avec la saisie en cours de l'onboarding.
 
@@ -405,7 +392,7 @@ def _sirene_initial(company, submitted):
         dict: Valeurs `initial` du formulaire entreprise.
     """
     raison_sociale = str(company.get("raison_sociale") or "").strip()
-    siret = _normalize_identifiant(company.get("siret"))
+    siret = normalize_siret(company.get("siret"))
     return {
         "nom_entreprise": raison_sociale or submitted["nom_entreprise"],
         # Une recherche par SIREN (9 chiffres) renvoie le SIRET du siège :
@@ -433,7 +420,7 @@ def _handle_onboarding_sirene_lookup(request):
     """
     submitted = {
         "nom_entreprise": (request.POST.get("nom_entreprise") or "").strip(),
-        "siret": _normalize_identifiant(request.POST.get("siret")),
+        "siret": normalize_siret(request.POST.get("siret")),
     }
     identifiant = submitted["siret"]
     pending = {"initial": submitted}

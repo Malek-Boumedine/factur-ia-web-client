@@ -1,14 +1,67 @@
-version: '3.8'
+# ==============================================================================
+# Environnement LOCAL du client web Factur-IA.
+# 3 services : le client Django (web), un worker Celery et Redis.
+# Pas de base de données ici : le client est un BFF sans données métier,
+# il appelle l'API data qui tourne sur l'hôte, hors de ce compose.
+# ==============================================================================
 
 services:
+  # Client Django : serveur de dev + watcher Tailwind (rechargement à chaud).
+  web:
+    build: .
+    container_name: facturia-web
+    ports:
+      - "8000:8000"
+    # Montage du projet : les modifications de code rechargent le serveur, et
+    # le CSS recompilé (ainsi que le binaire Tailwind) est partagé avec l'hôte.
+    volumes:
+      - .:/app
+    # Variables lues depuis le .env local (SECRET_KEY, DJANGO_ENV, etc.).
+    env_file: .env
+    # Surcharges propres au contexte conteneur — elles priment sur le .env,
+    # qui garde ses valeurs « hôte » (localhost) pour l'usage hors Docker.
+    environment:
+      # Redis est joint par son nom de service sur le réseau du compose.
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      # L'API data tourne sur l'hôte : host.docker.internal pointe vers lui.
+      API_DATA_URL: http://host.docker.internal:8080
+    # Sous Linux, host.docker.internal n'existe pas par défaut : cette ligne
+    # le fait pointer vers la passerelle de l'hôte.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - redis
+
+  # Worker Celery : exécute les tâches asynchrones. Même image que web,
+  # seule la commande change.
+  worker:
+    build: .
+    container_name: facturia-worker
+    command: ["uv", "run", "celery", "-A", "config.celery", "worker", "--loglevel=info"]
+    volumes:
+      - .:/app
+    env_file: .env
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+      API_DATA_URL: http://host.docker.internal:8080
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - redis
+
+  # Redis : stockage des sessions Django (cache) + broker et backend Celery.
   redis:
     image: redis:alpine
     container_name: facturia-redis
+    restart: unless-stopped
+    # Port publié sur l'hôte pour pouvoir aussi lancer l'app hors Docker.
     ports:
       - "6379:6379"
-    restart: unless-stopped
     volumes:
       - redis_data:/data
 
 volumes:
+  # Persistance des données Redis entre deux redémarrages.
   redis_data:

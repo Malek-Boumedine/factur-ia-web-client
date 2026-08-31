@@ -23,6 +23,7 @@ from clients.exceptions import (
     TokenExpiredError,
 )
 from core.forms import ClientForm
+from core.normalization import normalize_siret
 from core.views.auth import (
     _MSG_INDISPONIBLE,
     _appliquer_erreur_conflit,
@@ -143,7 +144,7 @@ def client_create_view(request: HttpRequest) -> HttpResponse:
 
     # GET : pré-remplissage éventuel via la recherche SIRENE.
     initial = {}
-    sirene_query = request.GET.get("siret", "").strip()
+    sirene_query = normalize_siret(request.GET.get("siret"))
     if sirene_query:
         if not re.fullmatch(r"\d{9}|\d{14}", sirene_query):
             messages.error(

@@ -16,6 +16,7 @@ Including another URLconf
 """
 
 from django.urls import path
+from config.telemetry import metrics_view
 from core.views.auth import (
     forgot_password_view,
     login_view,
@@ -84,6 +85,7 @@ from core.views.factures import (
 )
 from core.views.home import home_view
 from core.views.profil import profil_view
+from core.views.sante import health_view, ready_view
 from core.views.statistiques import statistiques_view
 from core.views.taux_tva import (
     taux_tva_admin_view,
@@ -95,6 +97,12 @@ from core.views.taux_tva import (
 
 
 urlpatterns = [
+    # Métriques Prometheus (404 si OTEL_METRICS_ENABLED est absent). Réservé
+    # au scrape local : ne jamais exposer publiquement en production.
+    path("metrics", metrics_view, name="metrics"),
+    # Sondes de santé Cloud Run (voir core/views/sante.py pour le contrat).
+    path("health", health_view, name="health"),
+    path("ready", ready_view, name="ready"),
     path("login/", login_view, name="login"),
     path("logout/", logout_view, name="logout"),
     path("inscription/", signup_view, name="signup"),
