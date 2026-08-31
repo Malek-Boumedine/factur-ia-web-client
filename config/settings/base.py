@@ -181,6 +181,12 @@ API_MAX_RETRIES = int(os.getenv("API_MAX_RETRIES", "2"))
 # Base du backoff exponentiel en secondes (délai = backoff * 2 ** tentative).
 API_RETRY_BACKOFF = float(os.getenv("API_RETRY_BACKOFF", "0.5"))
 
+# Authentification IAM Cloud Run : en production, l'API data n'accepte que
+# les appels portant un jeton d'identité Google (X-Serverless-Authorization,
+# voir clients/gcp_identity.py). Faux par défaut : en dev/test, pas de
+# serveur de métadonnées et l'API locale n'exige aucun jeton.
+API_IAM_AUTH_ENABLED = os.getenv("API_IAM_AUTH_ENABLED", "False").lower() == "true"
+
 
 # ==============================================================================
 # INSCRIPTION PUBLIQUE

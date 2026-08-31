@@ -24,6 +24,10 @@ API_CONNECT_TIMEOUT = 5.0
 API_READ_TIMEOUT = 15.0
 API_MAX_RETRIES = 2
 
+# Authentification IAM Cloud Run désactivée : les tests qui la couvrent
+# l'activent explicitement (override_settings), obtention de jeton mockée.
+API_IAM_AUTH_ENABLED = False
+
 # Valeurs métier attendues par les tests d'inscription et d'upload.
 SIGNUP_DEFAULT_ROLE_ID = 1
 DOCUMENT_UPLOAD_MAX_SIZE = 10 * 1024 * 1024

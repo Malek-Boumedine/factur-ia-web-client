@@ -30,6 +30,7 @@ from django.http import HttpRequest
 
 from config.telemetry import count_api_unavailable
 
+from . import gcp_identity
 from .exceptions import (
     APIClientError,
     APIUnavailableError,
@@ -112,10 +113,16 @@ class BaseAPIClient:
         est connue. Utilisé tel quel pour les uploads multipart (où httpx doit
         calculer lui-même le Content-Type).
 
+        En production, l'ingress de l'API data exige un jeton d'identité
+        Google (IAM Cloud Run) : il est ajouté dans
+        `X-Serverless-Authorization` — jamais dans `Authorization`, qui porte
+        le JWT applicatif (voir `clients.gcp_identity`).
+
         Returns:
             dict[str, str]: En-têtes HTTP. Contient toujours `Accept` ;
             `Authorization` et `x-entreprise-id` sont ajoutés seulement s'ils
-            sont disponibles en session.
+            sont disponibles en session, `X-Serverless-Authorization`
+            seulement si `API_IAM_AUTH_ENABLED` est vrai.
         """
         headers = {
             "Accept": "application/json",
@@ -129,6 +136,9 @@ class BaseAPIClient:
         entreprise_id = self.request.session.get("entreprise_id")
         if entreprise_id:
             headers["x-entreprise-id"] = str(entreprise_id)
+
+        # Authentification IAM Cloud Run ({} hors production).
+        headers.update(gcp_identity.serverless_authorization_header())
 
         return headers
 

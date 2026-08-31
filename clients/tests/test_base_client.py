@@ -6,6 +6,9 @@ réseau, pour vérifier :
 
 - l'injection des en-têtes depuis la session Django (JWT Bearer, tenant
   `x-entreprise-id`) ;
+- l'authentification IAM Cloud Run : `X-Serverless-Authorization` part avec
+  la requête quand elle est activée, sans jamais toucher `Authorization`
+  (qui porte le JWT applicatif), et rien ne part ni n'est tenté sinon ;
 - le mapping des statuts vers les exceptions métier, `detail` conservé là où
   les vues en dépendent (409, 422, 5xx, 403) ;
 - le 401 : purge de la session AVANT la levée de `TokenExpiredError` ;
@@ -29,6 +32,7 @@ from django.contrib.messages import get_messages
 from django.contrib.messages.storage.fallback import FallbackStorage
 from django.http import HttpRequest
 from django.test import RequestFactory
+from pytest_django.fixtures import SettingsWrapper
 
 from clients.base_client import BaseAPIClient
 from clients.exceptions import (
@@ -120,6 +124,68 @@ class TestHeaders:
         assert "Authorization" not in headers
         assert "x-entreprise-id" not in headers
         assert headers["Accept"] == "application/json"
+
+
+class TestAuthentificationIAM:
+    """IAM Cloud Run : l'en-tête d'identité cohabite avec le JWT de session.
+
+    Le piège couvert ici : `Authorization` porte déjà le JWT applicatif de
+    l'utilisateur, le jeton d'identité Google doit donc partir dans
+    `X-Serverless-Authorization` — jamais écraser l'autre. La mécanique fine
+    (cache, expiration, échecs) est testée dans `test_gcp_identity.py`.
+    """
+
+    @pytest.fixture(autouse=True)
+    def cache_vierge(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Vide le cache module-niveau du jeton entre les tests."""
+        from clients import gcp_identity
+
+        monkeypatch.setattr(gcp_identity, "_cached_token", None)
+        monkeypatch.setattr(gcp_identity, "_cached_expiry", 0.0)
+
+    @pytest.fixture
+    def fetch_espion(self, monkeypatch: pytest.MonkeyPatch) -> list[str]:
+        """Mock d'obtention du jeton : renvoie un jeton fixe, journalise l'appel."""
+        from clients import gcp_identity
+
+        calls: list[str] = []
+
+        def fake_fetch(request: Any, audience: str) -> str:
+            calls.append(audience)
+            return "jeton-identite-google"
+
+        monkeypatch.setattr(gcp_identity, "fetch_id_token", fake_fetch)
+        return calls
+
+    def test_active_ajoute_l_identite_sans_ecraser_le_jwt_de_session(
+        self,
+        settings: SettingsWrapper,
+        api_client: BaseAPIClient,
+        httpx_mock: Any,
+        fetch_espion: list[str],
+    ) -> None:
+        settings.API_IAM_AUTH_ENABLED = True
+        api_client.request.session["jwt_token"] = "jeton-jwt"
+        calls = httpx_mock([httpx.Response(200, json={})])
+
+        api_client.get("/clients/")
+
+        headers = calls[0]["headers"]
+        # Les DEUX authentifications partent, chacune dans son en-tête.
+        assert headers["Authorization"] == "Bearer jeton-jwt"
+        assert headers["X-Serverless-Authorization"] == "Bearer jeton-identite-google"
+
+    def test_desactive_n_envoie_pas_l_en_tete_et_ne_tente_rien(
+        self, api_client: BaseAPIClient, httpx_mock: Any, fetch_espion: list[str]
+    ) -> None:
+        # Défaut des settings de test : API_IAM_AUTH_ENABLED = False.
+        calls = httpx_mock([httpx.Response(200, json={})])
+
+        api_client.get("/clients/")
+
+        assert "X-Serverless-Authorization" not in calls[0]["headers"]
+        # Aucune tentative d'obtention de jeton : rien à mettre en cache.
+        assert fetch_espion == []
 
 
 class TestMapResponse:
