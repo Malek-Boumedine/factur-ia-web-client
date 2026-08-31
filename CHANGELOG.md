@@ -2,6 +2,64 @@
 
 <!-- version list -->
 
+## v1.1.0 (2026-08-31)
+
+### Bug Fixes
+
+- **ci**: Ajoute les stubs de typage manquants
+  ([`cfcc241`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/cfcc24133c023815e74c5bbebaa8bd366bf544b1))
+
+- **siret**: Normalisation partagée des SIREN/SIRET saisis avant validation
+  ([`bc0e50a`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/bc0e50a78c8e1789958746b6fbe8c777d485a94b))
+
+- **tests**: Fige la configuration de test
+  ([`1d8963a`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/1d8963ace792a7ee5f2bed7a2a12105ecf795d20))
+
+### Chores
+
+- **monitoring**: Retrait de la stack locale Prometheus/Grafana
+  ([`728872e`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/728872ec1ec45ffc24200eb006466f193df56774))
+
+### Documentation
+
+- **readme**: Documentation complète — installation, architecture et variables
+  ([`a8776df`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/a8776dfa16e9c51530fbf30bfec6aeaa00a27690))
+
+### Features
+
+- **cd**: Chaîne de livraison continue vers Cloud Run
+  ([`a77f4f8`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/a77f4f87ce152cb8297861df4e52f7cd81aeafdf))
+
+- **docker**: Image de production Cloud Run — Gunicorn, WhiteNoise et sessions en base
+  ([`6e9a879`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/6e9a879da69f2a60a38aa668da7af4751f22b406))
+
+- **docker**: Image et stack Docker pour le développement local
+  ([`9169224`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/91692245ec708328686eaf670bc3644689c73c39))
+
+- **factures**: Libellé de transmission adapté au statut et badge sur l'aperçu
+  ([`5b8ec63`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/5b8ec6381be3495de6d4c7a04ae633f4cb3a9fdb))
+
+- **infra**: Observabilité du client — traces, métriques Prometheus et alertes
+  ([`91d6079`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/91d60797a7a7ac0de394a74960a6a64f88d30246))
+
+### Testing
+
+- **acces**: Socle de tests et couverture de la gestion des accès
+  ([`bbe7fdd`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/bbe7fdd4b793968c105418faa578c9581fb2f4f3))
+
+- **clients**: Socle HTTP de la couche cliente (mapping et rejeu)
+  ([`c47b4f4`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/c47b4f4f7f82ba599fffd8b3f4a797a007fe815e))
+
+- **formulaires**: Validation, normalisation SIRET et payloads API
+  ([`b320ff6`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/b320ff61fe89726e3eceecdb60b4f9cefca12a03))
+
+- **vues**: Couverture des parcours critiques (auth, facturation, équipe)
+  ([`db530cc`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/db530ccfc3d22c49168f5d155eef7d68bec3ee7d))
+
+- **vues**: Couverture des vues secondaires — cible de 60% atteinte
+  ([`6c49baf`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/6c49bafb3fc12cac53bf186bf5feb5e9e2d630cb))
+
+
 ## v0.9.1 (2026-07-30)
 
 ### Bug Fixes
