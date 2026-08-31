@@ -3,6 +3,34 @@ from .base import *
 
 DEBUG = False
 
+# ==============================================================================
+# INDÉPENDANCE VIS-À-VIS DE L'ENVIRONNEMENT
+# ==============================================================================
+# Les tests doivent tourner à l'identique avec ou sans `.env` (la CI n'en a
+# pas) : toute valeur que `base.py` lit dans l'environnement et qui influence
+# le comportement des tests est figée ici en dur.
+
+# Clé sans aucune valeur de sécurité : elle ne sert qu'à la signature des
+# cookies pendant les tests. En production, la clé reste obligatoire et vient
+# de Secret Manager, sans repli.
+SECRET_KEY = "cle-de-test-sans-valeur-de-securite"  # noqa: S105  # pragma: allowlist secret
+
+# URL factice : aucun test ne doit toucher le réseau, les clients HTTP sont
+# systématiquement mockés.
+API_DATA_URL = "http://api-de-test.local"
+
+# Politique de résilience figée : les tests de rejeu comptent les tentatives.
+API_CONNECT_TIMEOUT = 5.0
+API_READ_TIMEOUT = 15.0
+API_MAX_RETRIES = 2
+
+# Valeurs métier attendues par les tests d'inscription et d'upload.
+SIGNUP_DEFAULT_ROLE_ID = 1
+DOCUMENT_UPLOAD_MAX_SIZE = 10 * 1024 * 1024
+
+# Niveau de journalisation indépendant d'un éventuel LOG_LEVEL local.
+LOGGING["root"] = {"handlers": ["console"], "level": "INFO"}
+
 # Base de données en mémoire vive (détruite à la fin des tests)
 DATABASES = {
     "default": {
