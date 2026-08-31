@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.1.1 (2026-08-31)
+
+### Bug Fixes
+
+- **clients**: Authentification IAM vers l'API data
+  ([`05a29fa`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/05a29fa9937077df5ac3090c41b90e31f589f891))
+
+
 ## v1.1.0 (2026-08-31)
 
 ### Bug Fixes
