@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.1.2 (2026-08-31)
+
+### Bug Fixes
+
+- **clients**: Le login passe par l'authentification IAM
+  ([`2a16060`](https://github.com/Malek-Boumedine/factur-ia-web-client/commit/2a1606042a7b94ae6f815f820a0fa7eee01b2886))
+
+
 ## v1.1.1 (2026-08-31)
 
 ### Bug Fixes
