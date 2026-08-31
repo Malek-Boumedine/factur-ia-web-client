@@ -57,7 +57,7 @@ Erreurs API 422 mappées dans les champs par la vue. Thème facturia (daisyUI).
           SIRET <span class="font-normal text-base-content/40">(optionnel)</span>
         </label>
         <div class="join w-full">
-          <input type="text" name="siret" id="siret" inputmode="numeric" maxlength="14"
+          <input type="text" name="siret" id="siret" inputmode="numeric" maxlength="20"
                  value="{{ form.siret.value|default:'' }}" placeholder="14 chiffres"
                  class="input join-item w-full min-w-0">
           {# `formnovalidate` : la recherche ne doit pas buter sur le champ nom #}

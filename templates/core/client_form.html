@@ -54,7 +54,7 @@ n'apparaît qu'en édition (couvre la réactivation d'un client désactivé).
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
                 <label for="siret" class="block text-sm font-medium mb-1">SIRET <span class="text-base-content/50 font-normal">(optionnel)</span></label>
-                <input type="text" id="siret" name="siret" maxlength="14" inputmode="numeric"
+                <input type="text" id="siret" name="siret" maxlength="20" inputmode="numeric"
                        value="{{ form.siret.value|default:'' }}" class="input w-full">
                 {% if form.siret.errors %}<p class="mt-1 text-xs text-error">{{ form.siret.errors.0 }}</p>{% endif %}
             </div>

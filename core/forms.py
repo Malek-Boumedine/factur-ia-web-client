@@ -3,6 +3,7 @@ import re
 from django import forms
 
 from core.constants import TYPES_PRODUIT
+from core.normalization import normalize_siret
 
 
 class SignUpForm(forms.Form):
@@ -63,10 +64,12 @@ class EntrepriseForm(forms.Form):
     """
 
     nom_entreprise = forms.CharField(max_length=255)
-    siret = forms.CharField(max_length=14, required=False)
+    # Pas de `max_length` : un SIRET copié avec séparateurs dépasse 14
+    # caractères et serait rejeté avant d'avoir pu être normalisé.
+    siret = forms.CharField(required=False)
 
     def clean_siret(self):
-        value = (self.cleaned_data.get("siret") or "").strip()
+        value = normalize_siret(self.cleaned_data.get("siret"))
         if value and not re.fullmatch(r"\d{14}", value):
             raise forms.ValidationError(
                 "Le SIRET doit comporter exactement 14 chiffres."
@@ -289,7 +292,9 @@ class ClientForm(forms.Form):
     """
 
     raison_sociale = forms.CharField(max_length=255)
-    siret = forms.CharField(max_length=14, required=False)
+    # Pas de `max_length` : un SIRET copié avec séparateurs dépasse 14
+    # caractères et serait rejeté avant d'avoir pu être normalisé.
+    siret = forms.CharField(required=False)
     numero_tva = forms.CharField(max_length=20, required=False)
     adresse = forms.CharField(max_length=255, required=False)
     adresse_complement = forms.CharField(max_length=255, required=False)
@@ -315,7 +320,7 @@ class ClientForm(forms.Form):
             del self.fields["est_actif"]
 
     def clean_siret(self):
-        value = (self.cleaned_data.get("siret") or "").strip()
+        value = normalize_siret(self.cleaned_data.get("siret"))
         if value and not re.fullmatch(r"\d{14}", value):
             raise forms.ValidationError(
                 "Le SIRET doit comporter exactement 14 chiffres."
@@ -457,8 +462,8 @@ class EntrepriseAdminForm(forms.Form):
         self.fields["id_forme_juridique"].choices = list(forme_juridique_choices)
 
     def clean_siret(self):
-        """Normalise le SIRET : espaces retirés, 14 chiffres exigés."""
-        siret = (self.cleaned_data.get("siret") or "").replace(" ", "")
+        """Normalise le SIRET : séparateurs retirés, 14 chiffres exigés."""
+        siret = normalize_siret(self.cleaned_data.get("siret"))
         if siret and (len(siret) != 14 or not siret.isdigit()):
             raise forms.ValidationError("Le SIRET doit comporter 14 chiffres.")
         return siret

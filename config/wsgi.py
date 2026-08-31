@@ -17,4 +17,10 @@ load_dotenv()
 env = os.getenv("DJANGO_ENV", "dev")
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", f"config.settings.{env}")
 
+# Télémétrie (no-op si OTEL_ENABLED/OTEL_METRICS_ENABLED sont absents) :
+# posée avant la création de l'application pour instrumenter dès le départ.
+from config.telemetry import setup_telemetry  # noqa: E402
+
+setup_telemetry()
+
 application = get_wsgi_application()
