@@ -34,6 +34,31 @@ En **développement** : cache Redis. En **production** : base de données. Dans 
 
 **Expiration détectée deux fois** : en amont, un intergiciel purge la session dès que le jeton est expiré ; en aval, tout refus de l'API vide la session et redirige vers la connexion.
 
+### Le parcours d'une facture
+
+```mermaid
+sequenceDiagram
+    actor U as Utilisateur
+    participant W as Client web
+    participant D as API data
+    participant IA as API IA
+    participant C as Chorus Pro
+
+    U->>W: Dépose un document
+    W->>D: Relais du fichier, sans stockage local
+    D->>IA: Demande d'extraction, asynchrone
+    W-->>U: Écran d'attente
+    IA-->>D: Champs extraits et scores de confiance
+    U->>W: Ouvre la facture pré-remplie
+    Note over U,W: Relecture assistée :<br>les champs peu fiables sont signalés
+    W->>D: Recherche du destinataire, rattachement du client
+    U->>W: Valide
+    W->>D: Validation et numérotation
+    U->>W: Transmet
+    W->>D: Génération du format réglementaire
+    D->>C: Dépôt
+```
+
 ## Installation
 
 ```bash
