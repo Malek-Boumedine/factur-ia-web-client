@@ -4,6 +4,8 @@ Client web de **Factur-IA**, solution de dématérialisation de factures : dép�
 
 Application **Django 6 / Python 3.13** en rendu serveur, construite comme un **BFF** (Backend-For-Frontend) : elle ne stocke aucune donnée métier, authentifie l'utilisateur auprès de l'API data, garde le jeton en session côté serveur et relaie tous les appels.
 
+**Application déployée** : <https://factur-ia-web-1082333141755.europe-west9.run.app>
+
 ## Architecture
 
 | Service | Rôle | Dépôt |
